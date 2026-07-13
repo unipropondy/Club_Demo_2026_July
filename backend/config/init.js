@@ -246,7 +246,13 @@ async function initDB(pool) {
     await runQuery("AppSettings - EnableGuestDetailsPopup", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'EnableGuestDetailsPopup') ALTER TABLE [dbo].[AppSettings] ADD EnableGuestDetailsPopup BIT NOT NULL DEFAULT 1");
     await runQuery("AppSettings - EnableCashDrawer", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'EnableCashDrawer') ALTER TABLE [dbo].[AppSettings] ADD EnableCashDrawer BIT NOT NULL DEFAULT 1");
     await runQuery("RestaurantOrderCur - TakeawayCharge", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderCur]') AND name = 'TakeawayCharge') ALTER TABLE [dbo].[RestaurantOrderCur] ADD TakeawayCharge DECIMAL(18, 2) DEFAULT 0");
+    await runQuery("RestaurantOrderCur - TakeawayChargeOverride", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderCur]') AND name = 'TakeawayChargeOverride') ALTER TABLE [dbo].[RestaurantOrderCur] ADD TakeawayChargeOverride INT DEFAULT 0");
+    await runQuery("RestaurantOrderCur - ServiceChargeOverride", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderCur]') AND name = 'ServiceChargeOverride') ALTER TABLE [dbo].[RestaurantOrderCur] ADD ServiceChargeOverride INT DEFAULT 0");
+
     await runQuery("RestaurantOrder - TakeawayCharge", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrder]') AND name = 'TakeawayCharge') ALTER TABLE [dbo].[RestaurantOrder] ADD TakeawayCharge DECIMAL(18, 2) DEFAULT 0");
+    await runQuery("RestaurantOrder - TakeawayChargeOverride", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrder]') AND name = 'TakeawayChargeOverride') ALTER TABLE [dbo].[RestaurantOrder] ADD TakeawayChargeOverride INT DEFAULT 0");
+    await runQuery("RestaurantOrder - ServiceChargeOverride", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrder]') AND name = 'ServiceChargeOverride') ALTER TABLE [dbo].[RestaurantOrder] ADD ServiceChargeOverride INT DEFAULT 0");
+
     await runQuery("SettlementHeader - TakeawayCharge", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'TakeawayCharge') ALTER TABLE [dbo].[SettlementHeader] ADD TakeawayCharge DECIMAL(18, 2) DEFAULT 0");
 
     // 11. OrderMergeHistory Setup
