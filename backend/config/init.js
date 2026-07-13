@@ -975,6 +975,18 @@ async function syncKitchensToPrintMaster(pool) {
       console.log("🛠️ [KitchenSync] Auto-created default TakeAway Printer in PrintMaster.");
     }
 
+    // --- 2.5 Ensure default KDS Printer (PrinterType = 4) ---
+    const kdsCheck = await pool.request()
+      .query("SELECT COUNT(*) as cnt FROM PrintMaster WHERE PrinterType = 4 AND IsActive = 1");
+    if (kdsCheck.recordset[0].cnt === 0) {
+      await pool.request()
+        .query(`
+          INSERT INTO PrintMaster (PrinterId, PrinterName, PrinterPath, PrinterIP, PrinterType, PrintSection, KitchenTypeName, KitchenTypeValue, IsActive, PrintCopy)
+          VALUES (NEWID(), 'KDS Printer', '', '', 4, 1, 'KDS Printer', 9, 1, 1)
+        `);
+      console.log("🛠️ [KitchenSync] Auto-created default KDS Printer in PrintMaster.");
+    }
+
     // --- 3. Fetch ALL active categories with their current KitchenTypeCode ---
     const activeCatsResult = await pool.request().query(`
       SELECT
