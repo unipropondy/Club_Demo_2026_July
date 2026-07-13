@@ -246,6 +246,16 @@ async function initDB(pool) {
     await runQuery("AppSettings - EnableGuestDetailsPopup", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'EnableGuestDetailsPopup') ALTER TABLE [dbo].[AppSettings] ADD EnableGuestDetailsPopup BIT NOT NULL DEFAULT 1");
     await runQuery("AppSettings - EnableCashDrawer", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'EnableCashDrawer') ALTER TABLE [dbo].[AppSettings] ADD EnableCashDrawer BIT NOT NULL DEFAULT 1");
     await runQuery("AppSettings - ShowBillTime", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'ShowBillTime') ALTER TABLE [dbo].[AppSettings] ADD ShowBillTime BIT NOT NULL DEFAULT 1");
+    
+    // Paymode Columns Self-healing
+    await runQuery("Paymode - DeviceSN", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Paymode]') AND name = 'DeviceSN') ALTER TABLE [dbo].[Paymode] ADD DeviceSN NVARCHAR(255) NULL");
+    await runQuery("Paymode - DeviceSalt", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Paymode]') AND name = 'DeviceSalt') ALTER TABLE [dbo].[Paymode] ADD DeviceSalt NVARCHAR(255) NULL");
+    await runQuery("Paymode - YeahPayEnabled", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Paymode]') AND name = 'YeahPayEnabled') ALTER TABLE [dbo].[Paymode] ADD YeahPayEnabled BIT NOT NULL DEFAULT 0");
+    await runQuery("Paymode - ServiceCharge", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Paymode]') AND name = 'ServiceCharge') ALTER TABLE [dbo].[Paymode] ADD ServiceCharge DECIMAL(18, 2) NOT NULL DEFAULT 0");
+    await runQuery("Paymode - IsEntertainment", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Paymode]') AND name = 'IsEntertainment') ALTER TABLE [dbo].[Paymode] ADD IsEntertainment BIT NOT NULL DEFAULT 0");
+    await runQuery("Paymode - IsVoucher", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Paymode]') AND name = 'IsVoucher') ALTER TABLE [dbo].[Paymode] ADD IsVoucher BIT NOT NULL DEFAULT 0");
+    await runQuery("Paymode - Set YeahPayEnabled for YeahPay modes", "UPDATE [dbo].[Paymode] SET YeahPayEnabled = 1 WHERE LTRIM(RTRIM(PayMode)) IN ('Yeahpay Paynow', 'Yeahpay Card')");
+
     await runQuery("RestaurantOrderCur - TakeawayCharge", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderCur]') AND name = 'TakeawayCharge') ALTER TABLE [dbo].[RestaurantOrderCur] ADD TakeawayCharge DECIMAL(18, 2) DEFAULT 0");
     await runQuery("RestaurantOrderCur - TakeawayChargeOverride", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderCur]') AND name = 'TakeawayChargeOverride') ALTER TABLE [dbo].[RestaurantOrderCur] ADD TakeawayChargeOverride INT DEFAULT 0");
     await runQuery("RestaurantOrderCur - ServiceChargeOverride", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderCur]') AND name = 'ServiceChargeOverride') ALTER TABLE [dbo].[RestaurantOrderCur] ADD ServiceChargeOverride INT DEFAULT 0");
