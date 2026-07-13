@@ -749,6 +749,40 @@ async function initDB(pool) {
       END
     `);
 
+    // 26.1 Create LoyaltyCampaign table
+    await runQuery("Create LoyaltyCampaign table", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LoyaltyCampaign]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[LoyaltyCampaign](
+              [CampaignId] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+              [Name] NVARCHAR(100) NOT NULL,
+              [StartDate] DATETIME NOT NULL,
+              [EndDate] DATETIME NOT NULL,
+              [IsActive] BIT NOT NULL DEFAULT 1,
+              [CreatedOn] DATETIME DEFAULT GETDATE()
+          )
+      END
+    `);
+
+    // 26.2 Create LoyaltyRule table
+    await runQuery("Create LoyaltyRule table", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LoyaltyRule]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[LoyaltyRule](
+              [RuleId] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+              [CampaignId] UNIQUEIDENTIFIER NOT NULL FOREIGN KEY REFERENCES LoyaltyCampaign(CampaignId) ON DELETE CASCADE,
+              [LoyaltyType] NVARCHAR(50) NOT NULL DEFAULT 'Dish',
+              [PurchaseDishId] UNIQUEIDENTIFIER NULL,
+              [PurchaseDishGroupId] UNIQUEIDENTIFIER NULL,
+              [RewardDishId] UNIQUEIDENTIFIER NULL,
+              [RewardDishGroupId] UNIQUEIDENTIFIER NULL,
+              [RequiredBills] INT NOT NULL DEFAULT 1,
+              [IsActive] BIT NOT NULL DEFAULT 1,
+              [CreatedOn] DATETIME DEFAULT GETDATE()
+          )
+      END
+    `);
+
     // 25.1. Loyalty tables schema/columns migrations (Phase 1)
     await runQuery("Migration - LoyaltyRule Type & PurchaseDishGroupId & RewardDishGroupId", `
       IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LoyaltyRule]') AND type in (N'U'))
