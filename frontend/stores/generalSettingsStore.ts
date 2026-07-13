@@ -15,6 +15,7 @@ export interface GeneralSettings {
   SVCIdentification: boolean;
   enableKDSPrint: boolean;
   enableCombo: boolean;
+  showBillTime: boolean;
 }
 
 interface GeneralSettingsState {
@@ -39,6 +40,7 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
         SVCIdentification: true,
         enableKDSPrint: true,
         enableCombo: true,
+        showBillTime: true,
       },
       loading: false,
 
@@ -63,6 +65,7 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
                 SVCIdentification: data.SVCIdentification !== undefined ? Boolean(data.SVCIdentification) : true,
                 enableKDSPrint: data.EnableKDSPrint !== undefined ? Boolean(data.EnableKDSPrint) : true,
                 enableCombo: data.EnableCombo !== undefined ? Boolean(data.EnableCombo) : true,
+                showBillTime: data.ShowBillTime !== undefined ? Boolean(data.ShowBillTime) : true,
               },
             }));
           }
@@ -103,6 +106,7 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
             SVCIdentification: updatedSettings.SVCIdentification,
             enableKDSPrint: updatedSettings.enableKDSPrint,
             enableCombo: updatedSettings.enableCombo,
+            showBillTime: updatedSettings.showBillTime,
           };
 
           const res = await fetch(`${API_URL}/api/settings/update`, {

@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { API_URL } from '@/constants/Config';
 import { formatToSingaporeDate, formatToSingaporeTime, parseDatabaseDate } from '../utils/timezoneHelper';
+import { useGeneralSettingsStore } from '../stores/generalSettingsStore';
 
 interface CompanySettings {
   name: string;
@@ -757,7 +758,13 @@ private static escapeHtml(str: string): string {
             <div class="detail-row">
               <span class="detail-label">DATE:</span>
               <span class="detail-value">
-                ${formatToSingaporeDate(saleDate, { day: '2-digit', month: '2-digit', year: 'numeric' })} ${formatToSingaporeTime(saleDate)}
+                ${(() => {
+                  const { showBillTime } = useGeneralSettingsStore.getState().settings;
+                  const displayTime = showBillTime !== false;
+                  const dateStr = formatToSingaporeDate(saleDate, { day: '2-digit', month: '2-digit', year: 'numeric' });
+                  const timeStr = displayTime ? ` ${formatToSingaporeTime(saleDate)}` : "";
+                  return `${dateStr}${timeStr}`;
+                })()}
               </span>
             </div>
             

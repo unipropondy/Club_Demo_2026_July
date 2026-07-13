@@ -11,6 +11,7 @@ import BillPDFGenerator from "./BillPDFGenerator";
 import { PrinterDetector } from "./PrinterDetector";
 import SunmiPrinterService from "./SunmiPrinterService";
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
+import { useGeneralSettingsStore } from "../stores/generalSettingsStore";
 
 // Printer types
 export type PrinterType =
@@ -1648,7 +1649,10 @@ class UniversalPrinter {
       text += `[L]<font size=\'big\'><B>TABLE: ${saleData.tableNo}</B></font>\n`;
     }
     const dateFormatted = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: 'numeric' }).format(saleDate);
-    text += `[L]Date: ${dateFormatted} ${formatToSingaporeTime(saleDate)}\n`;
+    const { showBillTime } = useGeneralSettingsStore.getState().settings;
+    const displayTime = showBillTime !== false;
+    const timeFormatted = displayTime ? ` ${formatToSingaporeTime(saleDate)}` : "";
+    text += `[L]Date: ${dateFormatted}${timeFormatted}\n`;
     if (saleData.waiterName && saleData.waiterName !== "Staff") {
       text += `[L]Waiter: ${saleData.waiterName}\n`;
     }

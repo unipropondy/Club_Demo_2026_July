@@ -100,6 +100,7 @@ export default function GeneralSettingsModal({
   const [SVCIdentification, setSVCIdentification] = useState(settings.SVCIdentification !== undefined ? settings.SVCIdentification : true);
   const [enableKDSPrint, setEnableKDSPrint] = useState(settings.enableKDSPrint !== undefined ? settings.enableKDSPrint : true);
   const [enableCombo, setEnableCombo] = useState(settings.enableCombo !== undefined ? settings.enableCombo : true);
+  const [showBillTime, setShowBillTime] = useState(settings.showBillTime !== undefined ? settings.showBillTime : true);
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordValue, setPasswordValue] = useState("");
@@ -185,6 +186,7 @@ export default function GeneralSettingsModal({
       setSVCIdentification(settings.SVCIdentification !== undefined ? settings.SVCIdentification : true);
       setEnableKDSPrint(settings.enableKDSPrint !== undefined ? settings.enableKDSPrint : true);
       setEnableCombo(settings.enableCombo !== undefined ? settings.enableCombo : true);
+      setShowBillTime(settings.showBillTime !== undefined ? settings.showBillTime : true);
       
       let initialCheckoutFlow = settings.enableCheckoutFlow;
       let initialDirectProcess = settings.enableDirectProcessToPay;
@@ -258,6 +260,7 @@ export default function GeneralSettingsModal({
       SVCIdentification,
       enableKDSPrint,
       enableCombo,
+      showBillTime,
     });
     
     setIsSaving(false);
@@ -464,6 +467,20 @@ export default function GeneralSettingsModal({
                 <Text style={styles.settingDesc}>Enable combo menu items and selections wizard.</Text>
               </View>
               <CustomSwitch value={enableCombo} onValueChange={setEnableCombo} />
+            </View>
+
+            {/* CARD 12: Show Bill Time */}
+            <View style={[styles.settingCard, showBillTime && styles.settingCardActive]}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={[styles.iconWrapper, showBillTime ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
+                    <Ionicons name="time-outline" size={16} color={showBillTime ? Theme.primary : Theme.textSecondary} />
+                  </View>
+                  <Text style={styles.settingTitle}>Show Bill Time</Text>
+                </View>
+                <Text style={styles.settingDesc}>Print time on Checkout Bill and Re-print Bill.</Text>
+              </View>
+              <CustomSwitch value={showBillTime} onValueChange={setShowBillTime} />
             </View>
           </ScrollView>
 

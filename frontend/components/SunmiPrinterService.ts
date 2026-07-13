@@ -3,6 +3,7 @@ import { Platform, NativeModules } from "react-native";
 import { API_URL } from "../constants/Config";
 import { formatToSingaporeDate, formatToSingaporeTime, parseDatabaseDate } from "../utils/timezoneHelper";
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
+import { useGeneralSettingsStore } from "../stores/generalSettingsStore";
 
 const { SunmiPrinterDetector } = NativeModules;
 
@@ -388,14 +389,16 @@ class SunmiPrinterService {
       const saleDate = saleData.originalDate ? parseDatabaseDate(saleData.originalDate) : 
                        saleData.date ? parseDatabaseDate(saleData.date) : 
                        new Date();
+      const { showBillTime } = useGeneralSettingsStore.getState().settings;
+      const displayTime = showBillTime !== false;
       const dateStr = formatToSingaporeDate(saleDate, { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const timeStr = formatToSingaporeTime(saleDate);
+      const timeStr = displayTime ? ` ${formatToSingaporeTime(saleDate)}` : "";
 
       await SunmiModule.printText(formatter.left(`INVOICE NO: ${saleData.invoiceNumber || saleData.id}`));
       if (saleData.tableNo) {
         await SunmiModule.printText(formatter.left(`TABLE NO: ${saleData.tableNo}`));
       }
-      await SunmiModule.printText(formatter.left(`DATE: ${dateStr} ${timeStr}`));
+      await SunmiModule.printText(formatter.left(`DATE: ${dateStr}${timeStr}`));
       if (saleData.waiterName && saleData.waiterName !== "Staff") {
         await SunmiModule.printText(formatter.left(`WAITER: ${saleData.waiterName}`));
       }
