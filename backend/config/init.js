@@ -542,6 +542,25 @@ async function initDB(pool) {
     // 19. dishOrderItemShare updates
     await runQuery("dishOrderItemShare - TargetAmount", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[dishOrderItemShare]') AND name = 'TargetAmount') ALTER TABLE [dbo].[dishOrderItemShare] ADD TargetAmount DECIMAL(18, 2) DEFAULT 0");
 
+    // 19.2 Create ArtistCashBox table
+    await runQuery("Create ArtistCashBox table", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ArtistCashBox]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[ArtistCashBox](
+              [CashBoxId] UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
+              [ArtistName] NVARCHAR(255) NOT NULL,
+              [Amount] DECIMAL(18, 2) NOT NULL,
+              [CreatedDate] DATETIME DEFAULT GETDATE(),
+              [SettlementID] UNIQUEIDENTIFIER NULL,
+              [start_date] DATE NULL
+          )
+      END
+    `);
+
+    // Ensure columns exist on ArtistCashBox if it was pre-existing
+    await runQuery("ArtistCashBox - SettlementID", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[ArtistCashBox]') AND name = 'SettlementID') ALTER TABLE [dbo].[ArtistCashBox] ADD SettlementID UNIQUEIDENTIFIER NULL");
+    await runQuery("ArtistCashBox - start_date", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[ArtistCashBox]') AND name = 'start_date') ALTER TABLE [dbo].[ArtistCashBox] ADD start_date DATE NULL");
+
     // 19.1 Create DateEntry table for Day Start/Day End tracking
     await runQuery("Create DateEntry table", `
       IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DateEntry]') AND type in (N'U'))

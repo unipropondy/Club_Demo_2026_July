@@ -778,6 +778,30 @@ router.delete('/cash-out/:id', authenticateToken, async (req, res) => {
 });
 
 
+// GET Artist Cash Box entries
+router.get('/artist-cashbox', authenticateToken, async (req, res) => {
+  try {
+    const { fromDate, toDate } = req.query;
+    const pool = getPool();
+    const request = pool.request();
+
+    let query = `SELECT * FROM ArtistCashBox`;
+    if (fromDate && toDate) {
+      request.input('fromDate', sql.DateTime, new Date(fromDate));
+      request.input('toDate', sql.DateTime, new Date(toDate));
+      query += ` WHERE CreatedDate >= @fromDate AND CreatedDate <= @toDate`;
+    }
+    query += ` ORDER BY CreatedDate DESC`;
+
+    const result = await request.query(query);
+    res.json({ success: true, data: result.recordset || [] });
+  } catch (err) {
+    console.error('Error fetching artist cashbox:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 // POST Cash Box Entry
 router.post('/artist-cashbox', authenticateToken, async (req, res) => {
   try {
@@ -828,6 +852,21 @@ router.post('/artist-cashbox', authenticateToken, async (req, res) => {
       const crypto = require('crypto');
 
       const settlementId = crypto.randomUUID();
+
+      console.log('[CASHBOX] STEP 2b: Inserting into ArtistCashBox...');
+      const cashboxId = crypto.randomUUID();
+      await transaction.request()
+        .input('CashBoxId', sql.UniqueIdentifier, cashboxId)
+        .input('ArtistName', sql.VarChar, ArtistName)
+        .input('Amount', sql.Decimal(18, 2), Amount)
+        .input('SettlementID', sql.UniqueIdentifier, settlementId)
+        .input('startDate', sql.Date, formattedStartDate)
+        .query(`
+          INSERT INTO ArtistCashBox (CashBoxId, ArtistName, Amount, CreatedDate, SettlementID, start_date)
+          VALUES (@CashBoxId, @ArtistName, @Amount, GETDATE(), @SettlementID, @startDate)
+        `);
+      console.log('[CASHBOX] STEP 2b OK');
+
       const dateStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' }).replace(/-/g, '');
       const billNo = `CB-${dateStr}-${Math.floor(1000 + Math.random() * 9000)}`;
 

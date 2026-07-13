@@ -2245,7 +2245,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             />
                             <Text style={styles.btnText}>
                               {(enableCheckoutFlow === true && enableDirectProcessToPay === false)
-                                ? (isPhone ? "Send" : (!isLandscape ? "Send Kitchen" : "Send to Kitchen"))
+                                ? (isPhone ? "Send" : (!isLandscape ? "Send Deck" : "Send to Deck"))
                                 : (enableCheckoutFlow === false && enableDirectProcessToPay === true)
                                   ? (!isPhone ? "Process to Pay" : "Pay")
                                   : "Checkout"}

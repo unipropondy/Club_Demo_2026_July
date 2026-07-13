@@ -632,6 +632,9 @@ export default function SettlementScreen() {
     PaymentMode: 'Cash',
     ReferenceNo: ''
   });
+
+  // Cash Box State
+  const [cashBoxEntries, setCashBoxEntries] = useState<any[]>([]);
 const [cashBoxForm, setCashBoxForm] = useState({
   ArtistName: '',
   Amount: ''
@@ -771,6 +774,7 @@ const loadDishes = async () => {
       const closeDenomsRes = await axios.get(`${API_URL}/api/settlement/denominations?type=CLOSE&date=${dateStr}&screenType=CB`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
       const cashOutRes = await axios.get(`${API_URL}/api/settlement/cash-out/${selectedTerminal}?fromDate=${fromStr}&toDate=${toStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
       const cashInRes = await axios.get(`${API_URL}/api/settlement/cash-in/${selectedTerminal}?fromDate=${fromStr}&toDate=${toStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const cashBoxRes = await axios.get(`${API_URL}/api/settlement/artist-cashbox?fromDate=${fromStr}&toDate=${toStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
 
       setTotalSales(totalRes.data || {});
       setPayments(payRes.data || []);
@@ -778,6 +782,7 @@ const loadDishes = async () => {
       setSales(salesRes.data || []);
       setCashOutEntries(cashOutRes.data?.data || []);
       setCashInEntries(cashInRes.data?.data || []);
+      setCashBoxEntries(cashBoxRes.data?.data || []);
 
       if (openRes.data?.data?.total) {
         setOpeningCash(openRes.data.data.total.toString());
@@ -833,6 +838,7 @@ const loadDishes = async () => {
   const displayOpeningAmount = totalOpening > 0 ? totalOpening : (parseFloat(openingCash) || 0);
   const totalCashOut = cashOutEntries.reduce((sum, entry) => sum + (parseFloat(entry.Amount) || 0), 0);
   const totalCashInEntries = cashInEntries.reduce((sum, entry) => sum + (parseFloat(entry.Amount) || 0), 0);
+  const totalCashBoxEntries = cashBoxEntries.reduce((sum, entry) => sum + (parseFloat(entry.Amount) || 0), 0);
   const cashBoxTotal = payments
     .filter(p => p.PaymodeName?.toUpperCase().includes("CASH BOX") || p.PaymodeName?.toUpperCase().includes("CASHBOX"))
     .reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0);
@@ -1053,6 +1059,7 @@ const loadDishes = async () => {
     });
 
     setShowCashBoxModal(false);
+    fetchData();
 
   } catch (err) {
     console.log(err);
@@ -1720,6 +1727,19 @@ const loadDishes = async () => {
                 <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: Theme.danger, marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(totalCashOut)}</Text>
               </TouchableOpacity>
 
+              <TouchableOpacity
+                style={[styles.card, { flex: isTablet ? 1 : undefined, minWidth: isTablet ? 0 : '48%', flexGrow: 1, padding: isTablet ? 15 : 10, alignItems: 'center', justifyContent: 'center', backgroundColor: "#fffbeb", borderColor: "#fde68a", borderWidth: 1 }]}
+                onPress={() => {
+                  setShowCashBoxModal(true);
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="cube-outline" size={isTablet ? 16 : 14} color="#d97706" />
+                  <Text style={{ fontFamily: Fonts.bold, color: "#d97706", fontSize: isTablet ? 12 : 11 }}>Cash Box</Text>
+                </View>
+                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: "#b45309", marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(totalCashBoxEntries)}</Text>
+              </TouchableOpacity>
+
               <View style={[styles.card, { flex: isTablet ? 1 : undefined, minWidth: isTablet ? 0 : '48%', flexGrow: 1, padding: isTablet ? 15 : 10, alignItems: 'center', justifyContent: 'center', backgroundColor: Theme.successBg, borderColor: Theme.successBorder, borderWidth: 1 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="trending-up-outline" size={isTablet ? 16 : 14} color={Theme.success} />
@@ -2291,6 +2311,74 @@ const loadDishes = async () => {
               <TouchableOpacity
                 style={[styles.confirmBtn, { flex: 1 }]}
                 onPress={handleSaveCashIn}
+              >
+                <Text style={styles.confirmBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+
+      {/* Cash Box Modal */}
+      <Modal
+        visible={showCashBoxModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCashBoxModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setShowCashBoxModal(false)}
+          />
+          <View style={[styles.modalContent, { maxWidth: 500, width: '90%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Artist Cash Box</Text>
+              <TouchableOpacity onPress={() => setShowCashBoxModal(false)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={20} color={Theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalDivider} />
+
+            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingVertical: 5 }} showsVerticalScrollIndicator={false}>
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 13, marginBottom: 6, color: Theme.textSecondary }}>Artist Name *</Text>
+                <TouchableOpacity
+                  style={[styles.premiumInput, { justifyContent: 'center', height: 44 }]}
+                  onPress={() => setShowDishLov(true)}
+                >
+                  <Text style={{ fontFamily: Fonts.medium, fontSize: 14, color: cashBoxForm.ArtistName ? Theme.textPrimary : Theme.textMuted }}>
+                    {cashBoxForm.ArtistName || "Select Artist..."}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 13, marginBottom: 6, color: Theme.textSecondary }}>Amount *</Text>
+                <TextInput
+                  style={[styles.premiumInput, { textAlign: 'right', fontSize: 18, fontFamily: Fonts.medium }]}
+                  keyboardType="numeric"
+                  value={cashBoxForm.Amount}
+                  onChangeText={(v) => setCashBoxForm({ ...cashBoxForm, Amount: v })}
+                  placeholder="0.00"
+                  placeholderTextColor={Theme.textMuted}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={[styles.modalFooter, { flexDirection: 'row', gap: 10 }]}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { flex: 1, backgroundColor: Theme.bgMuted }]}
+                onPress={() => setCashBoxForm({ ArtistName: '', Amount: '' })}
+              >
+                <Text style={[styles.confirmBtnText, { color: Theme.textPrimary }]}>Clear Form</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { flex: 1 }]}
+                onPress={handleSaveCashBox}
               >
                 <Text style={styles.confirmBtnText}>Save</Text>
               </TouchableOpacity>

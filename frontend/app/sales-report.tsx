@@ -1634,7 +1634,7 @@ export default function SalesReport() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ minWidth: "100%" }}
           >
-            <View style={[styles.reportTable, isArtistTarget && { minWidth: 700 }, isDishReport && { minWidth: 600 }]}>
+            <View style={[styles.reportTable, isArtistTarget && { minWidth: 800 }, isDishReport && { minWidth: 600 }]}>
               <View style={styles.reportTableHeader}>
                 <Text style={[styles.reportCell, styles.snoCell]}>S/N</Text>
                 {isSettlement ? (
@@ -2328,6 +2328,27 @@ export default function SalesReport() {
             ]}
           >
             Item Sales Report
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleReportPress("ARTIST_TARGET")}
+          style={[
+            styles.reportSwitchBtn,
+            detailReportType === "ARTIST_TARGET" && styles.activeReportSwitchBtn,
+          ]}
+        >
+          <Ionicons
+            name="ribbon-outline"
+            size={16}
+            color={detailReportType === "ARTIST_TARGET" ? "#fff" : Theme.primary}
+          />
+          <Text
+            style={[
+              styles.reportSwitchText,
+              detailReportType === "ARTIST_TARGET" && styles.activeReportSwitchText,
+            ]}
+          >
+            Artist Target
           </Text>
         </TouchableOpacity>
       </View>
@@ -4366,7 +4387,7 @@ const styles = StyleSheet.create({
     textAlign: "left",
   },
   sysAmtCell: {
-    width: 90,
+    width: 120,
     textAlign: "right",
     flexShrink: 0,
   },
