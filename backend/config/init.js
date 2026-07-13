@@ -749,6 +749,21 @@ async function initDB(pool) {
       END
     `);
 
+    // 26.0 Create CustomerDishLoyaltyState table
+    await runQuery("Create CustomerDishLoyaltyState table", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CustomerDishLoyaltyState]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[CustomerDishLoyaltyState](
+              [CustomerId] UNIQUEIDENTIFIER NOT NULL,
+              [RuleId] UNIQUEIDENTIFIER NOT NULL,
+              [CurrentCount] INT NOT NULL DEFAULT 0,
+              [RewardsAvailable] INT NOT NULL DEFAULT 0,
+              [RewardCyclesCompleted] INT NOT NULL DEFAULT 0,
+              PRIMARY KEY ([CustomerId], [RuleId])
+          )
+      END
+    `);
+
     // 26.1 Create LoyaltyCampaign table
     await runQuery("Create LoyaltyCampaign table", `
       IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LoyaltyCampaign]') AND type in (N'U'))
