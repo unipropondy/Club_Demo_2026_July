@@ -215,15 +215,40 @@ const OrderCard = React.memo(function OrderCard({ item, cardHeight, pulseAnim, g
                   <View style={[styles.itemTextWrap, { marginLeft: 10 }]}>
                     <View style={styles.itemTitleRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, flexWrap: 'wrap' }}>
-                        <Text 
-                          style={[
-                            styles.itemName, 
-                            (i.status === "VOIDED" || String(i.note || "").toUpperCase().includes("VOID")) && styles.itemVoided
-                          ]} 
-                          numberOfLines={2}
-                        >
-                          {i.name}
-                        </Text>
+                        {(() => {
+                          const parts = (i.name || "").split(" - ");
+                          const isVoided = i.status === "VOIDED" || String(i.note || "").toUpperCase().includes("VOID");
+                          if (parts.length > 1) {
+                            const groupName = parts[0];
+                            const dishName = parts.slice(1).join(" - ");
+                            return (
+                              <Text 
+                                style={[
+                                  styles.itemName, 
+                                  isVoided && styles.itemVoided
+                                ]}
+                                numberOfLines={2}
+                              >
+                                <Text style={{ fontFamily: Fonts.bold, color: isVoided ? Theme.textMuted : Theme.textSecondary }}>
+                                  {groupName}
+                                </Text>
+                                <Text style={{ color: Theme.textSecondary }}> • </Text>
+                                <Text style={{ color: isVoided ? Theme.textMuted : Theme.textPrimary }}>{dishName}</Text>
+                              </Text>
+                            );
+                          }
+                          return (
+                            <Text 
+                              style={[
+                                styles.itemName, 
+                                isVoided && styles.itemVoided
+                              ]} 
+                              numberOfLines={2}
+                            >
+                              {i.name}
+                            </Text>
+                          );
+                        })()}
                         {(!!i.isTakeaway || !!i.IsTakeaway || !!i.isTakeAway || !!i.IsTakeAway) && (
                           <View style={styles.takeawayBadge}>
                             <Ionicons name="bag-handle" size={12} color="#FFF" />

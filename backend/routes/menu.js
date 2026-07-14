@@ -110,7 +110,7 @@ router.get("/dishes/all", async (req, res) => {
     const pool = await poolPromise;
     const result = await pool.request().query(`
       SELECT 
-        d.DishId, d.Name, d.DishGroupId, d.currentcost AS Price,
+        d.DishId, d.Name, d.DishGroupId, dgm.DishGroupName AS DishGroupName, d.currentcost AS Price,
         d.DishCode, d.Description,
         d.Imageid AS Image, CASE WHEN d.Imageid IS NOT NULL THEN 1 ELSE 0 END AS HasImage,
         ISNULL(d.IsOpenItem, 0) AS IsOpenItem,
@@ -153,6 +153,7 @@ router.get("/dishes/group/:DishGroupId", async (req, res) => {
               d.DishId,
               d.Name,
               d.DishGroupId,
+              dgm.DishGroupName AS DishGroupName,
               d.currentcost AS Price,
               d.DishCode,
               d.Description,

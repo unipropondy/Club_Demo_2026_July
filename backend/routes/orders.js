@@ -999,7 +999,7 @@ router.post("/send", async (req, res) => {
         const dbItems = await transaction
           .request()
           .input("tableNo", sql.VarChar(20), cleanId).query(`SELECT 
-            d.OrderDetailId as lineItemId, d.DishId as id, dish.Name as name,
+            d.OrderDetailId as lineItemId, d.DishId as id, ISNULL(NULLIF(d.DishName,''), dish.Name) as name,
             d.Quantity as qty, d.PricePerUnit as price, d.StatusCode, 
             d.ModifiersJSON, d.Remarks as note, d.isTakeAway as isTakeaway,
             ISNULL(d.DiscountAmount, 0) as discount,
@@ -1767,7 +1767,7 @@ router.get("/active-kitchen", async (req, res) => {
       SELECT 
         d.OrderDetailId as lineItemId, d.DishId as id, d.Quantity as qty, d.StatusCode, 
         d.PricePerUnit as price,
-        h.OrderNumber as orderId, dish.Name as name, h.Tableno as tableNo, 
+        h.OrderNumber as orderId, ISNULL(NULLIF(d.DishName,''), dish.Name) as name, h.Tableno as tableNo, 
         d.Remarks as note, d.ModifiersJSON, d.ComboDetailsJSON, d.isTakeAway, DATEDIFF(SECOND, d.CreatedOn, GETDATE()) as elapsedSeconds,
         ISNULL(ckt.KitchenTypeCode, '0') as KitchenTypeCode, 
         ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') as KitchenTypeName,

@@ -544,17 +544,44 @@ const CartItemRow = React.memo(
                 }}
               >
                 <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.itemName,
-                      (isSent || isVoided) && styles.textMuted,
-                      isVoided && styles.strikeThrough,
-                      isPhone && { fontSize: 13, flex: 1 },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.name}
-                  </Text>
+                  {(() => {
+                    const parts = (item.name || "").split(" - ");
+                    const isSentOrVoided = isSent || isVoided;
+                    if (parts.length > 1) {
+                      const groupName = parts[0];
+                      const dishName = parts.slice(1).join(" - ");
+                      return (
+                        <Text
+                          style={[
+                            styles.itemName,
+                            isSentOrVoided && styles.textMuted,
+                            isVoided && styles.strikeThrough,
+                            isPhone && { fontSize: 13, flex: 1 },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          <Text style={{ fontFamily: Fonts.bold, color: isSentOrVoided ? Theme.textMuted : Theme.textSecondary }}>
+                            {groupName}
+                          </Text>
+                          <Text style={{ color: Theme.textSecondary }}> • </Text>
+                          <Text style={{ color: isSentOrVoided ? Theme.textMuted : Theme.textPrimary }}>{dishName}</Text>
+                        </Text>
+                      );
+                    }
+                    return (
+                      <Text
+                        style={[
+                          styles.itemName,
+                          isSentOrVoided && styles.textMuted,
+                          isVoided && styles.strikeThrough,
+                          isPhone && { fontSize: 13, flex: 1 },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {item.name}
+                      </Text>
+                    );
+                  })()}
 
                   {item.songName ? (
                     <Text

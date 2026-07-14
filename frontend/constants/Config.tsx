@@ -18,10 +18,7 @@ const getLocalBackendIP = (): string => {
 
 const localIP = getLocalBackendIP();
 
-export const API_URL = __DEV__
-  ? `http://${localIP}:3000`
-  : (process.env.EXPO_PUBLIC_API_URL ??
-    "https://clubdemo2026july-production.up.railway.app");
+export const API_URL = "https://clubdemo2026july-production.up.railway.app";
 
 if (__DEV__) {
   console.log(`🌐 [Config] API_URL: ${API_URL} | Platform: ${Platform.OS}`);

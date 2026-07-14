@@ -970,9 +970,11 @@ export default function MenuScreen() {
         currentKitchen?.KitchenTypeCode || String(selectedKitchenId || "0");
 
       const addToCartSimple = (overridePrice?: number) => {
+        const dishGroupName = dish.DishGroupName || groups.find((g: any) => g.DishGroupId === selectedGroup)?.DishGroupName;
+        const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
         addToCartGlobal({
           id: dish.DishId,
-          name: dish.Name,
+          name: `${groupPrefix}${dish.Name}`,
           price: overridePrice !== undefined ? overridePrice : (dish.Price || 0),
           categoryName: currentKitchenName,
           KitchenTypeName: dish.KitchenTypeName || currentKitchenName,
@@ -1219,9 +1221,12 @@ export default function MenuScreen() {
       const currentKitchenCode =
         currentKitchen?.KitchenTypeCode || selectedKitchenId;
 
+      const dishGroupName = selectedDish.DishGroupName || groups.find((g: any) => g.DishGroupId === selectedGroup)?.DishGroupName;
+      const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
+
       addToCartGlobal({
         id: selectedDish.DishId,
-        name: selectedDish.Name,
+        name: `${groupPrefix}${selectedDish.Name}`,
         price: finalPrice,
         modifiers: modsToAdd as any,
         basePrice: selectedDish.Price || 0,
@@ -1258,9 +1263,13 @@ export default function MenuScreen() {
     if (!dish) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const dishGroupName = dish.DishGroupName || groups.find((g: any) => g.DishGroupId === selectedGroup)?.DishGroupName;
+    const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
+
     addToCartGlobal({
       id: dish.DishId,
-      name: dish.Name,
+      name: `${groupPrefix}${dish.Name}`,
       price: parsed,
       categoryName: dish._kitchenName,
       KitchenTypeName: dish.KitchenTypeName || dish._kitchenName,
@@ -1429,7 +1438,7 @@ export default function MenuScreen() {
 
         {showSplitModal && (
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { height: "80%" }]}>
+            <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {selectedSplitDish?.Name}
@@ -1446,175 +1455,153 @@ export default function MenuScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 15,
-                }}
-              >
-                <Text
-                  style={{
-                    width: 100,
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: "#333",
-                  }}
-                >
-                  Amount
-                </Text>
+              <View style={styles.modalBody}>
+                <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: Theme.textSecondary, fontSize: 13, fontFamily: Fonts.bold, marginBottom: 4 }}>Amount</Text>
+                    <TextInput
+                      placeholder="Enter Amount"
+                      value={splitAmount}
+                      onChangeText={setSplitAmount}
+                      keyboardType="numeric"
+                      placeholderTextColor={Theme.textMuted}
+                      style={[styles.customInput, { height: 40, borderRadius: 8, fontSize: 14, paddingHorizontal: 10 }]}
+                    />
+                  </View>
+                  <View style={{ flex: 1.5 }}>
+                    <Text style={{ color: Theme.textSecondary, fontSize: 13, fontFamily: Fonts.bold, marginBottom: 4 }}>Song Name</Text>
+                    <TextInput
+                      placeholder="Enter Song Name"
+                      value={songName}
+                      onChangeText={setSongName}
+                      placeholderTextColor={Theme.textMuted}
+                      style={[styles.customInput, { height: 40, borderRadius: 8, fontSize: 14, paddingHorizontal: 10 }]}
+                    />
+                  </View>
+                </View>
 
-                <TextInput
-                  placeholder="Enter Amount"
-                  value={splitAmount}
-                  onChangeText={setSplitAmount}
-                  keyboardType="numeric"
-                  style={{
-                    flex: 1,
-                    borderWidth: 1,
-                    borderColor: "#ddd",
-                    borderRadius: 10,
-                    paddingHorizontal: 12,
-                    height: 45,
-                  }}
-                />
-              </View>
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 15,
-                }}
-              >
-                <Text
-                  style={{
-                    width: 100,
-                    fontSize: 14,
-                    fontWeight: "600",
-                    color: "#333",
-                  }}
-                >
-                  Song Name
-                </Text>
-
-                <TextInput
-                  placeholder="Enter Song Name"
-                  value={songName}
-                  onChangeText={setSongName}
-                  style={{
-                    flex: 1,
-                    borderWidth: 1,
-                    borderColor: "#ddd",
-                    borderRadius: 10,
-                    paddingHorizontal: 12,
-                    height: 45,
-                  }}
-                />
-              </View>
-
-              {/* Scrollable List */}
-              <ScrollView
-                style={{ flex: 1 }}
-                showsVerticalScrollIndicator={true}
-              >
-                {splitMembers.map((item, index) => (
-                  <View
-                    key={index}
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      paddingVertical: 12,
-                      borderBottomWidth: 1,
-                      borderBottomColor: "#eee",
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textSecondary }}>Select Members</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const allSelected = splitMembers.every(x => x.IsSelected);
+                      const updated = splitMembers.map(x => ({ ...x, IsSelected: !allSelected }));
+                      setSplitMembers(updated);
                     }}
+                    style={{ padding: 4 }}
                   >
-                    <Text>{item.Name}</Text>
+                    <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.primary }}>
+                      {splitMembers.every(x => x.IsSelected) ? "Deselect All" : "Select All"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
 
+                {/* Scrollable List */}
+                <ScrollView
+                  style={{ flex: 1 }}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {splitMembers.map((item, index) => (
                     <TouchableOpacity
+                      key={index}
+                      activeOpacity={0.7}
                       onPress={() => {
                         const updated = [...splitMembers];
                         updated[index].IsSelected =
                           !updated[index].IsSelected;
                         setSplitMembers(updated);
                       }}
+                      style={[
+                        styles.modifierRow,
+                        { padding: 8, marginBottom: 6 },
+                        item.IsSelected && styles.modifierRowSelected,
+                      ]}
                     >
-                      <Ionicons
-                        name={
-                          item.IsSelected
-                            ? "checkbox"
-                            : "square-outline"
-                        }
-                        size={22}
-                        color="green"
-                      />
+                      <Text style={[styles.modifierName, { fontSize: 14 }]}>{item.Name}</Text>
+
+                      <View
+                        style={[
+                          styles.checkbox,
+                          { width: 22, height: 22, borderRadius: 6 },
+                          item.IsSelected && styles.checkboxActive,
+                          { borderColor: Theme.success }
+                        ]}
+                      >
+                        {item.IsSelected && (
+                          <Ionicons
+                            name="checkmark"
+                            size={14}
+                            color="#fff"
+                          />
+                        )}
+                      </View>
                     </TouchableOpacity>
-                  </View>
-                ))}
-              </ScrollView>
+                  ))}
+                </ScrollView>
+              </View>
 
-              {/* Fixed Done Button */}
-              <TouchableOpacity
-                style={{
-                  backgroundColor: "#22c55e",
-                  paddingVertical: 12,
-                  borderRadius: 10,
-                  marginTop: 15,
-                  alignItems: "center",
-                }}
-                onPress={() => {
-                  const selected = splitMembers.filter(
-                    (x) => x.IsSelected
-                  );
+              <View style={styles.modalFooter}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtnAdd,
+                    {
+                      backgroundColor: Theme.success,
+                      flex: 1,
+                      height: 46,
+                      borderRadius: 12,
+                    },
+                  ]}
+                  onPress={() => {
+                    const selected = splitMembers.filter(
+                      (x) => x.IsSelected
+                    );
 
-                  if (selected.length === 0) {
-                    alert("Please select at least one member");
-                    return;
-                  }
+                    if (selected.length === 0) {
+                      showToast({ message: "Please select at least one member", type: "warning" });
+                      return;
+                    }
 
-                  const totalAmount = parseFloat(splitAmount || "0");
+                    const totalAmount = parseFloat(splitAmount || "0");
 
-                  if (totalAmount <= 0) {
-                    alert("Please enter amount");
-                    return;
-                  }
+                    if (totalAmount <= 0) {
+                      showToast({ message: "Please enter amount", type: "warning" });
+                      return;
+                    }
 
-                  if (!songName.trim()) {
-                    alert("Please enter song name");
-                    return;
-                  }
+                    if (!songName.trim()) {
+                      showToast({ message: "Please enter song name", type: "warning" });
+                      return;
+                    }
 
-                  const shareAmount =
-                    totalAmount / selected.length;
+                    const shareAmount =
+                      totalAmount / selected.length;
 
-                  selected.forEach((member) => {
-                    console.log({
-                      id: member.DishId,
-                      name: `${selectedSplitDish.Name} - ${member.Name}`,
-                      songName: songName,
-                      price: shareAmount,
+                    const dishGroupName = selectedSplitDish?.DishGroupName || groups.find((g: any) => g.DishGroupId === selectedGroup)?.DishGroupName;
+                    const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
+
+                    selected.forEach((member) => {
+                      console.log({
+                        id: member.DishId,
+                        name: `${groupPrefix}${selectedSplitDish.Name} - ${member.Name}`,
+                        songName: songName,
+                        price: shareAmount,
+                      });
+                      addToCartGlobal({
+                        id: member.DishId,
+                        name: `${groupPrefix}${selectedSplitDish.Name} - ${member.Name}`,
+                        songName: songName,
+                        price: shareAmount,
+                      } as any);
                     });
-                    addToCartGlobal({
-                      id: member.DishId,
-                      name: `${selectedSplitDish.Name} - ${member.Name}`,
-                      songName: songName,
-                      price: shareAmount,
-                    } as any);
-                  });
 
-                  setShowSplitModal(false);
-                }}
-              >
-                <Text
-                  style={{
-                    color: "#fff",
-                    fontWeight: "bold",
-                    fontSize: 16,
+                    setShowSplitModal(false);
                   }}
                 >
-                  DONE
-                </Text>
-              </TouchableOpacity>
+                  <Text style={[styles.modalBtnTextAdd, { fontSize: 14 }]}>
+                    DONE
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
