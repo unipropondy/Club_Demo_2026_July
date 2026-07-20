@@ -273,49 +273,88 @@ export default function ArtistManagementScreen() {
           <>
             <Text style={styles.sectionTitle}>Artist Overview</Text>
             <View style={styles.artistCard}>
-              {/* Table Header */}
-              <View style={styles.tableHeader}>
-                <Text style={[styles.thCell, { flex: 2 }]}>Artist</Text>
-                <Text style={[styles.thCell, { flex: 1.5, textAlign: "right" }]}>Sales</Text>
-                <Text style={[styles.thCell, { flex: 1.5, textAlign: "right" }]}>Earned</Text>
-                <Text style={[styles.thCell, { flex: 1.2, textAlign: "center" }]}>Status</Text>
-              </View>
-              {artists.slice(0, 8).map((artist, idx) => {
-                const sc = STATUS_COLORS[artist.status] || STATUS_COLORS.Pending;
-                return (
-                  <TouchableOpacity
-                    key={artist.dishId}
-                    style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}
-                    onPress={() => router.push(`/menu/artist-detail?dishId=${artist.dishId}` as any)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[{ flex: 2 }, styles.rowCell]}>
-                      <View style={styles.avatarCircle}>
-                        <Text style={styles.avatarText}>{(artist.name || "?")[0].toUpperCase()}</Text>
-                      </View>
-                      <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
+              {isTablet ? (
+                // ── Tablet / Web: flex layout fills the full width ──
+                <View>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.thCell, { flex: 2 }]}>Artist</Text>
+                    <Text style={[styles.thCell, { flex: 1.5, textAlign: "right" }]}>Sales</Text>
+                    <Text style={[styles.thCell, { flex: 1.5, textAlign: "right" }]}>Earned</Text>
+                    <Text style={[styles.thCell, { flex: 1.2, textAlign: "center" }]}>Status</Text>
+                  </View>
+                  {artists.slice(0, 8).map((artist, idx) => {
+                    const sc = STATUS_COLORS[artist.status] || STATUS_COLORS.Pending;
+                    return (
+                      <TouchableOpacity
+                        key={artist.dishId}
+                        style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}
+                        onPress={() => router.push(`/menu/artist-detail?dishId=${artist.dishId}` as any)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[{ flex: 2 }, styles.rowCell]}>
+                          <View style={styles.avatarCircle}>
+                            <Text style={styles.avatarText}>{(artist.name || "?")[0].toUpperCase()}</Text>
+                          </View>
+                          <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
+                        </View>
+                        <Text style={[styles.tdCell, { flex: 1.5, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
+                        <Text style={[styles.tdCell, { flex: 1.5, textAlign: "right" }]}>${artist.bonusEarned.toFixed(2)}</Text>
+                        <View style={[{ flex: 1.2 }, styles.badgeWrap]}>
+                          <View style={[styles.badge, { backgroundColor: sc.bg }]}>
+                            <Text style={[styles.badgeText, { color: sc.text }]} numberOfLines={1}>{artist.status}</Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {artists.length > 8 && (
+                    <TouchableOpacity style={styles.viewAllBtn} onPress={() => router.push("/menu/artist-sales" as any)}>
+                      <Text style={styles.viewAllText}>View All {artists.length} Artists →</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                // ── Mobile: fixed-width columns + horizontal scroll ──
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ minWidth: 500 }}>
+                    <View style={styles.tableHeader}>
+                      <Text style={[styles.thCell, { width: 150 }]}>Artist</Text>
+                      <Text style={[styles.thCell, { width: 120, textAlign: "right" }]}>Sales</Text>
+                      <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>Earned</Text>
+                      <Text style={[styles.thCell, { width: 120, textAlign: "center" }]}>Status</Text>
                     </View>
-                    <Text style={[styles.tdCell, { flex: 1.5, textAlign: "right" }]}>
-                      ${artist.totalSales.toFixed(2)}
-                    </Text>
-                    <Text style={[styles.tdCell, { flex: 1.5, textAlign: "right" }]}>
-                      ${artist.bonusEarned.toFixed(2)}
-                    </Text>
-                    <View style={[{ flex: 1.2 }, styles.badgeWrap]}>
-                      <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-                        <Text style={[styles.badgeText, { color: sc.text }]}>{artist.status}</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-              {artists.length > 8 && (
-                <TouchableOpacity
-                  style={styles.viewAllBtn}
-                  onPress={() => router.push("/menu/artist-sales" as any)}
-                >
-                  <Text style={styles.viewAllText}>View All {artists.length} Artists →</Text>
-                </TouchableOpacity>
+                    {artists.slice(0, 8).map((artist, idx) => {
+                      const sc = STATUS_COLORS[artist.status] || STATUS_COLORS.Pending;
+                      return (
+                        <TouchableOpacity
+                          key={artist.dishId}
+                          style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}
+                          onPress={() => router.push(`/menu/artist-detail?dishId=${artist.dishId}` as any)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={[{ width: 150 }, styles.rowCell]}>
+                            <View style={styles.avatarCircle}>
+                              <Text style={styles.avatarText}>{(artist.name || "?")[0].toUpperCase()}</Text>
+                            </View>
+                            <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
+                          </View>
+                          <Text style={[styles.tdCell, { width: 120, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
+                          <Text style={[styles.tdCell, { width: 110, textAlign: "right" }]}>${artist.bonusEarned.toFixed(2)}</Text>
+                          <View style={[{ width: 120 }, styles.badgeWrap]}>
+                            <View style={[styles.badge, { backgroundColor: sc.bg }]}>
+                              <Text style={[styles.badgeText, { color: sc.text }]} numberOfLines={1}>{artist.status}</Text>
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {artists.length > 8 && (
+                      <TouchableOpacity style={styles.viewAllBtn} onPress={() => router.push("/menu/artist-sales" as any)}>
+                        <Text style={styles.viewAllText}>View All {artists.length} Artists →</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </ScrollView>
               )}
             </View>
           </>

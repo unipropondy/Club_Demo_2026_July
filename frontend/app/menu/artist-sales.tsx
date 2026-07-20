@@ -227,82 +227,140 @@ export default function ArtistSalesScreen() {
       </View>
 
       {/* Summary Strip */}
-      <View style={styles.summaryStrip}>
-        {[
-          { label: "Sales", value: `$${cards.totalArtistSales.toFixed(2)}`, color: "#3B82F6" },
-          { label: "Earned", value: `$${cards.totalBonusEarned.toFixed(2)}`, color: Theme.primary },
-          { label: "Paid", value: `$${cards.totalBonusPaid.toFixed(2)}`, color: "#16A34A" },
-          { label: "Pending", value: `$${cards.pendingBonus.toFixed(2)}`, color: "#DC2626" },
-        ].map(s => (
-          <View key={s.label} style={styles.summaryItem}>
-            <Text style={[styles.summaryValue, { color: s.color }]}>{s.value}</Text>
-            <Text style={styles.summaryLabel}>{s.label}</Text>
-          </View>
-        ))}
-      </View>
+      {isTablet ? (
+        <View style={styles.summaryStrip}>
+          {[
+            { label: "Sales", value: `$${cards.totalArtistSales.toFixed(2)}`, color: "#3B82F6" },
+            { label: "Earned", value: `$${cards.totalBonusEarned.toFixed(2)}`, color: Theme.primary },
+            { label: "Paid", value: `$${cards.totalBonusPaid.toFixed(2)}`, color: "#16A34A" },
+            { label: "Pending", value: `$${cards.pendingBonus.toFixed(2)}`, color: "#DC2626" },
+          ].map(s => (
+            <View key={s.label} style={styles.summaryItemFlex}>
+              <Text style={[styles.summaryValue, { color: s.color }]}>{s.value}</Text>
+              <Text style={styles.summaryLabel}>{s.label}</Text>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.summaryScroll}
+          contentContainerStyle={styles.summaryScrollContainer}
+        >
+          {[
+            { label: "Sales", value: `$${cards.totalArtistSales.toFixed(2)}`, color: "#3B82F6" },
+            { label: "Earned", value: `$${cards.totalBonusEarned.toFixed(2)}`, color: Theme.primary },
+            { label: "Paid", value: `$${cards.totalBonusPaid.toFixed(2)}`, color: "#16A34A" },
+            { label: "Pending", value: `$${cards.pendingBonus.toFixed(2)}`, color: "#DC2626" },
+          ].map(s => (
+            <View key={s.label} style={styles.summaryItem}>
+              <Text style={[styles.summaryValue, { color: s.color }]} numberOfLines={1}>{s.value}</Text>
+              <Text style={styles.summaryLabel}>{s.label}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      )}
 
       {loading
         ? <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 40 }} />
         : (
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Table Header */}
-            <View style={styles.tableHeader}>
-              <Text style={[styles.thCell, { flex: 2 }]}>Artist</Text>
-              <Text style={[styles.thCell, { flex: 1.4, textAlign: "right" }]}>Sales</Text>
-              {isTablet && <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Earned</Text>}
-              {isTablet && <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Paid</Text>}
-              <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Pending</Text>
-              <Text style={[styles.thCell, { flex: 1.3, textAlign: "center" }]}>Status</Text>
-            </View>
-
-            {filtered.length === 0 && (
-              <View style={styles.emptyRow}>
-                <Ionicons name="musical-notes-outline" size={40} color={Theme.textMuted} />
-                <Text style={styles.emptyText}>No artists match the current filter</Text>
+            {isTablet ? (
+              // ── Tablet / Web: flex layout fills the full width ──
+              <View>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.thCell, { flex: 2 }]}>Artist</Text>
+                  <Text style={[styles.thCell, { flex: 1.4, textAlign: "right" }]}>Sales</Text>
+                  <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Earned</Text>
+                  <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Paid</Text>
+                  <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Pending</Text>
+                  <Text style={[styles.thCell, { flex: 1.3, textAlign: "center" }]}>Status</Text>
+                </View>
+                {filtered.length === 0 && (
+                  <View style={styles.emptyRow}>
+                    <Ionicons name="musical-notes-outline" size={40} color={Theme.textMuted} />
+                    <Text style={styles.emptyText}>No artists match the current filter</Text>
+                  </View>
+                )}
+                {filtered.map((artist, idx) => {
+                  const sc = STATUS_COLORS[artist.status] || STATUS_COLORS["No Bonus"];
+                  return (
+                    <TouchableOpacity
+                      key={artist.dishId}
+                      style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}
+                      onPress={() => router.push(`/menu/artist-detail?dishId=${artist.dishId}` as any)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.rowNameCell, { flex: 2 }]}>
+                        <View style={styles.avatarCircle}>
+                          <Text style={styles.avatarText}>{(artist.name || "?")[0].toUpperCase()}</Text>
+                        </View>
+                        <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
+                      </View>
+                      <Text style={[styles.tdCell, { flex: 1.4, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
+                      <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right", color: Theme.primary }]}>${artist.bonusEarned.toFixed(2)}</Text>
+                      <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right", color: "#16A34A" }]}>${artist.bonusPaid.toFixed(2)}</Text>
+                      <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right", color: "#DC2626" }]}>${artist.pendingBonus.toFixed(2)}</Text>
+                      <View style={[{ flex: 1.3 }, styles.badgeWrap]}>
+                        <View style={[styles.badge, { backgroundColor: sc.bg }]}>
+                          <Text style={[styles.badgeText, { color: sc.text }]} numberOfLines={1}>{artist.status}</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+                <View style={{ height: 40 }} />
               </View>
+            ) : (
+              // ── Mobile: fixed-width columns + horizontal scroll ──
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ minWidth: 680 }}>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.thCell, { width: 160 }]}>Artist</Text>
+                    <Text style={[styles.thCell, { width: 120, textAlign: "right" }]}>Sales</Text>
+                    <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>Earned</Text>
+                    <Text style={[styles.thCell, { width: 100, textAlign: "right" }]}>Paid</Text>
+                    <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>Pending</Text>
+                    <Text style={[styles.thCell, { width: 100, textAlign: "center" }]}>Status</Text>
+                  </View>
+                  {filtered.length === 0 && (
+                    <View style={styles.emptyRow}>
+                      <Ionicons name="musical-notes-outline" size={40} color={Theme.textMuted} />
+                      <Text style={styles.emptyText}>No artists match the current filter</Text>
+                    </View>
+                  )}
+                  {filtered.map((artist, idx) => {
+                    const sc = STATUS_COLORS[artist.status] || STATUS_COLORS["No Bonus"];
+                    return (
+                      <TouchableOpacity
+                        key={artist.dishId}
+                        style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}
+                        onPress={() => router.push(`/menu/artist-detail?dishId=${artist.dishId}` as any)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.rowNameCell, { width: 160 }]}>
+                          <View style={styles.avatarCircle}>
+                            <Text style={styles.avatarText}>{(artist.name || "?")[0].toUpperCase()}</Text>
+                          </View>
+                          <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
+                        </View>
+                        <Text style={[styles.tdCell, { width: 120, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
+                        <Text style={[styles.tdCell, { width: 110, textAlign: "right", color: Theme.primary }]}>${artist.bonusEarned.toFixed(2)}</Text>
+                        <Text style={[styles.tdCell, { width: 100, textAlign: "right", color: "#16A34A" }]}>${artist.bonusPaid.toFixed(2)}</Text>
+                        <Text style={[styles.tdCell, { width: 110, textAlign: "right", color: "#DC2626" }]}>${artist.pendingBonus.toFixed(2)}</Text>
+                        <View style={[{ width: 100 }, styles.badgeWrap]}>
+                          <View style={[styles.badge, { backgroundColor: sc.bg }]}>
+                            <Text style={[styles.badgeText, { color: sc.text }]} numberOfLines={1}>{artist.status}</Text>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  <View style={{ height: 40 }} />
+                </View>
+              </ScrollView>
             )}
-
-            {filtered.map((artist, idx) => {
-              const sc = STATUS_COLORS[artist.status] || STATUS_COLORS["No Bonus"];
-              return (
-                <TouchableOpacity
-                  key={artist.dishId}
-                  style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}
-                  onPress={() => router.push(`/menu/artist-detail?dishId=${artist.dishId}` as any)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.rowNameCell, { flex: 2 }]}>
-                    <View style={styles.avatarCircle}>
-                      <Text style={styles.avatarText}>{(artist.name || "?")[0].toUpperCase()}</Text>
-                    </View>
-                    <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
-                  </View>
-                  <Text style={[styles.tdCell, { flex: 1.4, textAlign: "right" }]}>
-                    ${artist.totalSales.toFixed(2)}
-                  </Text>
-                  {isTablet && (
-                    <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right", color: Theme.primary }]}>
-                      ${artist.bonusEarned.toFixed(2)}
-                    </Text>
-                  )}
-                  {isTablet && (
-                    <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right", color: "#16A34A" }]}>
-                      ${artist.bonusPaid.toFixed(2)}
-                    </Text>
-                  )}
-                  <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right", color: "#DC2626" }]}>
-                    ${artist.pendingBonus.toFixed(2)}
-                  </Text>
-                  <View style={[{ flex: 1.3 }, styles.badgeWrap]}>
-                    <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-                      <Text style={[styles.badgeText, { color: sc.text }]} numberOfLines={1}>{artist.status}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-
-            <View style={{ height: 40 }} />
           </ScrollView>
         )
       }
@@ -413,12 +471,36 @@ const styles = StyleSheet.create({
   statusTabTextActive: { color: "#fff" },
 
   summaryStrip: {
-    flexDirection: "row", backgroundColor: Theme.bgCard,
-    paddingVertical: 10, paddingHorizontal: 16,
-    borderBottomWidth: 1, borderBottomColor: Theme.border,
+    flexDirection: "row",
+    backgroundColor: Theme.bgCard,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.border,
   },
-  summaryItem: { flex: 1, alignItems: "center" },
-  summaryValue: { fontFamily: Fonts.black, fontSize: 14 },
+  summaryItemFlex: {
+    flex: 1,
+    alignItems: "center",
+  },
+  summaryScroll: {
+    backgroundColor: Theme.bgCard,
+    borderBottomWidth: 1,
+    borderBottomColor: Theme.border,
+  },
+  summaryScrollContainer: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    gap: 0,
+  },
+  summaryItem: {
+    minWidth: 120,
+    alignItems: "center",
+    paddingHorizontal: 12,
+    borderRightWidth: 1,
+    borderRightColor: Theme.border,
+  },
+  summaryValue: { fontFamily: Fonts.black, fontSize: 15 },
   summaryLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginTop: 2, textTransform: "uppercase" },
 
   tableHeader: {

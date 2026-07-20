@@ -112,10 +112,60 @@ export default function ArtistReportsScreen() {
   const printReport = async () => {
     if (!data.length) return;
     const tabLabel = TABS.find(t => t.key === activeTab)?.label || "Report";
-    const keys = Object.keys(data[0]);
-    const headers = keys.map(k => `<th>${k}</th>`).join("");
+
+    // Curated column definitions per tab — mirrors the on-screen table exactly
+    type ColDef = { label: string; render: (r: any) => string };
+    const COL_DEFS: Record<ReportTab, ColDef[]> = {
+      "sales": [
+        { label: "Artist",  render: r => r.ArtistName },
+        { label: "Sales",   render: r => fmtMoney(r.TotalSales) },
+        { label: "Earned",  render: r => fmtMoney(r.BonusEarned) },
+        { label: "Paid",    render: r => fmtMoney(r.BonusPaid) },
+        { label: "Pending", render: r => fmtMoney(r.PendingBonus) },
+      ],
+      "bonus-ledger": [
+        { label: "Artist",  render: r => r.ArtistName },
+        { label: "From",    render: r => fmtDate(r.SalesFromDate) },
+        { label: "To",      render: r => fmtDate(r.SalesToDate) },
+        { label: "Sales",   render: r => fmtMoney(r.TotalSales) },
+        { label: "Earned",  render: r => fmtMoney(r.BonusEarned) },
+        { label: "Paid",    render: r => fmtMoney(r.BonusPaid) },
+        { label: "Pending", render: r => fmtMoney(r.PendingBonus) },
+        { label: "Status",  render: r => r.Status },
+      ],
+      "payment-ledger": [
+        { label: "Artist",       render: r => r.ArtistName },
+        { label: "Paid Date",    render: r => fmtDate(r.PaidDate) },
+        { label: "Amount",       render: r => fmtMoney(r.PaymentAmount) },
+        { label: "Paid By",      render: r => r.PaidBy || "—" },
+        { label: "Remarks",      render: r => r.Remarks || "—" },
+        { label: "Bonus Period", render: r => `${fmtDate(r.SalesFromDate)} → ${fmtDate(r.SalesToDate)}` },
+      ],
+      "pending": [
+        { label: "Artist",  render: r => r.ArtistName },
+        { label: "Earned",  render: r => fmtMoney(r.BonusEarned) },
+        { label: "Paid",    render: r => fmtMoney(r.BonusPaid) },
+        { label: "Pending", render: r => fmtMoney(r.PendingBonus) },
+        { label: "From",    render: r => fmtDate(r.SalesFromDate) },
+        { label: "To",      render: r => fmtDate(r.SalesToDate) },
+        { label: "Status",  render: r => r.Status },
+      ],
+      "performance": [
+        { label: "Artist",  render: r => r.ArtistName },
+        { label: "Daily",   render: r => fmtMoney(r.DailySales) },
+        { label: "Weekly",  render: r => fmtMoney(r.WeeklySales) },
+        { label: "Monthly", render: r => fmtMoney(r.MonthlySales) },
+        { label: "Yearly",  render: r => fmtMoney(r.YearlySales) },
+        { label: "Earned",  render: r => fmtMoney(r.TotalBonusEarned) },
+        { label: "Paid",    render: r => fmtMoney(r.TotalBonusPaid) },
+        { label: "Pending", render: r => fmtMoney(r.PendingBonus) },
+      ],
+    };
+
+    const cols = COL_DEFS[activeTab];
+    const headers = cols.map(c => `<th>${c.label}</th>`).join("");
     const rows = data.map(row =>
-      `<tr>${keys.map(k => `<td>${row[k] ?? "—"}</td>`).join("")}</tr>`
+      `<tr>${cols.map(c => `<td>${c.render(row)}</td>`).join("")}</tr>`
     ).join("");
 
     const html = `
@@ -135,7 +185,13 @@ export default function ArtistReportsScreen() {
     `;
 
     try {
-      await Print.printAsync({ html });
+      if (Platform.OS === "web") {
+        const blob = new Blob([html], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+      } else {
+        await Print.printAsync({ html });
+      }
     } catch (e) {
       showToast({ type: "error", message: "Print Failed", subtitle: "Unable to print." });
     }
