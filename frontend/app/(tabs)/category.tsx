@@ -2171,6 +2171,29 @@ export default function Category() {
                 </TouchableOpacity>
               )}
 
+              {/* Artist Management — Artist Sales, Bonus Tracking, Payments */}
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setIsMenuVisible(false);
+                  router.push("/menu/artist-management" as any);
+                }}
+              >
+                <View
+                  style={[
+                    styles.menuIconContainer,
+                    { backgroundColor: "#F97316" + "15" },
+                  ]}
+                >
+                  <Ionicons
+                    name="musical-notes-outline"
+                    size={18}
+                    color="#F97316"
+                  />
+                </View>
+                <Text style={styles.menuItemText}>Artist Management</Text>
+              </TouchableOpacity>
+
               {/* Cash Drawer — visible to all roles, PIN gate is inside the screen */}
               <TouchableOpacity
                 style={styles.menuItem}

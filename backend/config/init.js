@@ -572,6 +572,104 @@ async function initDB(pool) {
     await runQuery("ArtistCashBox - SettlementID", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[ArtistCashBox]') AND name = 'SettlementID') ALTER TABLE [dbo].[ArtistCashBox] ADD SettlementID UNIQUEIDENTIFIER NULL");
     await runQuery("ArtistCashBox - start_date", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[ArtistCashBox]') AND name = 'start_date') ALTER TABLE [dbo].[ArtistCashBox] ADD start_date DATE NULL");
 
+    // ============================================================
+    // ARTIST INCENTIVE MANAGEMENT MODULE — Accounting Ledger Tables
+    // ============================================================
+
+    // 19.3 Create ArtistBonusMaster table (bonus rule configuration)
+    // ArtistDishId = NULL means global rule; set to target a specific artist
+    await runQuery("Create ArtistBonusMaster table", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ArtistBonusMaster]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[ArtistBonusMaster](
+              [Id]              UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
+              [ThresholdAmount] DECIMAL(18, 2)   NOT NULL,
+              [BonusAmount]     DECIMAL(18, 2)   NOT NULL,
+              [IsRepeating]     BIT              NOT NULL DEFAULT 1,
+              [IsActive]        BIT              NOT NULL DEFAULT 1,
+              [ArtistDishId]    UNIQUEIDENTIFIER NULL,
+              [ArtistType]      NVARCHAR(100)    NULL,
+              [CreatedDate]     DATETIME                  DEFAULT GETDATE()
+          )
+      END
+    `);
+
+    // 19.4 Create ArtistBonusTransaction table (immutable bonus earned ledger)
+    // IMPORTANT: This table must NEVER be updated after INSERT.
+    // No payment status columns here — those live in ArtistBonusPayment.
+    await runQuery("Create ArtistBonusTransaction table", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ArtistBonusTransaction]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[ArtistBonusTransaction](
+              [Id]              UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
+              [ArtistDishId]    UNIQUEIDENTIFIER NOT NULL,
+              [ArtistName]      NVARCHAR(200)    NOT NULL,
+              [SalesFromDate]   DATETIME         NOT NULL,
+              [SalesToDate]     DATETIME         NOT NULL,
+              [TotalSales]      DECIMAL(18, 2)   NOT NULL,
+              [ThresholdAmount] DECIMAL(18, 2)   NOT NULL,
+              [BonusRuleAmount] DECIMAL(18, 2)   NOT NULL,
+              [BonusEarned]     DECIMAL(18, 2)   NOT NULL,
+              [IsRepeating]     BIT              NOT NULL DEFAULT 1,
+              [CreatedDate]     DATETIME                  DEFAULT GETDATE()
+          )
+      END
+    `);
+
+    // 19.5 Create ArtistBonusPayment table (payment ledger — supports multiple/partial payments)
+    // One ArtistBonusTransaction may have MANY ArtistBonusPayment rows.
+    // BonusPaid = SUM(PaymentAmount) per transaction  (never stored, always calculated)
+    // PendingBonus = BonusEarned - SUM(PaymentAmount) (never stored, always calculated)
+    await runQuery("Create ArtistBonusPayment table", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ArtistBonusPayment]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[ArtistBonusPayment](
+              [Id]                   UNIQUEIDENTIFIER NOT NULL PRIMARY KEY DEFAULT NEWID(),
+              [BonusTransactionId]   UNIQUEIDENTIFIER NOT NULL,
+              [ArtistDishId]         UNIQUEIDENTIFIER NOT NULL,
+              [ArtistName]           NVARCHAR(200)    NOT NULL,
+              [PaymentAmount]        DECIMAL(18, 2)   NOT NULL,
+              [PaidDate]             DATETIME         NOT NULL DEFAULT GETDATE(),
+              [PaidBy]               NVARCHAR(100)    NOT NULL,
+              [Remarks]              NVARCHAR(500)    NULL,
+              [CreatedDate]          DATETIME                  DEFAULT GETDATE()
+          )
+      END
+    `);
+
+    // Indexes for Artist Incentive tables
+    await runQuery("Index - ArtistBonusTransaction ArtistDishId", `
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ArtistBonusTxn_ArtistDishId' AND object_id = OBJECT_ID('ArtistBonusTransaction'))
+      BEGIN
+        CREATE NONCLUSTERED INDEX IX_ArtistBonusTxn_ArtistDishId
+        ON ArtistBonusTransaction(ArtistDishId)
+        INCLUDE (BonusEarned, SalesFromDate, SalesToDate)
+      END
+    `);
+    await runQuery("Index - ArtistBonusTransaction Dates", `
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ArtistBonusTxn_Dates' AND object_id = OBJECT_ID('ArtistBonusTransaction'))
+      BEGIN
+        CREATE NONCLUSTERED INDEX IX_ArtistBonusTxn_Dates
+        ON ArtistBonusTransaction(SalesFromDate, SalesToDate)
+      END
+    `);
+    await runQuery("Index - ArtistBonusPayment TransactionId", `
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ArtistBonusPay_TxnId' AND object_id = OBJECT_ID('ArtistBonusPayment'))
+      BEGIN
+        CREATE NONCLUSTERED INDEX IX_ArtistBonusPay_TxnId
+        ON ArtistBonusPayment(BonusTransactionId)
+        INCLUDE (PaymentAmount, PaidDate)
+      END
+    `);
+    await runQuery("Index - ArtistBonusPayment ArtistDishId", `
+      IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_ArtistBonusPay_ArtistDishId' AND object_id = OBJECT_ID('ArtistBonusPayment'))
+      BEGIN
+        CREATE NONCLUSTERED INDEX IX_ArtistBonusPay_ArtistDishId
+        ON ArtistBonusPayment(ArtistDishId)
+        INCLUDE (PaymentAmount, PaidDate, PaidBy)
+      END
+    `);
+
     // 19.1 Create DateEntry table for Day Start/Day End tracking
     await runQuery("Create DateEntry table", `
       IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DateEntry]') AND type in (N'U'))

@@ -60,6 +60,7 @@ const yeahpayRoutes = require('./routes/yeahpay');
 const loyaltyRoutes = require("./routes/loyalty");
 const loyaltyConfigRoutes = require("./routes/loyaltyConfig");
 const comboRoutes = require("./routes/combo");
+const artistBonusRoutes = require("./routes/artistBonus");
 const http = require("http");
 const { Server } = require("socket.io");
 
@@ -274,6 +275,7 @@ app.use('/api/yeahpay', yeahpayRoutes);
 app.use("/api/loyalty", loyaltyRoutes);
 app.use("/api/loyalty/configs", loyaltyConfigRoutes);
 app.use("/api/combo", comboRoutes);
+app.use("/api/artist-bonus", artistBonusRoutes);
 const cashDrawerRouter = require("./routes/cashDrawer");
 app.use("/api/cash-drawer", cashDrawerRouter);
 const printJobsRouter = require("./routes/printJobs");
