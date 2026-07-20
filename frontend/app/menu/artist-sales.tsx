@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   ScrollView,
   StatusBar,
@@ -26,6 +27,10 @@ const pad = (n: number) => n.toString().padStart(2, "0");
 const formatDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const todayStr = () => formatDate(new Date());
 const firstOfMonthStr = () => { const d = new Date(); d.setDate(1); return formatDate(d); };
+
+// Module-level persistent storage — survives navigation back/forward
+let _persistedFromDate = firstOfMonthStr();
+let _persistedToDate   = todayStr();
 
 const STATUS_OPTS = ["All", "Pending", "Partially Paid", "Paid"];
 
@@ -55,13 +60,18 @@ export default function ArtistSalesScreen() {
 
   const [loading, setLoading]         = useState(false);
   const [calculating, setCalculating] = useState(false);
-  const [fromDate, setFromDate]       = useState(firstOfMonthStr());
-  const [toDate, setToDate]           = useState(todayStr());
+  const [fromDate, setFromDate]       = useState(_persistedFromDate);
+  const [toDate, setToDate]           = useState(_persistedToDate);
+
+  // Keep module-level vars in sync whenever state changes
+  const handleFromDateChange = (v: string) => { _persistedFromDate = v; setFromDate(v); };
+  const handleToDateChange   = (v: string) => { _persistedToDate   = v; setToDate(v);   };
   const [search, setSearch]           = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [artists, setArtists]         = useState<ArtistRow[]>([]);
   const [activeRule, setActiveRule]   = useState<any>(null);
   const [cards, setCards]             = useState({ totalArtistSales: 0, totalBonusEarned: 0, totalBonusPaid: 0, pendingBonus: 0 });
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -82,48 +92,46 @@ export default function ArtistSalesScreen() {
     }
   }, [fromDate, toDate, token]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // Only fetch automatically on mount; date changes are applied by clicking the search/apply button
+  useEffect(() => { fetchData(); }, []);
 
   const handleCalculate = () => {
     if (!activeRule) {
-      Alert.alert("No Active Rule", "Please create an active bonus rule in Bonus Master before calculating.");
+      if (Platform.OS === "web") {
+        alert("No Active Rule: Please create an active bonus rule in Bonus Master before calculating.");
+      } else {
+        Alert.alert("No Active Rule", "Please create an active bonus rule in Bonus Master before calculating.");
+      }
       return;
     }
-    Alert.alert(
-      "Calculate Bonuses",
-      `This will calculate bonuses for all artists for the period:\n${fromDate} → ${toDate}\n\nExisting transactions for this period will be skipped (immutable).`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Calculate",
-          onPress: async () => {
-            try {
-              setCalculating(true);
-              const res = await axios.post(
-                `${API_URL}/api/artist-bonus/calculate`,
-                { fromDate, toDate },
-                { headers: { Authorization: `Bearer ${token}` } }
-              );
-              if (res.data.success) {
-                const created = res.data.results.filter((r: any) => r.action === "created").length;
-                const skipped = res.data.results.filter((r: any) => r.action === "skipped_exists").length;
-                showToast({
-                  type: "success",
-                  message: "Calculation Complete",
-                  subtitle: `${created} new transactions created, ${skipped} skipped (already exist).`,
-                });
-                fetchData();
-              }
-            } catch (err: any) {
-              const msg = err?.response?.data?.error || err.message;
-              showToast({ type: "error", message: "Calculation Failed", subtitle: msg });
-            } finally {
-              setCalculating(false);
-            }
-          },
-        },
-      ]
-    );
+    setShowConfirmModal(true);
+  };
+
+  const runCalculation = async () => {
+    try {
+      setCalculating(true);
+      setShowConfirmModal(false);
+      const res = await axios.post(
+        `${API_URL}/api/artist-bonus/calculate`,
+        { fromDate, toDate },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.data.success) {
+        const created = res.data.results.filter((r: any) => r.action === "created").length;
+        const skipped = res.data.results.filter((r: any) => r.action === "skipped_exists").length;
+        showToast({
+          type: "success",
+          message: "Calculation Complete",
+          subtitle: `${created} new transactions created, ${skipped} skipped (already exist).`,
+        });
+        fetchData();
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err.message;
+      showToast({ type: "error", message: "Calculation Failed", subtitle: msg });
+    } finally {
+      setCalculating(false);
+    }
   };
 
   // Filter
@@ -139,7 +147,16 @@ export default function ArtistSalesScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity 
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/menu/artist-management");
+            }
+          }} 
+          style={styles.backBtn}
+        >
           <Ionicons name="chevron-back" size={22} color={Theme.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -168,7 +185,7 @@ export default function ArtistSalesScreen() {
             <TextInput
               style={styles.dateInput}
               value={fromDate}
-              onChangeText={setFromDate}
+              onChangeText={handleFromDateChange}
               placeholder="YYYY-MM-DD"
               placeholderTextColor={Theme.textMuted}
             />
@@ -179,7 +196,7 @@ export default function ArtistSalesScreen() {
             <TextInput
               style={styles.dateInput}
               value={toDate}
-              onChangeText={setToDate}
+              onChangeText={handleToDateChange}
               placeholder="YYYY-MM-DD"
               placeholderTextColor={Theme.textMuted}
             />
@@ -295,6 +312,56 @@ export default function ArtistSalesScreen() {
           </ScrollView>
         )
       }
+      {/* Custom Confirmation Modal */}
+      <Modal
+        visible={showConfirmModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="calculator-outline" size={22} color={Theme.primary} />
+              <Text style={styles.modalTitle}>Calculate Bonuses</Text>
+            </View>
+            
+            <View style={styles.modalBody}>
+              <Text style={styles.modalMessage}>
+                This will calculate and finalize bonuses for all artists for the selected period:
+              </Text>
+              
+              <View style={styles.modalDateRange}>
+                <Text style={styles.modalDateText}>{fromDate}</Text>
+                <Ionicons name="arrow-forward" size={14} color={Theme.textSecondary} />
+                <Text style={styles.modalDateText}>{toDate}</Text>
+              </View>
+
+              <View style={styles.modalWarningBox}>
+                <Ionicons name="information-circle" size={16} color="#B45309" />
+                <Text style={styles.modalWarningText}>
+                  Existing transactions for this period are locked and will be skipped.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity 
+                style={styles.modalCancelBtn} 
+                onPress={() => setShowConfirmModal(false)}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.modalConfirmBtn} 
+                onPress={runCalculation}
+              >
+                <Text style={styles.modalConfirmBtnText}>Calculate</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -383,4 +450,39 @@ const styles = StyleSheet.create({
   badgeText: { fontFamily: Fonts.bold, fontSize: 10 },
   emptyRow: { alignItems: "center", paddingVertical: 60, gap: 12 },
   emptyText: { fontFamily: Fonts.medium, fontSize: 14, color: Theme.textSecondary },
+
+  modalOverlay: {
+    flex: 1, backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "center", alignItems: "center", padding: 20,
+  },
+  modalCard: {
+    backgroundColor: Theme.bgCard, borderRadius: 16, width: "100%", maxWidth: 420,
+    padding: 24, gap: 16,
+    ...Platform.select({ web: { boxShadow: "0 10px 25px rgba(0,0,0,0.15)" } }) as any,
+  },
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  modalTitle: { fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary },
+  modalBody: { gap: 12 },
+  modalMessage: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary, lineHeight: 18 },
+  modalDateRange: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: Theme.bgMuted, padding: 10, borderRadius: 10, alignSelf: "flex-start",
+  },
+  modalDateText: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary },
+  modalWarningBox: {
+    flexDirection: "row", gap: 8, padding: 10, borderRadius: 10,
+    backgroundColor: "#FEF9C3", alignItems: "center",
+  },
+  modalWarningText: { fontFamily: Fonts.medium, fontSize: 12, color: "#713F12", flex: 1 },
+  modalActions: { flexDirection: "row", justifyContent: "flex-end", gap: 12, marginTop: 8 },
+  modalCancelBtn: {
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
+    borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.bgMuted,
+  },
+  modalCancelBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textSecondary },
+  modalConfirmBtn: {
+    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10,
+    backgroundColor: Theme.primary,
+  },
+  modalConfirmBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: "#fff" },
 });

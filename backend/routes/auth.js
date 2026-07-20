@@ -116,9 +116,8 @@ router.post("/login", async (req, res) => {
     const finalUserId = String(user.UserId).trim();
     const roleCode = (user.RoleCode || "CASHIER").toUpperCase().trim();
 
-    // 1. Generate Security Token (JWT)
     const token = jwt.sign(
-      { userId: finalUserId, role: roleCode },
+      { userId: finalUserId, userName: user.UserName, role: roleCode },
       JWT_SECRET,
       { expiresIn: "24h" }
     );

@@ -1095,7 +1095,13 @@ router.get('/artist-target-live', authenticateToken, async (req, res) => {
       -- Live Entertainment sales (same query as Item Sales Report)
       WITH AppSales AS (
         SELECT
-          ISNULL(NULLIF(LTRIM(RTRIM(sid.DishName)), ''), ISNULL(d.Name, 'Unknown')) AS ArtistName,
+          ISNULL(
+            (SELECT TOP 1 LTRIM(RTRIM(target_a.CustomerName))
+             FROM dishOrderItemShare target_a
+             WHERE LTRIM(RTRIM(sid.DishName)) = LTRIM(RTRIM(target_a.CustomerName))
+                OR sid.DishName LIKE '%' + LTRIM(RTRIM(target_a.CustomerName)) + '%'),
+            ISNULL(d.Name, 'Unknown')
+          ) AS ArtistName,
           SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
                    THEN CAST(ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0) AS decimal(18,2))
                    ELSE 0 END) AS totalAmount
@@ -1105,11 +1111,24 @@ router.get('/artist-target-live', authenticateToken, async (req, res) => {
         WHERE sh.LastSettlementDate >= @sgtStart
           AND sh.LastSettlementDate <  @sgtEnd
           AND ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), 'Unmapped') = 'Entertainment'
-        GROUP BY ISNULL(NULLIF(LTRIM(RTRIM(sid.DishName)), ''), ISNULL(d.Name, 'Unknown'))
+        GROUP BY 
+          ISNULL(
+            (SELECT TOP 1 LTRIM(RTRIM(target_a.CustomerName))
+             FROM dishOrderItemShare target_a
+             WHERE LTRIM(RTRIM(sid.DishName)) = LTRIM(RTRIM(target_a.CustomerName))
+                OR sid.DishName LIKE '%' + LTRIM(RTRIM(target_a.CustomerName)) + '%'),
+            ISNULL(d.Name, 'Unknown')
+          )
       ),
       ProfSales AS (
         SELECT
-          ISNULL(d.Name, 'Unknown') AS ArtistName,
+          ISNULL(
+            (SELECT TOP 1 LTRIM(RTRIM(target_b.CustomerName))
+             FROM dishOrderItemShare target_b
+             WHERE LTRIM(RTRIM(d.Name)) = LTRIM(RTRIM(target_b.CustomerName))
+                OR d.Name LIKE '%' + LTRIM(RTRIM(target_b.CustomerName)) + '%'),
+            ISNULL(d.Name, 'Unknown')
+          ) AS ArtistName,
           SUM(CASE WHEN rod.StatusCode <> 0
                    THEN CAST(ISNULL(rod.TotalDetailLineAmount, 0) AS decimal(18,2))
                    ELSE 0 END) AS totalAmount
@@ -1125,7 +1144,23 @@ router.get('/artist-target-live', authenticateToken, async (req, res) => {
           AND NOT EXISTS (
             SELECT 1 FROM SettlementHeader sh_dup WHERE sh_dup.BillNo = ro.OrderNumber
           )
-        GROUP BY ISNULL(d.Name, 'Unknown')
+        GROUP BY 
+          ISNULL(
+            (SELECT TOP 1 LTRIM(RTRIM(target_b.CustomerName))
+             FROM dishOrderItemShare target_b
+             WHERE LTRIM(RTRIM(d.Name)) = LTRIM(RTRIM(target_b.CustomerName))
+                OR d.Name LIKE '%' + LTRIM(RTRIM(target_b.CustomerName)) + '%'),
+            ISNULL(d.Name, 'Unknown')
+          )
+      ),
+      CashBoxSales AS (
+        SELECT
+          LTRIM(RTRIM(ArtistName)) AS ArtistName,
+          SUM(Amount) AS totalAmount
+        FROM ArtistCashBox
+        WHERE CAST(CreatedDate AS DATE) >= @fromDate
+          AND CAST(CreatedDate AS DATE) <= @toDate
+        GROUP BY LTRIM(RTRIM(ArtistName))
       ),
       CombinedSales AS (
         SELECT ArtistName, SUM(totalAmount) AS ActualSales
@@ -1133,6 +1168,8 @@ router.get('/artist-target-live', authenticateToken, async (req, res) => {
           SELECT ArtistName, totalAmount FROM AppSales
           UNION ALL
           SELECT ArtistName, totalAmount FROM ProfSales
+          UNION ALL
+          SELECT ArtistName, totalAmount FROM CashBoxSales
         ) t
         GROUP BY ArtistName
       ),

@@ -9,12 +9,14 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -62,6 +64,13 @@ export default function ArtistDetailScreen() {
   const [bonusHistory, setBonusHistory] = useState<any[]>([]);
   const [payHistory, setPayHistory]   = useState<any[]>([]);
 
+  // Pay modal state
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [selectedTxn, setSelectedTxn]   = useState<any>(null);
+  const [payAmount, setPayAmount]       = useState("");
+  const [payRemarks, setPayRemarks]     = useState("");
+  const [paying, setPaying]             = useState(false);
+
   const fetchData = useCallback(async () => {
     if (!dishId) return;
     try {
@@ -88,6 +97,64 @@ export default function ArtistDetailScreen() {
   }, [dishId, fromDate, toDate, token]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const openPayModal = () => {
+    // Find the first transaction in bonusHistory that has a pending bonus > 0
+    const firstPendingTxn = bonusHistory.find(r => (Number(r.BonusEarned) - Number(r.BonusPaid)) > 0);
+    if (!firstPendingTxn) {
+      showToast({ type: "error", message: "No Pending Bonus", subtitle: "Please calculate bonuses first or resolve payments." });
+      return;
+    }
+    const pendingVal = Number(firstPendingTxn.BonusEarned) - Number(firstPendingTxn.BonusPaid);
+    setSelectedTxn({
+      ...firstPendingTxn,
+      pendingBonus: pendingVal
+    });
+    setPayAmount(pendingVal.toFixed(2));
+    setPayRemarks("");
+    setShowPayModal(true);
+  };
+
+  const handlePay = async () => {
+    if (!selectedTxn) return;
+    const amount = parseFloat(payAmount);
+    if (!amount || amount <= 0) {
+      showToast({ type: "error", message: "Validation", subtitle: "Payment amount must be greater than $0." });
+      return;
+    }
+    if (amount > selectedTxn.pendingBonus) {
+      showToast({ type: "error", message: "Validation", subtitle: `Amount cannot exceed pending bonus ($${selectedTxn.pendingBonus.toFixed(2)}).` });
+      return;
+    }
+
+    try {
+      setPaying(true);
+      const res = await axios.post(
+        `${API_URL}/api/artist-bonus/pay`,
+        {
+          transactionId: selectedTxn.Id,
+          paymentAmount: amount,
+          remarks: payRemarks || null,
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (res.data.success) {
+        showToast({
+          type: "success",
+          message: "Payment Recorded",
+          subtitle: `$${amount.toFixed(2)} paid to ${artist?.name}. Pending: $${res.data.pendingBonus.toFixed(2)}`,
+        });
+        setShowPayModal(false);
+        fetchData(); // Refresh history
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err.message;
+      showToast({ type: "error", message: "Payment Failed", subtitle: msg });
+    } finally {
+      setPaying(false);
+    }
+  };
 
   const TABS: { key: TabKey; label: string; icon: string }[] = [
     { key: "bonus",    label: "Bonus History",   icon: "trophy" },
@@ -206,6 +273,24 @@ export default function ArtistDetailScreen() {
               </View>
             )}
 
+            {/* Pay Bonus Button */}
+            <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+              {summary.pendingBonus > 0 ? (
+                <TouchableOpacity
+                  style={styles.payBtn}
+                  onPress={openPayModal}
+                >
+                  <Ionicons name="cash-outline" size={18} color="#fff" />
+                  <Text style={styles.payBtnText}>Pay Bonus (${summary.pendingBonus.toFixed(2)})</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.payBtn, { backgroundColor: Theme.bgMuted, borderColor: Theme.border, borderWidth: 1, flexDirection: "row", justifyContent: "center", gap: 8 }]}>
+                  <Ionicons name="checkmark-circle-outline" size={18} color={Theme.textMuted} />
+                  <Text style={[styles.payBtnText, { color: Theme.textMuted }]}>All Settled (No Pending Bonus)</Text>
+                </View>
+              )}
+            </View>
+
             {/* Tabs */}
             <View style={styles.tabBar}>
               {TABS.map(tab => (
@@ -246,10 +331,10 @@ export default function ArtistDetailScreen() {
                           </View>
                         </View>
                         <View style={styles.histRowMeta}>
-                          <MetaItem label="Sales" value={`$${Number(row.TotalSales).toFixed(2)}`} color="#3B82F6" />
-                          <MetaItem label="Earned" value={`$${Number(row.BonusEarned).toFixed(2)}`} color={Theme.primary} />
-                          <MetaItem label="Paid" value={`$${Number(row.BonusPaid).toFixed(2)}`} color="#16A34A" />
-                          <MetaItem label="Pending" value={`$${Number(row.pendingBonus).toFixed(2)}`} color="#DC2626" />
+                          <MetaItem label="Sales" value={`$${Number(row.TotalSales).toFixed(2)}`} color="#3B82F6" flex={1} />
+                          <MetaItem label="Earned" value={`$${Number(row.BonusEarned).toFixed(2)}`} color={Theme.primary} flex={1} />
+                          <MetaItem label="Paid" value={`$${Number(row.BonusPaid).toFixed(2)}`} color="#16A34A" flex={1} />
+                          <MetaItem label="Pending" value={`$${Number(row.pendingBonus).toFixed(2)}`} color="#DC2626" flex={1} />
                         </View>
                       </View>
                     );
@@ -269,8 +354,8 @@ export default function ArtistDetailScreen() {
                         </Text>
                       </View>
                       <View style={styles.histRowMeta}>
-                        <MetaItem label="Paid By" value={row.PaidBy || "—"} />
-                        <MetaItem label="Remarks" value={row.Remarks || "—"} />
+                        <MetaItem label="Paid By" value={row.PaidBy || "—"} flex={1} />
+                        <MetaItem label="Remarks" value={row.Remarks || "—"} flex={2.5} />
                       </View>
                     </View>
                   ))
@@ -287,9 +372,9 @@ export default function ArtistDetailScreen() {
                         <Text style={styles.payAmt}>${Number(row.Amount).toFixed(2)}</Text>
                       </View>
                       <View style={styles.histRowMeta}>
-                        <MetaItem label="Bill" value={row.BillNo || "—"} />
-                        <MetaItem label="Item" value={row.ItemName || "—"} />
-                        <MetaItem label="Qty" value={String(row.Qty || 1)} />
+                        <MetaItem label="Bill" value={row.BillNo || "—"} flex={1} />
+                        <MetaItem label="Item" value={row.ItemName || "—"} flex={2} />
+                        <MetaItem label="Qty" value={String(row.Qty || 1)} flex={0.6} />
                       </View>
                     </View>
                   ))
@@ -300,15 +385,106 @@ export default function ArtistDetailScreen() {
           </ScrollView>
         )
       }
+
+      {/* Pay Bonus Modal */}
+      <Modal visible={showPayModal} transparent animationType="slide" onRequestClose={() => setShowPayModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Record Payment</Text>
+                <Text style={styles.modalSubtitle}>{artist?.name}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowPayModal(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={18} color={Theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Bonus Summary */}
+            {selectedTxn && (
+              <View style={styles.modalSummary}>
+                <SummaryRow label="Bonus Earned" value={`$${Number(selectedTxn.BonusEarned).toFixed(2)}`} color={Theme.primary} />
+                <SummaryRow label="Already Paid" value={`$${Number(selectedTxn.BonusPaid).toFixed(2)}`} color="#16A34A" />
+                <View style={styles.summaryDivider} />
+                <SummaryRow label="Pending Bonus" value={`$${Number(selectedTxn.pendingBonus).toFixed(2)}`} color="#DC2626" bold />
+              </View>
+            )}
+
+            {/* Payment Amount */}
+            <Text style={styles.fieldLabel}>Payment Amount ($)</Text>
+            <TextInput
+              style={styles.input}
+              value={payAmount}
+              onChangeText={setPayAmount}
+              keyboardType="decimal-pad"
+              placeholder="Enter amount to pay"
+              placeholderTextColor={Theme.textMuted}
+            />
+            {selectedTxn && (
+              <View style={styles.quickAmtRow}>
+                {[25, 50, 75, 100].map(pct => {
+                  const amt = (Number(selectedTxn.pendingBonus) * pct / 100);
+                  return (
+                    <TouchableOpacity
+                      key={pct}
+                      style={styles.quickAmtBtn}
+                      onPress={() => setPayAmount(amt.toFixed(2))}
+                    >
+                      <Text style={styles.quickAmtText}>{pct}% (${amt.toFixed(2)})</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Remarks */}
+            <Text style={styles.fieldLabel}>Remarks (optional)</Text>
+            <TextInput
+              style={[styles.input, { height: 80, textAlignVertical: "top" }]}
+              value={payRemarks}
+              onChangeText={setPayRemarks}
+              placeholder="e.g. Cash payment, weekly settlement..."
+              placeholderTextColor={Theme.textMuted}
+              multiline
+            />
+
+            {/* Footer */}
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowPayModal(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.confirmBtn, paying && { opacity: 0.6 }]} onPress={handlePay} disabled={paying}>
+                {paying
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <>
+                      <Ionicons name="checkmark" size={18} color="#fff" />
+                      <Text style={styles.confirmBtnText}>Confirm Payment</Text>
+                    </>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
-function MetaItem({ label, value, color }: { label: string; value: string; color?: string }) {
+function SummaryRow({ label, value, color, bold }: { label: string; value: string; color?: string; bold?: boolean }) {
   return (
-    <View style={styles.metaItem}>
+    <View style={styles.summaryRow}>
+      <Text style={styles.summaryRowLabel}>{label}</Text>
+      <Text style={[styles.summaryRowValue, color ? { color } : {}, bold ? { fontSize: 18 } : {}]}>{value}</Text>
+    </View>
+  );
+}
+
+function MetaItem({ label, value, color, flex }: { label: string; value: string; color?: string; flex?: number }) {
+  return (
+    <View style={[styles.metaItem, flex !== undefined ? { flex } : {}]}>
       <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={[styles.metaValue, color ? { color } : {}]}>{value}</Text>
+      <Text style={[styles.metaValue, color ? { color } : {}]} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
@@ -425,4 +601,76 @@ const styles = StyleSheet.create({
 
   emptySection: { alignItems: "center", paddingVertical: 48, gap: 12 },
   emptyText: { fontFamily: Fonts.medium, fontSize: 14, color: Theme.textSecondary },
+
+  payBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 14, borderRadius: 12,
+    backgroundColor: "#16A34A",
+  },
+  payBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: "#fff" },
+
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    ...Platform.select({
+      web: { justifyContent: "center", alignItems: "center" },
+      default: { justifyContent: "flex-end" }
+    })
+  },
+  modalBox: {
+    backgroundColor: Theme.bgCard,
+    padding: 24,
+    ...Platform.select({
+      web: {
+        borderRadius: 24,
+        boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+        width: "90%",
+        maxWidth: 500,
+      },
+      default: {
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+      }
+    })
+  },
+  modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 },
+  modalTitle: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary },
+  modalSubtitle: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary, marginTop: 2 },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center",
+  },
+  modalSummary: {
+    backgroundColor: Theme.bgMuted, borderRadius: 14, padding: 14, marginBottom: 16,
+    borderWidth: 1, borderColor: Theme.border,
+  },
+  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6 },
+  summaryRowLabel: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary },
+  summaryRowValue: { fontFamily: Fonts.black, fontSize: 15, color: Theme.textPrimary },
+  summaryDivider: { height: 1, backgroundColor: Theme.border, marginVertical: 6 },
+  fieldLabel: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary, marginBottom: 8, marginTop: 12 },
+  input: {
+    backgroundColor: Theme.bgInput, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
+    fontFamily: Fonts.medium, fontSize: 15, color: Theme.textPrimary,
+    borderWidth: 1, borderColor: Theme.border,
+  },
+  quickAmtRow: { flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" },
+  quickAmtBtn: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+    backgroundColor: Theme.bgMuted, borderWidth: 1, borderColor: Theme.border,
+  },
+  quickAmtText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary },
+  modalFooter: { flexDirection: "row", gap: 12, marginTop: 24 },
+  cancelBtn: {
+    flex: 1, paddingVertical: 14, borderRadius: 12,
+    backgroundColor: Theme.bgMuted, alignItems: "center",
+  },
+  cancelBtnText: { fontFamily: Fonts.bold, fontSize: 15, color: Theme.textSecondary },
+  confirmBtn: {
+    flex: 2, paddingVertical: 14, borderRadius: 12,
+    backgroundColor: "#16A34A", alignItems: "center",
+    flexDirection: "row", justifyContent: "center", gap: 8,
+  },
+  confirmBtnText: { fontFamily: Fonts.bold, fontSize: 15, color: "#fff" },
 });

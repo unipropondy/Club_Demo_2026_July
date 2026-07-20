@@ -1016,14 +1016,14 @@ router.get("/artist-target", async (req, res) => {
         a.ToDate,
         COALESCE(a.TargetAmount, a.Amount, 0) AS TargetAmount,
         COALESCE(a.TargetAmount, a.Amount, 0) AS Amount, -- Backward compatibility for frontend
-        ISNULL(sales.Achieved, 0) AS Achieved,
+        ISNULL(sales.Achieved, 0) + ISNULL(cb.CashBoxAchieved, 0) AS Achieved,
         CASE 
-          WHEN COALESCE(a.TargetAmount, a.Amount, 0) - ISNULL(sales.Achieved, 0) > 0 
-          THEN COALESCE(a.TargetAmount, a.Amount, 0) - ISNULL(sales.Achieved, 0)
+          WHEN COALESCE(a.TargetAmount, a.Amount, 0) - (ISNULL(sales.Achieved, 0) + ISNULL(cb.CashBoxAchieved, 0)) > 0 
+          THEN COALESCE(a.TargetAmount, a.Amount, 0) - (ISNULL(sales.Achieved, 0) + ISNULL(cb.CashBoxAchieved, 0))
           ELSE 0 
         END AS [Left],
         CASE 
-          WHEN ISNULL(sales.Achieved, 0) >= COALESCE(a.TargetAmount, a.Amount, 0) 
+          WHEN (ISNULL(sales.Achieved, 0) + ISNULL(cb.CashBoxAchieved, 0)) >= COALESCE(a.TargetAmount, a.Amount, 0) 
           THEN 'Achieved'
           ELSE 'Not Achieved'
         END AS [Status],
@@ -1033,12 +1033,23 @@ router.get("/artist-target", async (req, res) => {
         SELECT SUM(CAST(ISNULL(b.Qty, 0) * ISNULL(b.Price, 0) AS decimal(18,2))) AS Achieved
         FROM settlementitemdetail b
         INNER JOIN SettlementHeader sh ON b.SettlementID = sh.SettlementID
-        WHERE (b.DishId = a.DishId OR (a.DishId IS NULL AND b.DishName = a.CustomerName))
+        WHERE (
+          b.DishId = a.DishId 
+          OR LTRIM(RTRIM(b.DishName)) = LTRIM(RTRIM(a.CustomerName))
+          OR b.DishName LIKE '%' + LTRIM(RTRIM(a.CustomerName)) + '%'
+        )
           AND sh.IsCancelled = 0
           AND ISNULL(b.Status, 'NORMAL') <> 'VOIDED'
           AND b.OrderDateTime >= CAST(a.FromDate AS DATETIME)
           AND b.OrderDateTime < DATEADD(DAY, 1, CAST(a.ToDate AS DATETIME))
       ) sales
+      OUTER APPLY (
+        SELECT SUM(cb_inner.Amount) AS CashBoxAchieved
+        FROM ArtistCashBox cb_inner
+        WHERE LTRIM(RTRIM(cb_inner.ArtistName)) = LTRIM(RTRIM(a.CustomerName))
+          AND CAST(cb_inner.CreatedDate AS DATE) >= CAST(a.FromDate AS DATE)
+          AND CAST(cb_inner.CreatedDate AS DATE) <= CAST(a.ToDate AS DATE)
+      ) cb
       ORDER BY a.CreatedDate DESC, a.CustomerName ASC
     `);
     res.json(result.recordset || []);

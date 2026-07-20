@@ -198,14 +198,22 @@ export default function ArtistManagementScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Theme.primary]} tintColor={Theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Date Range Filter */}
-        <View style={styles.filterRow}>
+        {/* Date Range Filter (Clickable to change) */}
+        <TouchableOpacity
+          style={styles.filterRow}
+          onPress={() => router.push("/menu/artist-sales" as any)}
+          activeOpacity={0.7}
+        >
           <Ionicons name="calendar-outline" size={16} color={Theme.textSecondary} />
           <Text style={styles.filterLabel}>Period:</Text>
           <Text style={styles.filterValue}>{fromDate}</Text>
           <Text style={styles.filterLabel}> → </Text>
           <Text style={styles.filterValue}>{toDate}</Text>
-        </View>
+          <View style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Ionicons name="pencil" size={13} color={Theme.primary} />
+            <Text style={{ fontFamily: Fonts.bold, fontSize: 11, color: Theme.primary, textTransform: "uppercase" }}>Edit</Text>
+          </View>
+        </TouchableOpacity>
 
         {loading && !refreshing && (
           <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 32 }} />
@@ -421,7 +429,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   tile: {
-    width: "47%",
+    width: "100%",
     backgroundColor: Theme.bgCard,
     borderRadius: 16,
     padding: 16,

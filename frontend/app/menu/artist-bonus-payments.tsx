@@ -268,7 +268,7 @@ export default function ArtistBonusPaymentsScreen() {
       {/* Pay Bonus Modal */}
       <Modal visible={showPayModal} transparent animationType="slide" onRequestClose={() => setShowPayModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, isTablet && { maxWidth: 500 }]}>
+          <View style={styles.modalBox}>
 
             {/* Modal Header */}
             <View style={styles.modalHeader}>
@@ -443,11 +443,29 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontFamily: Fonts.medium, fontSize: 14, color: Theme.textSecondary, textAlign: "center" },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    ...Platform.select({
+      web: { justifyContent: "center", alignItems: "center" },
+      default: { justifyContent: "flex-end" }
+    })
+  },
   modalBox: {
-    backgroundColor: Theme.bgCard, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: Theme.bgCard,
     padding: 24,
-    ...Platform.select({ web: { boxShadow: "0 -4px 20px rgba(0,0,0,0.1)" } }) as any,
+    ...Platform.select({
+      web: {
+        borderRadius: 24,
+        boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+        width: "90%",
+        maxWidth: 500,
+      },
+      default: {
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+      }
+    })
   },
   modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 },
   modalTitle: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary },

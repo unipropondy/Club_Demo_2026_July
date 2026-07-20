@@ -1962,13 +1962,18 @@ const loadDishes = async () => {
                       </Text>
                     </View>
                   ))}
-                  {payments.map((p, i) => (
-                    <View key={`pay-${i}`} style={styles.tableRow}>
-                      <Text style={[styles.tableCellText, { flex: 2 }]}>{p.PaymodeName}</Text>
-                      <Text style={[styles.tableCellText, { flex: 1, textAlign: "right", color: Theme.success }]}>+{formatCurrency(p.Amount)}</Text>
-                      <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}></Text>
-                    </View>
-                  ))}
+                  {payments.map((p, i) => {
+                    const isCash = p.PaymodeName?.toUpperCase() === "CASH";
+                    return (
+                      <View key={`pay-${i}`} style={styles.tableRow}>
+                        <Text style={[styles.tableCellText, { flex: 2 }]}>{p.PaymodeName}</Text>
+                        <Text style={[styles.tableCellText, { flex: 1, textAlign: "right", color: isCash ? Theme.success : Theme.textSecondary }]}>
+                          {isCash ? `+${formatCurrency(p.Amount)}` : "0.00"}
+                        </Text>
+                        <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}></Text>
+                      </View>
+                    );
+                  })}
                   {payments.length === 0 && displayOpeningAmount === 0 && transactions.length === 0 && cashOutEntries.length === 0 && cashInEntries.length === 0 && <Text style={styles.emptyText}>No sales</Text>}
                 </ScrollView>
                 <View style={{ flexDirection: "row", paddingVertical: 12, paddingHorizontal: 12, backgroundColor: "#FAFAFA", borderTopWidth: 1, borderTopColor: Theme.border, alignItems: "center" }}>
