@@ -23,14 +23,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const pad = (n: number) => n.toString().padStart(2, "0");
-const formatDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const todayStr = () => formatDate(new Date());
-const firstOfMonthStr = () => { const d = new Date(); d.setDate(1); return formatDate(d); };
-
-// Module-level persistent storage — survives navigation back/forward
-let _persistedFromDate = firstOfMonthStr();
-let _persistedToDate   = todayStr();
+import { artistDateState } from "@/stores/artistDateStore";
 
 const STATUS_OPTS = ["All", "Pending", "Partially Paid", "Paid"];
 
@@ -60,12 +53,13 @@ export default function ArtistSalesScreen() {
 
   const [loading, setLoading]         = useState(false);
   const [calculating, setCalculating] = useState(false);
-  const [fromDate, setFromDate]       = useState(_persistedFromDate);
-  const [toDate, setToDate]           = useState(_persistedToDate);
+  const [fromDate, setFromDate]       = useState(artistDateState.fromDate);
+  const [toDate, setToDate]           = useState(artistDateState.toDate);
 
-  // Keep module-level vars in sync whenever state changes
-  const handleFromDateChange = (v: string) => { _persistedFromDate = v; setFromDate(v); };
-  const handleToDateChange   = (v: string) => { _persistedToDate   = v; setToDate(v);   };
+  // Keep shared store in sync whenever state changes
+  const handleFromDateChange = (v: string) => { artistDateState.fromDate = v; setFromDate(v); };
+  const handleToDateChange   = (v: string) => { artistDateState.toDate = v; setToDate(v);   };
+
   const [search, setSearch]           = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [artists, setArtists]         = useState<ArtistRow[]>([]);

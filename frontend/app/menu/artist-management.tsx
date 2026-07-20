@@ -5,8 +5,9 @@ import { useAuthStore } from "@/stores/authStore";
 import { useToast } from "../../components/Toast";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
+import { artistDateState } from "@/stores/artistDateStore";
 import {
   ActivityIndicator,
   Platform,
@@ -61,6 +62,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 
 export default function ArtistManagementScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { token } = useAuthStore();
   const { showToast } = useToast();
   const { width } = useWindowDimensions();
@@ -68,8 +70,8 @@ export default function ArtistManagementScreen() {
 
   const [loading, setLoading]     = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [fromDate, setFromDate]   = useState(firstOfMonth());
-  const [toDate, setToDate]       = useState(today());
+  const [fromDate, setFromDate]   = useState(artistDateState.fromDate);
+  const [toDate, setToDate]       = useState(artistDateState.toDate);
 
   const [cards, setCards] = useState({
     totalArtistSales: 0,
@@ -100,6 +102,15 @@ export default function ArtistManagementScreen() {
       setRefreshing(false);
     }
   }, [fromDate, toDate, token]);
+
+  // Sync dates when returning to the dashboard page
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      setFromDate(artistDateState.fromDate);
+      setToDate(artistDateState.toDate);
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
