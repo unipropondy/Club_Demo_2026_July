@@ -139,7 +139,7 @@ export default function ArtistReportsScreen() {
         { label: "Amount",       render: r => fmtMoney(r.PaymentAmount) },
         { label: "Paid By",      render: r => r.PaidBy || "—" },
         { label: "Remarks",      render: r => r.Remarks || "—" },
-        { label: "Bonus Period", render: r => `${fmtDate(r.SalesFromDate)} → ${fmtDate(r.SalesToDate)}` },
+        { label: "Bonus Period", render: r => `${fmtDate(r.SalesFromDate)} to ${fmtDate(r.SalesToDate)}` },
       ],
       "pending": [
         { label: "Artist",  render: r => r.ArtistName },
@@ -168,20 +168,37 @@ export default function ArtistReportsScreen() {
       `<tr>${cols.map(c => `<td>${c.render(row)}</td>`).join("")}</tr>`
     ).join("");
 
+    const formattedSgt = new Date().toLocaleString("en-SG", {
+      timeZone: "Asia/Singapore",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true
+    }) + " SGT";
+
     const html = `
-      <html><head><style>
-        body { font-family: sans-serif; padding: 24px; }
-        h1 { font-size: 20px; color: #F97316; }
-        p { font-size: 12px; color: #6B7280; margin-bottom: 16px; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th { background: #F97316; color: white; padding: 8px; text-align: left; }
-        td { padding: 7px 8px; border-bottom: 1px solid #E5E7EB; }
-        tr:nth-child(even) td { background: #FFF7ED; }
-      </style></head><body>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: sans-serif; padding: 24px; }
+          h1 { font-size: 20px; color: #F97316; }
+          p { font-size: 12px; color: #6B7280; margin-bottom: 16px; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th { background: #F97316; color: white; padding: 8px; text-align: left; }
+          td { padding: 7px 8px; border-bottom: 1px solid #E5E7EB; }
+          tr:nth-child(even) td { background: #FFF7ED; }
+        </style>
+      </head>
+      <body>
         <h1>Artist ${tabLabel} Report</h1>
-        <p>Period: ${fromDate} → ${toDate} | Generated: ${new Date().toLocaleString()}</p>
+        <p>Period: ${fromDate} to ${toDate} | Generated: ${formattedSgt}</p>
         <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>
-      </body></html>
+      </body>
+      </html>
     `;
 
     try {
