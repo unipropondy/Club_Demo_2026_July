@@ -31,6 +31,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   Paid:            { bg: "#DCFCE7", text: "#16A34A" },
   "Partially Paid": { bg: "#FEF9C3", text: "#CA8A04" },
   Pending:         { bg: "#FEE2E2", text: "#DC2626" },
+  Accruing:        { bg: "#E0F2FE", text: "#0284C7" },
   "No Bonus":      { bg: "#F5F5F4", text: "#78716C" },
 };
 
@@ -42,6 +43,10 @@ interface ArtistRow {
   bonusPaid: number;
   pendingBonus: number;
   status: string;
+  thresholdAmount?: number;
+  thresholdReached?: boolean;
+  progressPct?: number;
+  remainingToThreshold?: number;
 }
 
 export default function ArtistSalesScreen() {
@@ -53,12 +58,16 @@ export default function ArtistSalesScreen() {
 
   const [loading, setLoading]         = useState(false);
   const [calculating, setCalculating] = useState(false);
-  const [fromDate, setFromDate]       = useState(artistDateState.fromDate);
-  const [toDate, setToDate]           = useState(artistDateState.toDate);
+  const [fromDate, setFromDate]       = useState("");
+  const [toDate, setToDate]           = useState("");
 
   // Keep shared store in sync whenever state changes
   const handleFromDateChange = (v: string) => { artistDateState.fromDate = v; setFromDate(v); };
   const handleToDateChange   = (v: string) => { artistDateState.toDate = v; setToDate(v);   };
+
+  const [isDayActive, setIsDayActive]   = useState(false);
+  const [activeDay, setActiveDay]       = useState<string | null>(null);
+  const [isActiveDayView, setIsActiveDayView] = useState(true);
 
   const [search, setSearch]           = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -67,17 +76,24 @@ export default function ArtistSalesScreen() {
   const [cards, setCards]             = useState({ totalArtistSales: 0, totalBonusEarned: 0, totalBonusPaid: 0, pendingBonus: 0 });
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  // fetchData: if no fromDate/toDate passed explicitly, backend defaults to active day
+  const fetchData = useCallback(async (explicitFrom?: string, explicitTo?: string) => {
     try {
       setLoading(true);
+      const from = explicitFrom !== undefined ? explicitFrom : fromDate;
+      const to   = explicitTo   !== undefined ? explicitTo   : toDate;
+      const params = from && to ? `?fromDate=${from}&toDate=${to}` : "";
       const res = await axios.get(
-        `${API_URL}/api/artist-bonus/sales-summary?fromDate=${fromDate}&toDate=${toDate}`,
+        `${API_URL}/api/artist-bonus/sales-summary${params}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data.success) {
         setArtists(res.data.artists || []);
         setCards(res.data.cards || {});
         setActiveRule(res.data.activeRule);
+        setIsDayActive(res.data.isDayActive ?? false);
+        setActiveDay(res.data.activeDay ?? null);
+        setIsActiveDayView(res.data.isActiveDayView ?? true);
       }
     } catch (err: any) {
       showToast({ type: "error", message: "Load Failed", subtitle: err.message });
@@ -86,8 +102,8 @@ export default function ArtistSalesScreen() {
     }
   }, [fromDate, toDate, token]);
 
-  // Only fetch automatically on mount; date changes are applied by clicking the search/apply button
-  useEffect(() => { fetchData(); }, []);
+  // On mount: fetch active day (no dates)
+  useEffect(() => { fetchData("", ""); }, []);
 
   const handleCalculate = () => {
     if (!activeRule) {
@@ -105,9 +121,10 @@ export default function ArtistSalesScreen() {
     try {
       setCalculating(true);
       setShowConfirmModal(false);
+      // Send no dates — backend defaults to active business day
       const res = await axios.post(
         `${API_URL}/api/artist-bonus/calculate`,
-        { fromDate, toDate },
+        {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data.success) {
@@ -116,9 +133,9 @@ export default function ArtistSalesScreen() {
         showToast({
           type: "success",
           message: "Calculation Complete",
-          subtitle: `${created} new transactions created, ${skipped} skipped (already exist).`,
+          subtitle: `${created} new transactions created, ${skipped} skipped (already exist). Day: ${res.data.fromDate}`,
         });
-        fetchData();
+        fetchData("", "");
       }
     } catch (err: any) {
       const msg = err?.response?.data?.error || err.message;
@@ -172,7 +189,20 @@ export default function ArtistSalesScreen() {
 
       {/* Filters */}
       <View style={styles.filterBar}>
-        {/* Date inputs */}
+        {/* Active Day Banner */}
+        <View style={[
+          styles.activeDayBar,
+          { backgroundColor: isDayActive ? "#F0FDF4" : "#FEF2F2", borderColor: isDayActive ? "#86EFAC" : "#FCA5A5" }
+        ]}>
+          <View style={[styles.activeDot, { backgroundColor: isDayActive ? "#16A34A" : "#DC2626" }]} />
+          <Text style={[styles.activeDayText, { color: isDayActive ? "#15803D" : "#B91C1C" }]}>
+            {isDayActive
+              ? (isActiveDayView ? `Live Day: ${activeDay}` : `Viewing: ${fromDate} – ${toDate}`)
+              : "No Active Day — Viewing Historical"}
+          </Text>
+        </View>
+
+        {/* Date inputs for historical lookup */}
         <View style={styles.dateRow}>
           <View style={styles.dateField}>
             <Text style={styles.dateLabel}>From</Text>
@@ -195,7 +225,10 @@ export default function ArtistSalesScreen() {
               placeholderTextColor={Theme.textMuted}
             />
           </View>
-          <TouchableOpacity style={styles.searchApplyBtn} onPress={fetchData}>
+          <TouchableOpacity
+            style={styles.searchApplyBtn}
+            onPress={() => { if (fromDate && toDate) fetchData(fromDate, toDate); else fetchData("", ""); }}
+          >
             <Ionicons name="search" size={16} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -561,4 +594,24 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.primary,
   },
   modalConfirmBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: "#fff" },
+  activeDayBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    marginBottom: 8,
+  },
+  activeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  activeDayText: {
+    fontFamily: Fonts.bold,
+    fontSize: 12,
+    flex: 1,
+  },
 });

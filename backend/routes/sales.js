@@ -58,7 +58,8 @@ const normalizeReportPayModeSql = (columnName = "sts.PayMode", settlementIdColum
           OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))
       ),
       CASE
-        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('CAS', 'CASH', '', '1') THEN 'CASH'
+        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('CASHBOX', 'CASH BOX', 'CASH BOX ENTRY') OR UPPER(LTRIM(RTRIM(ISNULL(sh.OrderType, '')))) = 'CASHBOX' THEN 'CASH BOX ENTRY'
+        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('CAS', 'CASH', '1') THEN 'CASH'
         WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('YEAHPAY PAYNOW', '7') THEN 'YEAHPAY PAYNOW'
         WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('YEAHPAY CARD', '8') THEN 'YEAHPAY CARD'
         WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('CARD', 'VISA', 'MASTER', 'MASTERCARD', 'AMEX', 'DINERS') THEN 'CARD'
@@ -666,16 +667,24 @@ router.get("/detail/:id/payments", async (req, res) => {
     
     let payments = result.recordset || [];
     if (payments.length === 0) {
-      // Fallback 1: Query PaymentDetailCur / PaymentDetail to see if there is a single payment mode recorded
+      // Fallback 1: Query PaymentDetailCur joined with SettlementHeader to detect CASHBOX orders
       const pdResult = await pool.request()
         .input("Id", sql.UniqueIdentifier, cleanId)
         .query(`
           SELECT 
             pd.RestaurantBillId AS ReferenceId,
             pd.Amount,
-            COALESCE(pm.Description, pm.PayMode) AS PayModeName
+            pd.Remarks,
+            sh.OrderType,
+            CASE
+              WHEN UPPER(ISNULL(pd.Remarks,'')) = 'CASH BOX ENTRY'
+                OR UPPER(ISNULL(sh.OrderType,'')) = 'CASHBOX'
+              THEN 'Cash Box Entry'
+              ELSE COALESCE(pm.Description, pm.PayMode)
+            END AS PayModeName
           FROM PaymentDetailCur pd
           LEFT JOIN Paymode pm ON pd.Paymode = pm.Position
+          LEFT JOIN SettlementHeader sh ON sh.SettlementID = pd.RestaurantBillId
           WHERE pd.RestaurantBillId = @Id
         `);
       
@@ -1101,6 +1110,7 @@ router.get("/day-end-summary", async (req, res) => {
                   OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(sd.Paymode))
               ), 
               CASE 
+                WHEN UPPER(LTRIM(RTRIM(sd.Paymode))) IN ('CASHBOX', 'CASH BOX', 'CASH BOX ENTRY') THEN 'Cash Box Entry'
                 WHEN LTRIM(RTRIM(sd.Paymode)) = '2' THEN 'NETS'
                 WHEN LTRIM(RTRIM(sd.Paymode)) = '3' THEN 'PAYNOW'
                 WHEN LTRIM(RTRIM(sd.Paymode)) = '4' THEN 'UPI / GPAY'
@@ -1250,7 +1260,18 @@ router.get("/day-end-summary", async (req, res) => {
     const settlementRes = await pool.request()
       .query(`
         SELECT 
-          ISNULL((SELECT TOP 1 LTRIM(RTRIM(Description)) FROM Paymode pm WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(sd.Paymode))), sd.Paymode) as Paymode,
+          CASE
+            WHEN UPPER(LTRIM(RTRIM(sd.Paymode))) IN ('CASHBOX', 'CASH BOX', 'CASH BOX ENTRY')
+              OR UPPER(LTRIM(RTRIM(ISNULL(sh.OrderType,'')))) = 'CASHBOX'
+            THEN 'Cash Box Entry'
+            ELSE ISNULL(
+              (SELECT TOP 1 LTRIM(RTRIM(Description)) FROM Paymode pm WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(sd.Paymode))
+                OR LTRIM(RTRIM(pm.Description)) = LTRIM(RTRIM(sd.Paymode))
+                OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(sd.Paymode))
+              ),
+              sd.Paymode
+            )
+          END as Paymode,
           SUM(ISNULL(sd.SysAmount, 0)) as SysAmount,
           SUM(ISNULL(sd.ManualAmount, 0)) as ManualAmount,
           SUM(ISNULL(sd.SortageOrExces, 0)) as SortageOrExces,
@@ -1258,7 +1279,19 @@ router.get("/day-end-summary", async (req, res) => {
         FROM SettlementHeader sh
         INNER JOIN SettlementDetail sd ON sh.SettlementID = sd.SettlementId
         WHERE ${whereSql}
-        GROUP BY sd.Paymode
+        GROUP BY 
+          CASE
+            WHEN UPPER(LTRIM(RTRIM(sd.Paymode))) IN ('CASHBOX', 'CASH BOX', 'CASH BOX ENTRY')
+              OR UPPER(LTRIM(RTRIM(ISNULL(sh.OrderType,'')))) = 'CASHBOX'
+            THEN 'Cash Box Entry'
+            ELSE ISNULL(
+              (SELECT TOP 1 LTRIM(RTRIM(Description)) FROM Paymode pm WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(sd.Paymode))
+                OR LTRIM(RTRIM(pm.Description)) = LTRIM(RTRIM(sd.Paymode))
+                OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(sd.Paymode))
+              ),
+              sd.Paymode
+            )
+          END
         ORDER BY SysAmount DESC
       `);
 

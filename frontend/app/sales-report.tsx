@@ -186,6 +186,7 @@ export default function SalesReport() {
     "VOID",
     "MEMBER",
     "CREDIT",
+    "CASH BOX ENTRY",
   ]);
   const [activeOrderTypes, setActiveOrderTypes] = useState<string[]>([
     "DINE-IN",
@@ -1055,11 +1056,14 @@ export default function SalesReport() {
       const modeUpper = s.PayMode?.toUpperCase().trim() || "";
       const isUpiMode = modeUpper.includes("UPI") || modeUpper.includes("GPAY");
       const typeUpper = s.OrderType?.toUpperCase().trim() || "";
+      const isCashBoxOrder = typeUpper === 'CASHBOX' || modeUpper === 'CASH BOX ENTRY' || modeUpper === 'CASHBOX';
 
       // Support checking components of combined payment modes (e.g. "CASH + NETS")
       const splitModes = modeUpper.includes("+") ? modeUpper.split("+").map((m: string) => m.trim()) : [modeUpper];
 
       const modeMatch =
+        // Cash Box Entry orders: show when CASH BOX ENTRY is in active modes, or when all modes shown
+        (isCashBoxOrder && (activePaymentModes.includes("CASH BOX ENTRY") || activePaymentModes.includes("CASHBOX"))) ||
         splitModes.some((m: string) => activePaymentModes.includes(m)) ||
         (activePaymentModes.includes("UPI") && isUpiMode) ||
         (showCancelledOrders && s.IsCancelled) ||
@@ -1070,6 +1074,7 @@ export default function SalesReport() {
         ));
       const typeMatch =
         typeUpper === 'LEDGER' ||
+        typeUpper === 'CASHBOX' ||
         activeOrderTypes.length === 2 ||
         (s.OrderType
           ? activeOrderTypes.includes(typeUpper)
@@ -1132,7 +1137,9 @@ export default function SalesReport() {
 
         const mode = s.PayMode?.trim().toUpperCase() || "";
         const isUpi = mode.includes("UPI") || mode.includes("GPAY");
-        if (mode === "CASH") acc.Cash += s.SysAmount;
+        const isCashBox = s.OrderType?.toUpperCase() === 'CASHBOX' || mode === 'CASH BOX ENTRY' || mode === 'CASHBOX';
+        if (isCashBox) acc.CashBoxEntry = (acc.CashBoxEntry || 0) + (s.SysAmount || 0);
+        else if (mode === "CASH") acc.Cash += s.SysAmount;
         else if (mode === "CARD") acc.Card += s.SysAmount;
         else if (mode === "NETS") acc.Nets += s.SysAmount;
         else if (mode === "PAYNOW") acc.PayNow += s.SysAmount;
@@ -1158,6 +1165,7 @@ export default function SalesReport() {
         Upi: 0,
         Member: 0,
         Credit: 0,
+        CashBoxEntry: 0,
         TotalVoids: 0,
         TotalVoidAmount: 0,
         CancelledCount: 0,
@@ -1185,6 +1193,8 @@ export default function SalesReport() {
     UPI: "#f59e0b",
     MEMBER: "#ec4899",
     CREDIT: "#e11d48",
+    "CASH BOX ENTRY": "#0ea5e9",
+    CASHBOX: "#0ea5e9",
   };
 
   const getPayModeColor = (mode: string) => {
@@ -1206,6 +1216,8 @@ export default function SalesReport() {
     UPI: "📱",
     MEMBER: "👤",
     CREDIT: "🏷️",
+    "CASH BOX ENTRY": "🗃️",
+    CASHBOX: "🗃️",
   };
 
   const getPayModeIconChar = (mode: string) => {
@@ -1216,6 +1228,8 @@ export default function SalesReport() {
   const paymentBreakdownMetrics = useMemo<Record<string, number>>(() => {
     const filteredByTypes = dateScopedSales.filter((s) => {
       const typeUpper = s.OrderType?.toUpperCase().trim() || "";
+      // Always include CASHBOX orders regardless of active order type filter
+      if (typeUpper === 'CASHBOX') return true;
       const typeMatch =
         activeOrderTypes.length === 2 ||
         (s.OrderType
@@ -1228,6 +1242,8 @@ export default function SalesReport() {
     dbPaymentModes.forEach((m) => {
       initialAcc[m.payMode.toUpperCase().trim()] = 0;
     });
+    // Always init Cash Box Entry bucket (not in DB Paymode table)
+    initialAcc["CASH BOX ENTRY"] = 0;
     initialAcc["CREDIT_OUTSTANDING"] = 0;
 
     return filteredByTypes.reduce(
@@ -1241,6 +1257,17 @@ export default function SalesReport() {
         }
 
         const salePayMode = s.PayMode?.trim().toUpperCase() || "";
+
+        // === CASHBOX DETECTION — must run BEFORE DB paymode matching ===
+        // 'CASH BOX ENTRY'.includes('CASH') is true so it would wrongly match CASH!
+        const isCashBox = s.OrderType?.toUpperCase() === 'CASHBOX' ||
+          salePayMode === 'CASHBOX' || salePayMode === 'CASH BOX' || salePayMode === 'CASH BOX ENTRY';
+
+        if (isCashBox) {
+          acc["CASH BOX ENTRY"] = (acc["CASH BOX ENTRY"] || 0) + (s.SysAmount || 0);
+          return acc;
+        }
+
         // First pass: try exact match
         let matchedMode = dbPaymentModes.find((m) => {
           const dbName = String(m.payMode || "").toUpperCase().trim();
@@ -1265,13 +1292,13 @@ export default function SalesReport() {
 
         if (matchedMode) {
           const key = matchedMode.payMode.toUpperCase().trim();
-          acc[key] = (acc[key] || 0) + s.SysAmount;
+          acc[key] = (acc[key] || 0) + (s.SysAmount || 0);
           if (key === "CREDIT") {
             acc["CREDIT_OUTSTANDING"] = (acc["CREDIT_OUTSTANDING"] || 0) + (Number(s.OutstandingAmount) || 0);
           }
         } else {
           const key = salePayMode || "CASH";
-          acc[key] = (acc[key] || 0) + s.SysAmount;
+          acc[key] = (acc[key] || 0) + (s.SysAmount || 0);
         }
 
         return acc;
@@ -3632,7 +3659,7 @@ export default function SalesReport() {
                 <View style={styles.sidebarFooter}>
                   <TouchableOpacity
                     onPress={() => {
-                      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER", "CREDIT"]);
+                      setActivePaymentModes(["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER", "CREDIT", "CASH BOX ENTRY"]);
                       setActiveOrderTypes(["DINE-IN", "TAKEAWAY"]);
                       setSortOrder("NEWEST");
                       setShowCancelledOrders(true);

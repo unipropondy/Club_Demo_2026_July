@@ -140,46 +140,53 @@ export default function ArtistBonusMasterScreen() {
   };
 
   const handleDeactivate = (rule: BonusRule) => {
-    Alert.alert(
-      rule.IsActive ? "Deactivate Rule" : "Activate Rule",
-      rule.IsActive
-        ? "This will deactivate the bonus rule. Artists will no longer earn bonuses until a new rule is created."
-        : "Activate this rule? It will become the new global bonus rule.",
-      [
+    const title = rule.IsActive ? "Deactivate Rule" : "Activate Rule";
+    const msg = rule.IsActive
+      ? "This will deactivate the bonus rule. Artists will no longer earn bonuses until a new rule is created."
+      : "Activate this rule? It will become the new global bonus rule.";
+
+    const executeChange = async () => {
+      try {
+        if (rule.IsActive) {
+          await axios.delete(`${API_URL}/api/artist-bonus/master/${rule.Id}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        } else {
+          await axios.put(
+            `${API_URL}/api/artist-bonus/master/${rule.Id}`,
+            {
+              thresholdAmount: rule.ThresholdAmount,
+              bonusAmount: rule.BonusAmount,
+              isRepeating: rule.IsRepeating,
+              isActive: true,
+              artistDishId: rule.ArtistDishId,
+              artistType: rule.ArtistType,
+            },
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+        }
+        showToast({ type: "success", message: "Done", subtitle: "Rule status updated." });
+        fetchRules();
+      } catch (err: any) {
+        const errorMsg = err?.response?.data?.error || err.message;
+        showToast({ type: "error", message: "Failed", subtitle: errorMsg });
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`${title}\n\n${msg}`)) {
+        executeChange();
+      }
+    } else {
+      Alert.alert(title, msg, [
         { text: "Cancel", style: "cancel" },
         {
           text: rule.IsActive ? "Deactivate" : "Activate",
           style: rule.IsActive ? "destructive" : "default",
-          onPress: async () => {
-            try {
-              if (rule.IsActive) {
-                await axios.delete(`${API_URL}/api/artist-bonus/master/${rule.Id}`, {
-                  headers: { Authorization: `Bearer ${token}` },
-                });
-              } else {
-                await axios.put(
-                  `${API_URL}/api/artist-bonus/master/${rule.Id}`,
-                  {
-                    thresholdAmount: rule.ThresholdAmount,
-                    bonusAmount: rule.BonusAmount,
-                    isRepeating: rule.IsRepeating,
-                    isActive: true,
-                    artistDishId: rule.ArtistDishId,
-                    artistType: rule.ArtistType,
-                  },
-                  { headers: { Authorization: `Bearer ${token}` } }
-                );
-              }
-              showToast({ type: "success", message: "Done", subtitle: "Rule status updated." });
-              fetchRules();
-            } catch (err: any) {
-              const msg = err?.response?.data?.error || err.message;
-              showToast({ type: "error", message: "Failed", subtitle: msg });
-            }
-          },
+          onPress: executeChange,
         },
-      ]
-    );
+      ]);
+    }
   };
 
   // Live preview of bonus milestones

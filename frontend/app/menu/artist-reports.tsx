@@ -55,13 +55,14 @@ export default function ArtistReportsScreen() {
   const [fromDate, setFromDate]   = useState(firstOfMonthStr());
   const [toDate, setToDate]       = useState(todayStr());
   const [data, setData]           = useState<any[]>([]);
+  const [hasCustomRange, setHasCustomRange] = useState(false);
 
   const ENDPOINT_MAP: Record<ReportTab, string> = {
     "sales":          `/api/artist-bonus/reports/sales?fromDate=${fromDate}&toDate=${toDate}`,
     "bonus-ledger":   `/api/artist-bonus/reports/bonus-ledger?fromDate=${fromDate}&toDate=${toDate}`,
     "payment-ledger": `/api/artist-bonus/reports/payment-ledger?fromDate=${fromDate}&toDate=${toDate}`,
     "pending":        `/api/artist-bonus/reports/pending`,
-    "performance":    `/api/artist-bonus/reports/performance`,
+    "performance":    `/api/artist-bonus/reports/performance?fromDate=${fromDate}&toDate=${toDate}`,
   };
 
   const fetchReport = useCallback(async (tab: ReportTab = activeTab) => {
@@ -71,7 +72,10 @@ export default function ArtistReportsScreen() {
       const res = await axios.get(`${API_URL}${ENDPOINT_MAP[tab]}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.data.success) setData(res.data.data || []);
+      if (res.data.success) {
+        setData(res.data.data || []);
+        setHasCustomRange(res.data.hasCustomRange ?? false);
+      }
     } catch (err: any) {
       showToast({ type: "error", message: "Load Failed", subtitle: err.message });
     } finally {
@@ -308,10 +312,16 @@ export default function ArtistReportsScreen() {
       case "performance":
         return (
           <>
-            <TableRow header cells={["Artist", "Daily", "Weekly", "Monthly", "Yearly", "Earned", "Paid", "Pending"]} />
+            <TableRow header cells={[
+              "Artist",
+              ...(hasCustomRange ? [`${fromDate} – ${toDate}`] : []),
+              "Daily", "Weekly", "Monthly", "Yearly",
+              "Earned", "Paid", "Pending"
+            ]} />
             {data.map((r, i) => (
               <TableRow key={i} alt={i % 2 === 1} cells={[
                 r.ArtistName,
+                ...(hasCustomRange ? [fmtMoney(r.CustomSales)] : []),
                 fmtMoney(r.DailySales),
                 fmtMoney(r.WeeklySales),
                 fmtMoney(r.MonthlySales),
@@ -351,7 +361,7 @@ export default function ArtistReportsScreen() {
       </View>
 
       {/* Date Filter */}
-      {(activeTab === "sales" || activeTab === "bonus-ledger" || activeTab === "payment-ledger") && (
+      {(activeTab === "sales" || activeTab === "bonus-ledger" || activeTab === "payment-ledger" || activeTab === "performance") && (
         <View style={styles.filterBar}>
           <View style={styles.dateField}>
             <Text style={styles.dateLabel}>From</Text>

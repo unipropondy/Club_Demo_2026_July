@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPool, sql } = require('../config/db');
 const { authenticateToken } = require('../middleware/auth');
+const { processDayEndBonusCalculations } = require('./artistBonus');
 
 
 // ============================================
@@ -38,13 +39,32 @@ router.post("/day-start", async (req, res) => {
 router.post("/day-end", async (req, res) => {
   try {
     const pool = getPool();
+
+    // 1. Finalize artist bonus transactions for the active business day
+    //    This must happen BEFORE DateEntry is cleared (we need the active StartDate)
+    let bonusResult = null;
+    try {
+      bonusResult = await processDayEndBonusCalculations(pool);
+      console.log('[DayEnd] Artist bonus finalization:', bonusResult);
+    } catch (bonusErr) {
+      // Non-fatal: log but continue with Day End
+      console.error('[DayEnd] Artist bonus finalization error (non-fatal):', bonusErr.message);
+    }
+
+    // 2. Clear active business day — this officially ends the day
     await pool.request().query("DELETE FROM DateEntry");
-    res.json({ success: true, message: "Day ended successfully" });
+
+    res.json({
+      success: true,
+      message: "Day ended successfully",
+      bonusFinalization: bonusResult,
+    });
   } catch (err) {
     console.error("Day End Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
+
 
 router.get("/active-day", async (req, res) => {
   try {
@@ -931,13 +951,13 @@ router.post('/artist-cashbox', authenticateToken, async (req, res) => {
         .input('Amount', sql.Money, Amount)
         .query(`
           INSERT INTO SettlementTotalSales (SettlementID, PayMode, SysAmount, ManualAmount, AmountDiff, ReceiptCount)
-          VALUES (@SettlementID, 'CASH', @Amount, @Amount, 0, 1);
+          VALUES (@SettlementID, 'Cash Box Entry', @Amount, @Amount, 0, 1);
 
           INSERT INTO SettlementDetail (SettlementId, Paymode, SysAmount, ManualAmount, SortageOrExces, ReceiptCount, IsCollected)
-          VALUES (@SettlementID, 'CASH', @Amount, @Amount, 0, 1, 0);
+          VALUES (@SettlementID, 'Cash Box Entry', @Amount, @Amount, 0, 1, 0);
 
           INSERT INTO SettlementTranDetail (SettlementID, PayMode, CashIn, CashOut)
-          VALUES (@SettlementID, 'CASH', @Amount, 0);
+          VALUES (@SettlementID, 'Cash Box Entry', @Amount, 0);
         `);
       console.log('[CASHBOX] STEP 5 OK');
 

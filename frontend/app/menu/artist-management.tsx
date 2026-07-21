@@ -52,12 +52,17 @@ interface ArtistRow {
   bonusPaid: number;
   pendingBonus: number;
   status: "Paid" | "Partially Paid" | "Pending";
+  thresholdAmount: number;
+  thresholdReached: boolean;
+  progressPct: number;
+  remainingToThreshold: number;
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   Paid:           { bg: "#F0FDF4", text: "#16A34A" },
   "Partially Paid": { bg: "#FFFBEB", text: "#D97706" },
   Pending:        { bg: "#FEF2F2", text: "#DC2626" },
+  Accruing:       { bg: "#E0F2FE", text: "#0284C7" },
 };
 
 export default function ArtistManagementScreen() {
@@ -70,8 +75,9 @@ export default function ArtistManagementScreen() {
 
   const [loading, setLoading]     = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [fromDate, setFromDate]   = useState(artistDateState.fromDate);
-  const [toDate, setToDate]       = useState(artistDateState.toDate);
+
+  const [isDayActive, setIsDayActive]   = useState(false);
+  const [activeDay, setActiveDay]       = useState<string | null>(null);
 
   const [cards, setCards] = useState({
     totalArtistSales: 0,
@@ -85,14 +91,17 @@ export default function ArtistManagementScreen() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      // No date params — defaults to active business day on the backend
       const res = await axios.get(
-        `${API_URL}/api/artist-bonus/sales-summary?fromDate=${fromDate}&toDate=${toDate}`,
+        `${API_URL}/api/artist-bonus/sales-summary`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data.success) {
         setCards(res.data.cards);
         setArtists(res.data.artists || []);
         setActiveRule(res.data.activeRule);
+        setIsDayActive(res.data.isDayActive ?? false);
+        setActiveDay(res.data.activeDay ?? null);
       }
     } catch (err: any) {
       console.error("[ArtistMgmt] fetchData error:", err.message);
@@ -101,16 +110,15 @@ export default function ArtistManagementScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [fromDate, toDate, token]);
+  }, [token]);
 
-  // Sync dates when returning to the dashboard page
+  // Refresh when returning to this screen
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
-      setFromDate(artistDateState.fromDate);
-      setToDate(artistDateState.toDate);
+      fetchData();
     });
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, fetchData]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -209,22 +217,28 @@ export default function ArtistManagementScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Theme.primary]} tintColor={Theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Date Range Filter (Clickable to change) */}
-        <TouchableOpacity
-          style={styles.filterRow}
-          onPress={() => router.push("/menu/artist-sales" as any)}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="calendar-outline" size={16} color={Theme.textSecondary} />
-          <Text style={styles.filterLabel}>Period:</Text>
-          <Text style={styles.filterValue}>{fromDate}</Text>
-          <Text style={styles.filterLabel}> → </Text>
-          <Text style={styles.filterValue}>{toDate}</Text>
-          <View style={{ marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Ionicons name="pencil" size={13} color={Theme.primary} />
-            <Text style={{ fontFamily: Fonts.bold, fontSize: 11, color: Theme.primary, textTransform: "uppercase" }}>Edit</Text>
+        {/* Active Day Status Banner */}
+        <View style={[
+          styles.dayBanner,
+          { backgroundColor: isDayActive ? "#F0FDF4" : "#FEF2F2", borderColor: isDayActive ? "#16A34A" : "#FCA5A5" }
+        ]}>
+          <View style={[styles.dayDot, { backgroundColor: isDayActive ? "#16A34A" : "#DC2626" }]} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.dayBannerTitle, { color: isDayActive ? "#15803D" : "#B91C1C" }]}>
+              {isDayActive ? `Active Business Day` : "No Active Day"}
+            </Text>
+            <Text style={[styles.dayBannerSub, { color: isDayActive ? "#16A34A" : "#DC2626" }]}>
+              {isDayActive
+                ? `Bonuses accumulating for ${activeDay} · Finalized at Day End`
+                : "Start a Day to begin tracking artist bonuses"}
+            </Text>
           </View>
-        </TouchableOpacity>
+          {isDayActive && (
+            <View style={styles.dayLiveBadge}>
+              <Text style={styles.dayLiveText}>LIVE</Text>
+            </View>
+          )}
+        </View>
 
         {loading && !refreshing && (
           <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 32 }} />
@@ -275,11 +289,11 @@ export default function ArtistManagementScreen() {
             <View style={styles.artistCard}>
               {isTablet ? (
                 // ── Tablet / Web: flex layout fills the full width ──
-                <View>
+              <View>
                   <View style={styles.tableHeader}>
                     <Text style={[styles.thCell, { flex: 2 }]}>Artist</Text>
                     <Text style={[styles.thCell, { flex: 1.5, textAlign: "right" }]}>Sales</Text>
-                    <Text style={[styles.thCell, { flex: 1.5, textAlign: "right" }]}>Earned</Text>
+                    <Text style={[styles.thCell, { flex: 1.2, textAlign: "center" }]}>Progress</Text>
                     <Text style={[styles.thCell, { flex: 1.2, textAlign: "center" }]}>Status</Text>
                   </View>
                   {artists.slice(0, 8).map((artist, idx) => {
@@ -292,13 +306,25 @@ export default function ArtistManagementScreen() {
                         activeOpacity={0.7}
                       >
                         <View style={[{ flex: 2 }, styles.rowCell]}>
-                          <View style={styles.avatarCircle}>
+                          <View style={[styles.avatarCircle, artist.thresholdReached && { backgroundColor: "#16A34A" }]}>
                             <Text style={styles.avatarText}>{(artist.name || "?")[0].toUpperCase()}</Text>
                           </View>
                           <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
                         </View>
                         <Text style={[styles.tdCell, { flex: 1.5, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
-                        <Text style={[styles.tdCell, { flex: 1.5, textAlign: "right" }]}>${artist.bonusEarned.toFixed(2)}</Text>
+                        {/* Progress toward threshold */}
+                        <View style={[{ flex: 1.2, paddingHorizontal: 4, justifyContent: "center" }]}>
+                          {artist.thresholdAmount > 0 ? (
+                            <>
+                              <View style={styles.progressTrack}>
+                                <View style={[styles.progressFill, { width: `${artist.progressPct}%` as any, backgroundColor: artist.thresholdReached ? "#16A34A" : Theme.primary }]} />
+                              </View>
+                              <Text style={styles.progressLabel}>
+                                {artist.thresholdReached ? "✓ Bonus!" : `$${artist.remainingToThreshold.toFixed(0)} left`}
+                              </Text>
+                            </>
+                          ) : <Text style={styles.tdCell}>—</Text>}
+                        </View>
                         <View style={[{ flex: 1.2 }, styles.badgeWrap]}>
                           <View style={[styles.badge, { backgroundColor: sc.bg }]}>
                             <Text style={[styles.badgeText, { color: sc.text }]} numberOfLines={1}>{artist.status}</Text>
@@ -316,11 +342,11 @@ export default function ArtistManagementScreen() {
               ) : (
                 // ── Mobile: fixed-width columns + horizontal scroll ──
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ minWidth: 500 }}>
+                  <View style={{ minWidth: 540 }}>
                     <View style={styles.tableHeader}>
                       <Text style={[styles.thCell, { width: 150 }]}>Artist</Text>
-                      <Text style={[styles.thCell, { width: 120, textAlign: "right" }]}>Sales</Text>
-                      <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>Earned</Text>
+                      <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>Sales</Text>
+                      <Text style={[styles.thCell, { width: 140, textAlign: "center" }]}>Progress</Text>
                       <Text style={[styles.thCell, { width: 120, textAlign: "center" }]}>Status</Text>
                     </View>
                     {artists.slice(0, 8).map((artist, idx) => {
@@ -333,13 +359,25 @@ export default function ArtistManagementScreen() {
                           activeOpacity={0.7}
                         >
                           <View style={[{ width: 150 }, styles.rowCell]}>
-                            <View style={styles.avatarCircle}>
+                            <View style={[styles.avatarCircle, artist.thresholdReached && { backgroundColor: "#16A34A" }]}>
                               <Text style={styles.avatarText}>{(artist.name || "?")[0].toUpperCase()}</Text>
                             </View>
                             <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
                           </View>
-                          <Text style={[styles.tdCell, { width: 120, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
-                          <Text style={[styles.tdCell, { width: 110, textAlign: "right" }]}>${artist.bonusEarned.toFixed(2)}</Text>
+                          <Text style={[styles.tdCell, { width: 110, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
+                          {/* Progress toward threshold */}
+                          <View style={{ width: 140, paddingHorizontal: 6, justifyContent: "center" }}>
+                            {artist.thresholdAmount > 0 ? (
+                              <>
+                                <View style={styles.progressTrack}>
+                                  <View style={[styles.progressFill, { width: `${artist.progressPct}%` as any, backgroundColor: artist.thresholdReached ? "#16A34A" : Theme.primary }]} />
+                                </View>
+                                <Text style={styles.progressLabel}>
+                                  {artist.thresholdReached ? "✓ Bonus!" : `$${artist.remainingToThreshold.toFixed(0)} left`}
+                                </Text>
+                              </>
+                            ) : <Text style={styles.tdCell}>—</Text>}
+                          </View>
                           <View style={[{ width: 120 }, styles.badgeWrap]}>
                             <View style={[styles.badge, { backgroundColor: sc.bg }]}>
                               <Text style={[styles.badgeText, { color: sc.text }]} numberOfLines={1}>{artist.status}</Text>
@@ -411,17 +449,43 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 40,
   },
-  filterRow: {
+  dayBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 10,
     marginBottom: 16,
-    backgroundColor: Theme.bgCard,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Theme.border,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  dayDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    flexShrink: 0,
+  },
+  dayBannerTitle: {
+    fontFamily: Fonts.bold,
+    fontSize: 13,
+  },
+  dayBannerSub: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    marginTop: 1,
+  },
+  dayLiveBadge: {
+    backgroundColor: "#16A34A",
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    flexShrink: 0,
+  },
+  dayLiveText: {
+    fontFamily: Fonts.black,
+    fontSize: 10,
+    color: "#fff",
+    letterSpacing: 1,
   },
   filterLabel: {
     fontFamily: Fonts.medium,
@@ -591,5 +655,22 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     fontSize: 13,
     color: Theme.primary,
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 2,
+  },
+  progressFill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  progressLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: 10,
+    color: Theme.textSecondary,
+    textAlign: "center",
   },
 });

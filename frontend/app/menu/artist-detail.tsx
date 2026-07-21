@@ -53,8 +53,11 @@ export default function ArtistDetailScreen() {
   const [loading, setLoading]     = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [fromDate] = useState(firstOfMonth());
-  const [toDate]   = useState(todayStr());
+  // Date range for historical lookup; empty = use active business day (backend default)
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate]     = useState("");
+  const [isDayActive, setIsDayActive] = useState(false);
+  const [activeDay, setActiveDay]     = useState<string | null>(null);
 
   const [artist, setArtist]           = useState<{ dishId: string; name: string } | null>(null);
   const [summary, setSummary]         = useState({ totalSales: 0, bonusEarned: 0, bonusPaid: 0, pendingBonus: 0 });
@@ -71,12 +74,16 @@ export default function ArtistDetailScreen() {
   const [payRemarks, setPayRemarks]     = useState("");
   const [paying, setPaying]             = useState(false);
 
-  const fetchData = useCallback(async () => {
+  // fetchData: if no fromDate/toDate, backend defaults to active business day
+  const fetchData = useCallback(async (explicitFrom?: string, explicitTo?: string) => {
     if (!dishId) return;
     try {
       setLoading(true);
+      const from = explicitFrom !== undefined ? explicitFrom : fromDate;
+      const to   = explicitTo   !== undefined ? explicitTo   : toDate;
+      const params = from && to ? `?fromDate=${from}&toDate=${to}` : "";
       const res = await axios.get(
-        `${API_URL}/api/artist-bonus/artist/${dishId}?fromDate=${fromDate}&toDate=${toDate}`,
+        `${API_URL}/api/artist-bonus/artist/${dishId}${params}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data.success) {
@@ -87,6 +94,8 @@ export default function ArtistDetailScreen() {
         setSalesHistory(res.data.salesHistory || []);
         setBonusHistory(res.data.bonusHistory || []);
         setPayHistory(res.data.paymentHistory || []);
+        setIsDayActive(res.data.isDayActive ?? false);
+        setActiveDay(res.data.activeDay ?? null);
       }
     } catch (err: any) {
       showToast({ type: "error", message: "Load Failed", subtitle: err.message });
@@ -96,7 +105,8 @@ export default function ArtistDetailScreen() {
     }
   }, [dishId, fromDate, toDate, token]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  // On mount: fetch active day (no date params)
+  useEffect(() => { fetchData("", ""); }, [dishId, token]);
 
   const openPayModal = () => {
     // Find the first transaction in bonusHistory that has a pending bonus > 0

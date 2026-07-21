@@ -6,7 +6,9 @@ const { getCompanySettings } = require('./settingsCache');
  */
 const normalizePayMode = (paymentMethod = "CASH") => {
   const raw = String(paymentMethod || "CASH").toUpperCase().trim();
-  if (raw.includes("CASH") || raw === "CAS") return "CASH";
+  // MUST check cashbox BEFORE cash — 'CASH BOX ENTRY'.includes('CASH') is true!
+  if (raw === "CASHBOX" || raw === "CASH BOX" || raw === "CASH BOX ENTRY") return "CASH BOX ENTRY";
+  if (raw === "CASH" || raw === "CAS" || raw === "1") return "CASH";
   if (raw.includes("CARD") || raw.includes("VISA") || raw.includes("MASTER") || raw.includes("AMEX") || raw.includes("DINERS")) return "CARD";
   if (raw.includes("PAYNOW") || raw.includes("GRAB") || raw.includes("FOODPANDA") || raw === "3" || raw.includes("PAY NOW")) return "PAYNOW";
   if (raw.includes("UPI") || raw === "4" || raw.includes("GPAY") || raw.includes("PHONE") || raw.includes("PAYTM")) return "UPI";
@@ -116,6 +118,9 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
     breakdown[key] = 0;
     breakdownCounts[key] = 0;
   });
+  // Always ensure Cash Box Entry bucket exists (not in Paymode table)
+  breakdown['CASH BOX ENTRY'] = 0;
+  breakdownCounts['CASH BOX ENTRY'] = 0;
   let creditOutstanding = 0;
 
   let dineInCount = 0;
@@ -160,13 +165,26 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       totalVoidAmount += s.VoidAmount || 0;
     }
 
-     const rawMode = String(s.RawPayMode || "").toUpperCase().trim();
-     // First pass: try exact match against all database payment modes
-     let matchedMode = allPaymodes.find(pm => {
-       const name = pm.PayMode.toUpperCase().trim();
-       const desc = (pm.Description || pm.PayMode).toUpperCase().trim();
-       return rawMode === name || rawMode === desc;
-     });
+    const rawMode = String(s.RawPayMode || "").toUpperCase().trim();
+
+    // === CASHBOX DETECTION — must run BEFORE DB paymode matching ===
+    // CASHBOX orders: OrderType='CASHBOX' or RawPayMode contains 'CASH BOX'
+    const isCashBox = s.OrderType === 'CASHBOX' ||
+      rawMode === 'CASHBOX' || rawMode === 'CASH BOX' || rawMode === 'CASH BOX ENTRY';
+
+    if (isCashBox) {
+      breakdown['CASH BOX ENTRY'] = (breakdown['CASH BOX ENTRY'] || 0) + (s.SysAmount || 0);
+      breakdownCounts['CASH BOX ENTRY'] = (breakdownCounts['CASH BOX ENTRY'] || 0) + 1;
+      // Cashbox entries are not dine-in or takeaway orders — skip order type count
+      return;
+    }
+
+    // First pass: try exact match against all database payment modes
+    let matchedMode = allPaymodes.find(pm => {
+      const name = pm.PayMode.toUpperCase().trim();
+      const desc = (pm.Description || pm.PayMode).toUpperCase().trim();
+      return rawMode === name || rawMode === desc;
+    });
 
     // Second pass: if no exact match, try greedy/wildcard match against all database payment modes
     if (!matchedMode) {
