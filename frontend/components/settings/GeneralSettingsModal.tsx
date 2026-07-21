@@ -101,6 +101,9 @@ export default function GeneralSettingsModal({
   const [enableKDSPrint, setEnableKDSPrint] = useState(settings.enableKDSPrint !== undefined ? settings.enableKDSPrint : true);
   const [enableCombo, setEnableCombo] = useState(settings.enableCombo !== undefined ? settings.enableCombo : true);
   const [showBillTime, setShowBillTime] = useState(settings.showBillTime !== undefined ? settings.showBillTime : true);
+  const [showLoyalty, setShowLoyalty] = useState(settings.showLoyalty !== undefined ? settings.showLoyalty : true);
+  const [showRewardPoints, setShowRewardPoints] = useState(settings.showRewardPoints !== undefined ? settings.showRewardPoints : true);
+  const [showPromoCode, setShowPromoCode] = useState(settings.showPromoCode !== undefined ? settings.showPromoCode : true);
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passwordValue, setPasswordValue] = useState("");
@@ -187,6 +190,9 @@ export default function GeneralSettingsModal({
       setEnableKDSPrint(settings.enableKDSPrint !== undefined ? settings.enableKDSPrint : true);
       setEnableCombo(settings.enableCombo !== undefined ? settings.enableCombo : true);
       setShowBillTime(settings.showBillTime !== undefined ? settings.showBillTime : true);
+      setShowLoyalty(settings.showLoyalty !== undefined ? settings.showLoyalty : true);
+      setShowRewardPoints(settings.showRewardPoints !== undefined ? settings.showRewardPoints : true);
+      setShowPromoCode(settings.showPromoCode !== undefined ? settings.showPromoCode : true);
       
       let initialCheckoutFlow = settings.enableCheckoutFlow;
       let initialDirectProcess = settings.enableDirectProcessToPay;
@@ -261,6 +267,9 @@ export default function GeneralSettingsModal({
       enableKDSPrint,
       enableCombo,
       showBillTime,
+      showLoyalty,
+      showRewardPoints,
+      showPromoCode,
     });
     
     setIsSaving(false);
@@ -481,6 +490,48 @@ export default function GeneralSettingsModal({
                 <Text style={styles.settingDesc}>Print time on Checkout Bill and Re-print Bill.</Text>
               </View>
               <CustomSwitch value={showBillTime} onValueChange={setShowBillTime} />
+            </View>
+
+            {/* CARD 13: Loyalty Feature Control */}
+            <View style={[styles.settingCard, showLoyalty && styles.settingCardActive]}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={[styles.iconWrapper, showLoyalty ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
+                    <Ionicons name="ribbon-outline" size={16} color={showLoyalty ? Theme.primary : Theme.textSecondary} />
+                  </View>
+                  <Text style={styles.settingTitle}>Loyalty Feature</Text>
+                </View>
+                <Text style={styles.settingDesc}>Enable the Loyalty program lookup and rewards.</Text>
+              </View>
+              <CustomSwitch value={showLoyalty} onValueChange={setShowLoyalty} />
+            </View>
+
+            {/* CARD 14: Reward Points Control */}
+            <View style={[styles.settingCard, showRewardPoints && styles.settingCardActive]}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={[styles.iconWrapper, showRewardPoints ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
+                    <Ionicons name="star-outline" size={16} color={showRewardPoints ? Theme.primary : Theme.textSecondary} />
+                  </View>
+                  <Text style={styles.settingTitle}>Reward Points Feature</Text>
+                </View>
+                <Text style={styles.settingDesc}>Enable the Reward Points calculation and redemption.</Text>
+              </View>
+              <CustomSwitch value={showRewardPoints} onValueChange={setShowRewardPoints} />
+            </View>
+
+            {/* CARD 15: Promo Code Control */}
+            <View style={[styles.settingCard, showPromoCode && styles.settingCardActive]}>
+              <View style={styles.cardLeft}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={[styles.iconWrapper, showPromoCode ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
+                    <Ionicons name="barcode-outline" size={16} color={showPromoCode ? Theme.primary : Theme.textSecondary} />
+                  </View>
+                  <Text style={styles.settingTitle}>Promo Code Feature</Text>
+                </View>
+                <Text style={styles.settingDesc}>Enable promo code application on bills.</Text>
+              </View>
+              <CustomSwitch value={showPromoCode} onValueChange={setShowPromoCode} />
             </View>
           </ScrollView>
 
