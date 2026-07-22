@@ -686,6 +686,21 @@ async function initDB(pool) {
       END
     `);
 
+    // 19.2 Create BusinessDayLog table for Day Start/End tracking history
+    await runQuery("Create BusinessDayLog table", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[BusinessDayLog]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[BusinessDayLog](
+              [LogId] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT NEWID(),
+              [BusinessDate] [date] NOT NULL UNIQUE,
+              [StartedAt] [datetime] NULL,
+              [StartedBy] [varchar](30) NULL,
+              [EndedAt] [datetime] NULL,
+              [EndedBy] [varchar](30) NULL
+          )
+      END
+    `);
+
     // 20. Create CashDrawerRemarks table
     await runQuery("Create CashDrawerRemarks table", `
       IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CashDrawerRemarks]') AND type in (N'U'))

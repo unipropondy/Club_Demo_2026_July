@@ -26,10 +26,10 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getSingaporeTimeTodayRange } from "../../utils/timezoneHelper";
+import { getSingaporeTimeTodayRange, formatToSingaporeDateTime } from "../../utils/timezoneHelper";
 
 
-interface CustomDateTimePickerProps {
+interface CustomDatePickerProps {
   visible: boolean;
   onClose: () => void;
   selectedDate: Date;
@@ -37,33 +37,18 @@ interface CustomDateTimePickerProps {
   title: string;
 }
 
-function CustomDateTimePicker({ visible, onClose, selectedDate, onApply, title }: CustomDateTimePickerProps) {
+function CustomDatePicker({ visible, onClose, selectedDate, onApply, title }: CustomDatePickerProps) {
   const { width } = useWindowDimensions();
   const isTablet = width >= 640;
 
   const [viewDate, setViewDate] = useState(() => new Date(selectedDate));
   const [selectedDay, setSelectedDay] = useState(() => new Date(selectedDate));
-  
-  // Time states
-  const [hour, setHour] = useState(() => {
-    let h = selectedDate.getHours();
-    h = h % 12;
-    return h === 0 ? 12 : h;
-  });
-  const [minute, setMinute] = useState(() => selectedDate.getMinutes());
-  const [amPm, setAmPm] = useState<"AM" | "PM">(() => selectedDate.getHours() >= 12 ? "PM" : "AM");
 
   // Sync state when selectedDate changes or modal opens
   useEffect(() => {
     if (visible) {
       setViewDate(new Date(selectedDate));
       setSelectedDay(new Date(selectedDate));
-      let h = selectedDate.getHours();
-      const ampm = h >= 12 ? "PM" : "AM";
-      h = h % 12;
-      setHour(h === 0 ? 12 : h);
-      setMinute(selectedDate.getMinutes());
-      setAmPm(ampm);
     }
   }, [visible, selectedDate]);
 
@@ -122,43 +107,11 @@ function CustomDateTimePicker({ visible, onClose, selectedDate, onApply, title }
     setSelectedDay(new Date(dayObj.year, dayObj.month, dayObj.day));
   };
 
-  // Time adjustment helpers
-  const adjustHour = (amount: number) => {
-    setHour(prev => {
-      let next = prev + amount;
-      if (next > 12) return 1;
-      if (next < 1) return 12;
-      return next;
-    });
-  };
-
-  const adjustMinute = (amount: number) => {
-    setMinute(prev => {
-      let next = prev + amount;
-      if (next > 59) return 0;
-      if (next < 0) return 59;
-      return next;
-    });
-  };
-
   const handleApply = () => {
     const finalDate = new Date(selectedDay);
-    let finalHours = hour % 12;
-    if (amPm === "PM") {
-      finalHours += 12;
-    }
-    finalDate.setHours(finalHours, minute, 0, 0);
+    finalDate.setHours(0, 0, 0, 0);
     onApply(finalDate);
     onClose();
-  };
-
-  const formatSummaryStr = () => {
-    const d = selectedDay.getDate().toString().padStart(2, '0');
-    const m = (selectedDay.getMonth() + 1).toString().padStart(2, '0');
-    const y = selectedDay.getFullYear();
-    const h = hour.toString().padStart(2, '0');
-    const minStr = minute.toString().padStart(2, '0');
-    return `${d}-${m}-${y} ${h}:${minStr} ${amPm}`;
   };
 
   const monthNames = [
@@ -171,7 +124,7 @@ function CustomDateTimePicker({ visible, onClose, selectedDate, onApply, title }
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={pickerStyles.overlay}>
-        <View style={[pickerStyles.modalContainer, !isTablet && { width: '95%', padding: 16, maxHeight: '90%' }]}>
+        <View style={[pickerStyles.modalContainer, { width: isTablet ? 360 : '90%', padding: 16 }]}>
           {/* Header */}
           <View style={pickerStyles.header}>
             <Text style={pickerStyles.headerTitle}>{title}</Text>
@@ -180,122 +133,54 @@ function CustomDateTimePicker({ visible, onClose, selectedDate, onApply, title }
             </TouchableOpacity>
           </View>
 
-          <ScrollView 
-            style={{ flexShrink: 1 }} 
-            contentContainerStyle={{ paddingBottom: 10 }}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Columns Container */}
-            <View style={{ flexDirection: isTablet ? 'row' : 'column', gap: 20 }}>
-              {/* Left Side: Calendar */}
-              <View style={{ flex: 1 }}>
-                {/* Calendar Navigator */}
-                <View style={pickerStyles.calNavigator}>
-                  <TouchableOpacity onPress={prevMonth} style={pickerStyles.navBtn}>
-                    <Ionicons name="chevron-back" size={16} color="#44403C" />
-                  </TouchableOpacity>
-                  <Text style={pickerStyles.monthYearText}>{monthNames[month]} {year}</Text>
-                  <TouchableOpacity onPress={nextMonth} style={pickerStyles.navBtn}>
-                    <Ionicons name="chevron-forward" size={16} color="#44403C" />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Weekdays Row */}
-                <View style={pickerStyles.weekdaysRow}>
-                  {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((wd, i) => (
-                    <Text key={i} style={pickerStyles.weekdayText}>{wd}</Text>
-                  ))}
-                </View>
-
-                {/* Days Grid */}
-                <View style={pickerStyles.daysGrid}>
-                  {days.map((dObj, idx) => {
-                    const isSelected = selectedDay.getDate() === dObj.day &&
-                      selectedDay.getMonth() === dObj.month &&
-                      selectedDay.getFullYear() === dObj.year;
-
-                    return (
-                      <TouchableOpacity
-                        key={idx}
-                        onPress={() => handleDaySelect(dObj)}
-                        style={[
-                          pickerStyles.dayBtn,
-                          isSelected && pickerStyles.dayBtnSelected
-                        ]}
-                      >
-                        <Text style={[
-                          pickerStyles.dayText,
-                          !dObj.isCurrentMonth && pickerStyles.dayTextInactive,
-                          isSelected && pickerStyles.dayTextSelected
-                        ]}>
-                          {dObj.day}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Vertical Divider */}
-              {isTablet && <View style={pickerStyles.verticalDivider} />}
-
-              {/* Right Side: Time */}
-              <View style={[pickerStyles.timePanel, !isTablet && { width: '100%', marginTop: 10 }]}>
-                <Text style={pickerStyles.setTimeTitle}>SET TIME</Text>
-
-                {/* Picker Blocks */}
-                <View style={pickerStyles.timePickersRow}>
-                  {/* Hour */}
-                  <View style={pickerStyles.timeBlock}>
-                    <TouchableOpacity onPress={() => adjustHour(1)} style={pickerStyles.arrowBtn}>
-                      <Ionicons name="chevron-up" size={18} color="#44403C" />
-                    </TouchableOpacity>
-                    <View style={pickerStyles.timeInputBox}>
-                      <Text style={pickerStyles.timeValueText}>{hour.toString().padStart(2, '0')}</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => adjustHour(-1)} style={pickerStyles.arrowBtn}>
-                      <Ionicons name="chevron-down" size={18} color="#44403C" />
-                    </TouchableOpacity>
-                    <Text style={pickerStyles.timeLabel}>Hour</Text>
-                  </View>
-
-                  {/* Separator */}
-                  <Text style={pickerStyles.timeSeparator}>:</Text>
-
-                  {/* Minute */}
-                  <View style={pickerStyles.timeBlock}>
-                    <TouchableOpacity onPress={() => adjustMinute(1)} style={pickerStyles.arrowBtn}>
-                      <Ionicons name="chevron-up" size={18} color="#44403C" />
-                    </TouchableOpacity>
-                    <View style={pickerStyles.timeInputBox}>
-                      <Text style={pickerStyles.timeValueText}>{minute.toString().padStart(2, '0')}</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => adjustMinute(-1)} style={pickerStyles.arrowBtn}>
-                      <Ionicons name="chevron-down" size={18} color="#44403C" />
-                    </TouchableOpacity>
-                    <Text style={pickerStyles.timeLabel}>Min</Text>
-                  </View>
-
-                  {/* AM/PM */}
-                  <View style={[pickerStyles.timeBlock, { justifyContent: 'center' }]}>
-                    <TouchableOpacity 
-                      onPress={() => setAmPm(prev => prev === "AM" ? "PM" : "AM")} 
-                      style={[pickerStyles.ampmBtn, pickerStyles.ampmBtnActive]}
-                    >
-                      <Text style={pickerStyles.ampmBtnTextActive}>{amPm}</Text>
-                    </TouchableOpacity>
-                    <Text style={[pickerStyles.timeLabel, { marginTop: 12 }]}>AM/PM</Text>
-                  </View>
-                </View>
-
-                {/* Summary Display */}
-                <View style={pickerStyles.summaryCard}>
-                  <Text style={pickerStyles.summaryLabel}>Selected Date-Time:</Text>
-                  <Text style={pickerStyles.summaryValue}>{formatSummaryStr()}</Text>
-                </View>
-              </View>
+          {/* Calendar */}
+          <View style={{ width: '100%' }}>
+            {/* Calendar Navigator */}
+            <View style={pickerStyles.calNavigator}>
+              <TouchableOpacity onPress={prevMonth} style={pickerStyles.navBtn}>
+                <Ionicons name="chevron-back" size={16} color="#44403C" />
+              </TouchableOpacity>
+              <Text style={pickerStyles.monthYearText}>{monthNames[month]} {year}</Text>
+              <TouchableOpacity onPress={nextMonth} style={pickerStyles.navBtn}>
+                <Ionicons name="chevron-forward" size={16} color="#44403C" />
+              </TouchableOpacity>
             </View>
-          </ScrollView>
+
+            {/* Weekdays Row */}
+            <View style={pickerStyles.weekdaysRow}>
+              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((wd, i) => (
+                <Text key={i} style={pickerStyles.weekdayText}>{wd}</Text>
+              ))}
+            </View>
+
+            {/* Days Grid */}
+            <View style={pickerStyles.daysGrid}>
+              {days.map((dObj, idx) => {
+                const isSelected = selectedDay.getDate() === dObj.day &&
+                  selectedDay.getMonth() === dObj.month &&
+                  selectedDay.getFullYear() === dObj.year;
+
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => handleDaySelect(dObj)}
+                    style={[
+                      pickerStyles.dayBtn,
+                      isSelected && pickerStyles.dayBtnSelected
+                    ]}
+                  >
+                    <Text style={[
+                      pickerStyles.dayText,
+                      !dObj.isCurrentMonth && pickerStyles.dayTextInactive,
+                      isSelected && pickerStyles.dayTextSelected
+                    ]}>
+                      {dObj.day}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
 
           {/* Footer Actions */}
           <View style={pickerStyles.footer}>
@@ -600,6 +485,14 @@ export default function SettlementScreen() {
   };
 
   const handleDayEnd = () => {
+    if (dayLog && dayLog.EndedAt) {
+      showToast({
+        type: "warning",
+        message: "Day Already Ended",
+        subtitle: "The business day for this date has already been ended."
+      });
+      return;
+    }
     setShowConfirmModal(true);
   };
 
@@ -647,17 +540,12 @@ const [cashBoxForm, setCashBoxForm] = useState({
 const [showDishLov, setShowDishLov] = useState(false);
 const [artistSearch, setArtistSearch] = useState("");
 
-  const [fromDate, setFromDate] = useState<Date>(() => {
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const { from } = getSingaporeTimeTodayRange();
     return from;
   });
-  const [toDate, setToDate] = useState<Date>(() => {
-    const { to } = getSingaporeTimeTodayRange();
-    return to;
-  });
-
-  const [showFromPicker, setShowFromPicker] = useState(false);
-  const [showToPicker, setShowToPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [dayLog, setDayLog] = useState<{ StartedAt: string | null; StartedBy: string | null; EndedAt: string | null; EndedBy: string | null } | null>(null);
 
   const userId = user?.userId || "0";
 
@@ -689,6 +577,13 @@ const [artistSearch, setArtistSearch] = useState("");
     return `${d}-${m}-${y} ${h}:${minutes} ${ampm}`;
   };
 
+  // Uses the app-wide Singapore-time helper so timestamps always reflect SGT (UTC+8)
+  // regardless of the device's local timezone.
+  const formatTimeOnly = (isoStr: string | null): string => {
+    if (!isoStr) return "N/A";
+    return formatToSingaporeDateTime(isoStr); // e.g. "22 Jul • 09:05 PM"
+  };
+
   const handleCountChange = (denomStr: string, val: string) => {
     const cleaned = val.replace(/[^0-9]/g, "");
     if (lovMode === "OPEN") {
@@ -708,6 +603,19 @@ const [artistSearch, setArtistSearch] = useState("");
   const totalClosing = computeTotal(closingCounts);
 
   useEffect(() => {
+    const fetchActiveDay = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/settlement/active-day`);
+        if (res.data?.success && res.data?.active && res.data?.startDate) {
+          // Adjust for timezone offset to prevent off-by-one errors
+          const parsed = new Date(res.data.startDate);
+          setSelectedDate(parsed);
+        }
+      } catch (err) {
+        console.error("Error fetching active day:", err);
+      }
+    };
+    fetchActiveDay();
     loadTerminals();
     loadDishes();
     useGeneralSettingsStore.getState().fetchSettings();
@@ -753,28 +661,27 @@ const loadDishes = async () => {
 
   useEffect(() => {
     if (selectedTerminal) fetchData();
-  }, [selectedTerminal, fromDate, toDate]);
+  }, [selectedTerminal, selectedDate]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
 
-      const fromStr = formatLocal(fromDate);
-      const toStr = formatLocal(toDate);
+      const dateStr = getLocalDateStr(selectedDate); // e.g. "2026-07-22"
 
-      const totalRes = await axios.get(`${API_URL}/api/settlement/total-sales/${selectedTerminal}?fromDate=${fromStr}&toDate=${toStr}`).catch(() => ({ data: {} }));
-      const payRes = await axios.get(`${API_URL}/api/settlement/payment/${selectedTerminal}/${userId}?fromDate=${fromStr}&toDate=${toStr}`).catch(() => ({ data: [] }));
-      const transRes = await axios.get(`${API_URL}/api/settlement/transactions/${selectedTerminal}/${userId}?fromDate=${fromStr}&toDate=${toStr}`).catch(() => ({ data: [] }));
-      const salesRes = await axios.get(`${API_URL}/api/settlement/sales-summary/${selectedTerminal}?fromDate=${fromStr}&toDate=${toStr}`).catch(() => ({ data: [] }));
+      const totalRes = await axios.get(`${API_URL}/api/settlement/total-sales/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: {} }));
+      const payRes = await axios.get(`${API_URL}/api/settlement/payment/${selectedTerminal}/${userId}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
+      const transRes = await axios.get(`${API_URL}/api/settlement/transactions/${selectedTerminal}/${userId}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
+      const salesRes = await axios.get(`${API_URL}/api/settlement/sales-summary/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
 
       const outId = selectedTerminal === "ALL" ? 1 : selectedTerminal;
-      const dateStr = getLocalDateStr(fromDate); // Fetch opening cash for the fromDate
       const openRes = await axios.get(`${API_URL}/api/settlement/opening-cash?outletId=${outId}&date=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
       const denomsRes = await axios.get(`${API_URL}/api/settlement/denominations?type=OPEN&date=${dateStr}&screenType=CB`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
       const closeDenomsRes = await axios.get(`${API_URL}/api/settlement/denominations?type=CLOSE&date=${dateStr}&screenType=CB`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const cashOutRes = await axios.get(`${API_URL}/api/settlement/cash-out/${selectedTerminal}?fromDate=${fromStr}&toDate=${toStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const cashInRes = await axios.get(`${API_URL}/api/settlement/cash-in/${selectedTerminal}?fromDate=${fromStr}&toDate=${toStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const cashBoxRes = await axios.get(`${API_URL}/api/settlement/artist-cashbox?fromDate=${fromStr}&toDate=${toStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const cashOutRes = await axios.get(`${API_URL}/api/settlement/cash-out/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const cashInRes = await axios.get(`${API_URL}/api/settlement/cash-in/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const cashBoxRes = await axios.get(`${API_URL}/api/settlement/artist-cashbox?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const dayLogRes = await axios.get(`${API_URL}/api/settlement/day-log?date=${dateStr}`).catch(() => ({ data: null }));
 
       setTotalSales(totalRes.data || {});
       setPayments(payRes.data || []);
@@ -783,6 +690,7 @@ const loadDishes = async () => {
       setCashOutEntries(cashOutRes.data?.data || []);
       setCashInEntries(cashInRes.data?.data || []);
       setCashBoxEntries(cashBoxRes.data?.data || []);
+      setDayLog(dayLogRes.data?.data || null);
 
       if (openRes.data?.data?.total) {
         setOpeningCash(openRes.data.data.total.toString());
@@ -867,7 +775,7 @@ const loadDishes = async () => {
 
       const payload = {
         outletId: 1, // Fallback, backend handles this based on user
-        settlementDate: getLocalDateStr(fromDate),
+        settlementDate: getLocalDateStr(selectedDate),
         cashierName: user?.userName || "Admin",
         totalSales: totalSales.SubTotal || 0,
         totalDiscount: totalSales.DiscountAmount || 0,
@@ -920,7 +828,7 @@ const loadDishes = async () => {
         count: parseInt(count, 10) || 0
       }));
 
-      const dateStr = getLocalDateStr(fromDate);
+      const dateStr = getLocalDateStr(selectedDate);
       const outId = selectedTerminal === "ALL" ? 1 : selectedTerminal;
 
       const res = await axios.post(`${API_URL}/api/settlement/save-denominations`, {
@@ -965,7 +873,7 @@ const loadDishes = async () => {
         paymentMode: cashOutForm.PaymentMode,
         referenceNo: cashOutForm.ReferenceNo,
         terminalCode: selectedTerminal === "ALL" ? "" : selectedTerminal,
-        date: getLocalDateStr(fromDate)
+        date: getLocalDateStr(selectedDate)
       };
 
       let res;
@@ -982,9 +890,6 @@ const loadDishes = async () => {
       if (res.data.success) {
         setCashOutForm({ CashOutId: '', Amount: '', Reason: '', Remarks: '', PaymentMode: 'Cash', ReferenceNo: '' });
         setShowCashOutModal(false);
-        setToDate(new Date()); // Auto-update the "To" date so the new record falls within the filter range
-        // Since setToDate triggers a re-fetch via useEffect, we don't strictly need fetchData() here,
-        // but we'll leave it to guarantee a refresh.
         fetchData();
         Alert.alert("Success", "Cash Out entry saved");
       }
@@ -1011,7 +916,7 @@ const loadDishes = async () => {
         paymentMode: cashInForm.PaymentMode,
         referenceNo: cashInForm.ReferenceNo,
         terminalCode: selectedTerminal === "ALL" ? "" : selectedTerminal,
-        date: getLocalDateStr(fromDate)
+        date: getLocalDateStr(selectedDate)
       };
 
       let res;
@@ -1028,7 +933,6 @@ const loadDishes = async () => {
       if (res.data.success) {
         setCashInForm({ CashInId: '', Amount: '', Reason: '', Remarks: '', PaymentMode: 'Cash', ReferenceNo: '' });
         setShowCashInModal(false);
-        setToDate(new Date());
         fetchData();
         Alert.alert("Success", "Cash In entry saved");
       }
@@ -1179,8 +1083,7 @@ const loadDishes = async () => {
         }
       };
 
-      const fromDateStr = formatDateTime(fromDate);
-      const toDateStr = formatDateTime(toDate);
+      const businessDateStr = selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const cashInTotalSum = totalCashInEntries + transactions.filter(t => t.TransactionType === "IN").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
 
       // 2. Format HTML aligned to 80mm width with centered print-out look
@@ -1241,10 +1144,8 @@ const loadDishes = async () => {
               <div class="divider">========================================</div>
               
               <div class="info-block">
-                <div class="bold">Period:</div>
-                <div class="info-row">${fromDateStr}</div>
-                <div class="info-row">to</div>
-                <div class="info-row">${toDateStr}</div>
+                <div class="bold">Business Date:</div>
+                <div class="info-row">${businessDateStr}</div>
                 <br/>
                 <div class="bold">Generated:</div>
                 <div class="info-row">${formatDateTime(new Date())}</div>
@@ -1359,10 +1260,7 @@ const loadDishes = async () => {
             let text = "[C]========================================\n";
             text += "[C]<font size='big'><B>SETTLEMENT REPORT</B></font>\n";
             text += "[C]========================================\n\n";
-            text += "[L]<B>Period:</B>\n";
-            text += `[L]${fromDateStr}\n`;
-            text += "[L]to\n";
-            text += `[L]${toDateStr}\n\n`;
+            text += `[L]<B>Business Date:</B> ${businessDateStr}\n\n`;
             text += "[L]<B>Generated:</B>\n";
             text += `[L]${formatDateTime(new Date())}\n\n`;
 
@@ -1429,10 +1327,7 @@ const loadDishes = async () => {
             if (SunmiModule.setFontSize) await SunmiModule.setFontSize(24);
             await SunmiModule.printText("================================\n\n");
             
-            await SunmiModule.printText("Period:\n");
-            await SunmiModule.printText(`${fromDateStr}\n`);
-            await SunmiModule.printText("to\n");
-            await SunmiModule.printText(`${toDateStr}\n\n`);
+            await SunmiModule.printText(`Business Date: ${businessDateStr}\n\n`);
             await SunmiModule.printText("Generated:\n");
             await SunmiModule.printText(`${formatDateTime(new Date())}\n\n`);
 
@@ -1555,87 +1450,82 @@ const loadDishes = async () => {
             )}
           </View>
 
-          {/* Date Pickers */}
+          {/* Single Business Date Navigator */}
           <View style={
             isTablet 
-              ? { marginLeft: 'auto', flexDirection: 'row', gap: 20, alignItems: 'center', marginRight: 20 }
-              : { flexDirection: 'row', justifyContent: 'space-between', gap: 10 }
+              ? { marginLeft: 'auto', flexDirection: 'row', gap: 12, alignItems: 'center', marginRight: 20 }
+              : { flexDirection: 'row', justifyContent: 'center', gap: 12, alignItems: 'center', marginVertical: 4 }
           }>
-            <View style={{ flex: !isTablet ? 1 : undefined, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.medium }}>From:</Text>
-              <TouchableOpacity
-                style={{ 
-                  flex: !isTablet ? 1 : undefined,
-                  flexDirection: 'row', 
-                  alignItems: 'center', 
-                  backgroundColor: '#fff', 
-                  borderWidth: 1.5, 
-                  borderColor: Theme.border, 
-                  borderRadius: 10, 
-                  paddingHorizontal: 8,
-                  height: 38,
-                  gap: 6,
-                  justifyContent: 'space-between',
-                  ...Platform.select({
-                    web: {
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                      cursor: 'pointer',
-                    }
-                  }) as any
-                }}
-                onPress={() => setShowFromPicker(true)}
-              >
-                <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 11, flexShrink: 1 }} numberOfLines={1}>
-                  {formatDateTime(fromDate)}
-                </Text>
-                <Ionicons name="calendar-outline" size={13} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity 
+              onPress={() => {
+                const nextDate = new Date(selectedDate);
+                nextDate.setDate(nextDate.getDate() - 1);
+                setSelectedDate(nextDate);
+              }} 
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                backgroundColor: Theme.bgMuted,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons name="chevron-back" size={18} color={Theme.textPrimary} />
+            </TouchableOpacity>
 
-            <View style={{ flex: !isTablet ? 1 : undefined, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 12, color: Theme.textSecondary, fontFamily: Fonts.medium }}>To:</Text>
-              <TouchableOpacity
-                style={{ 
-                  flex: !isTablet ? 1 : undefined,
-                  flexDirection: 'row', 
-                  alignItems: 'center', 
-                  backgroundColor: '#fff', 
-                  borderWidth: 1.5, 
-                  borderColor: Theme.border, 
-                  borderRadius: 10, 
-                  paddingHorizontal: 8,
-                  height: 38,
-                  gap: 6,
-                  justifyContent: 'space-between',
-                  ...Platform.select({
-                    web: {
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                      cursor: 'pointer',
-                    }
-                  }) as any
-                }}
-                onPress={() => setShowToPicker(true)}
-              >
-                <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 11, flexShrink: 1 }} numberOfLines={1}>
-                  {formatDateTime(toDate)}
-                </Text>
-                <Ionicons name="calendar-outline" size={13} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={{ 
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                backgroundColor: '#fff', 
+                borderWidth: 1.5, 
+                borderColor: Theme.border, 
+                borderRadius: 10, 
+                paddingHorizontal: 12,
+                height: 38,
+                gap: 8,
+                justifyContent: 'center',
+                minWidth: 150,
+                ...Platform.select({
+                  web: {
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                    cursor: 'pointer',
+                  }
+                }) as any
+              }}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 13 }}>
+                {selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+              </Text>
+              <Ionicons name="calendar-outline" size={15} color={Theme.primary} />
+            </TouchableOpacity>
 
-            <CustomDateTimePicker
-              visible={showFromPicker}
-              onClose={() => setShowFromPicker(false)}
-              selectedDate={fromDate}
-              onApply={(date) => setFromDate(date)}
-              title="Select Start Date & Time"
-            />
-            <CustomDateTimePicker
-              visible={showToPicker}
-              onClose={() => setShowToPicker(false)}
-              selectedDate={toDate}
-              onApply={(date) => setToDate(date)}
-              title="Select End Date & Time"
+            <TouchableOpacity
+              onPress={() => {
+                const nextDate = new Date(selectedDate);
+                nextDate.setDate(nextDate.getDate() + 1);
+                setSelectedDate(nextDate);
+              }} 
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                backgroundColor: Theme.bgMuted,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons name="chevron-forward" size={18} color={Theme.textPrimary} />
+            </TouchableOpacity>
+
+            <CustomDatePicker
+              visible={showDatePicker}
+              onClose={() => setShowDatePicker(false)}
+              selectedDate={selectedDate}
+              onApply={(date) => setSelectedDate(date)}
+              title="Select Business Date"
             />
           </View>
 
@@ -1682,6 +1572,53 @@ const loadDishes = async () => {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content}>
+            {/* Day Start & End Timestamps */}
+            {dayLog && (
+              <View style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                backgroundColor: '#fff',
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                borderWidth: 1.5,
+                borderColor: Theme.border,
+                marginBottom: 15,
+                alignItems: 'center',
+                gap: 12,
+                flexWrap: 'wrap',
+                ...Platform.select({
+                  web: {
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                  }
+                }) as any
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 13, color: '#f59e0b', fontFamily: Fonts.bold }}>☀️ Day Started:</Text>
+                  <Text style={{ fontSize: 13, color: Theme.textPrimary, fontFamily: Fonts.medium }}>
+                    {dayLog.StartedAt ? formatTimeOnly(dayLog.StartedAt) : 'Pending'}
+                  </Text>
+                  {dayLog.StartedBy && (
+                    <Text style={{ fontSize: 11, color: Theme.textSecondary, fontFamily: Fonts.medium }}>
+                      ({dayLog.StartedBy})
+                    </Text>
+                  )}
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 13, color: '#3b82f6', fontFamily: Fonts.bold }}>🌙 Day Ended:</Text>
+                  <Text style={{ fontSize: 13, color: dayLog.EndedAt ? Theme.textPrimary : Theme.success, fontFamily: Fonts.medium }}>
+                    {dayLog.EndedAt ? formatTimeOnly(dayLog.EndedAt) : '🟢 Active Now'}
+                  </Text>
+                  {dayLog.EndedBy && dayLog.EndedAt && (
+                    <Text style={{ fontSize: 11, color: Theme.textSecondary, fontFamily: Fonts.medium }}>
+                      ({dayLog.EndedBy})
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+
             {/* Top Overview Cards */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 15 }}>
               <TouchableOpacity

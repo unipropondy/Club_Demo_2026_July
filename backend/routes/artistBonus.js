@@ -579,7 +579,9 @@ router.get('/artist/:dishId', async (req, res) => {
       activeRule ? calculateBonus(totalSales, activeRule.ThresholdAmount, activeRule.BonusAmount, activeRule.IsRepeating) : 0
     );
 
+    const periodTxnIds = new Set(periodTxns.map(t => t.Id));
     const periodPayments = payHistRes.recordset.filter(r => {
+      if (periodTxnIds.has(r.BonusTransactionId)) return true;
       const paidD = new Date(r.PaidDate);
       return paidD >= parsedFrom && paidD <= parsedTo;
     });

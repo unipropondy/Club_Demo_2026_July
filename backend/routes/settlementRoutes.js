@@ -28,6 +28,17 @@ router.post("/day-start", async (req, res) => {
         INSERT INTO DateEntry (username, StartDate, CreatedBy, CreatedDate)
         VALUES (@username, @startDate, @createdBy, GETDATE())
       `);
+
+    // Log Day Start
+    await pool.request()
+      .input("username", sql.VarChar(30), username || "admin")
+      .input("startDate", sql.Date, startDate)
+      .query(`
+        IF EXISTS(SELECT 1 FROM BusinessDayLog WHERE BusinessDate = @startDate)
+          UPDATE BusinessDayLog SET StartedAt = GETDATE(), StartedBy = @username, EndedAt = NULL, EndedBy = NULL WHERE BusinessDate = @startDate
+        ELSE
+          INSERT INTO BusinessDayLog (BusinessDate, StartedAt, StartedBy) VALUES (@startDate, GETDATE(), @username)
+      `);
       
     res.json({ success: true, message: "Day started successfully" });
   } catch (err) {
@@ -39,6 +50,21 @@ router.post("/day-start", async (req, res) => {
 router.post("/day-end", async (req, res) => {
   try {
     const pool = getPool();
+
+    // Fetch active start date before deleting DateEntry
+    const activeDayRes = await pool.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
+    const activeStartDate = activeDayRes.recordset[0]?.StartDate;
+
+    // Log Day End in BusinessDayLog
+    if (activeStartDate) {
+      await pool.request()
+        .input("startDate", sql.Date, activeStartDate)
+        .query(`
+          UPDATE BusinessDayLog 
+          SET EndedAt = GETDATE(), EndedBy = 'admin' 
+          WHERE BusinessDate = @startDate
+        `);
+    }
 
     // 1. Finalize artist bonus transactions for the active business day
     //    This must happen BEFORE DateEntry is cleared (we need the active StartDate)
@@ -82,6 +108,29 @@ router.get("/active-day", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+router.get("/day-log", async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ error: "Date parameter is required" });
+    }
+    const pool = getPool();
+    const result = await pool.request()
+      .input("date", sql.Date, date)
+      .query("SELECT StartedAt, StartedBy, EndedAt, EndedBy FROM BusinessDayLog WHERE BusinessDate = @date");
+    
+    if (result.recordset.length > 0) {
+      res.json({ success: true, data: result.recordset[0] });
+    } else {
+      res.json({ success: true, data: null });
+    }
+  } catch (err) {
+    console.error("Day Log Fetch Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // ============================================
 // 1️⃣ CHECK IF DAY IS SETTLED
@@ -807,9 +856,9 @@ router.get('/artist-cashbox', authenticateToken, async (req, res) => {
 
     let query = `SELECT * FROM ArtistCashBox`;
     if (fromDate && toDate) {
-      request.input('fromDate', sql.DateTime, new Date(fromDate));
-      request.input('toDate', sql.DateTime, new Date(toDate));
-      query += ` WHERE CreatedDate >= @fromDate AND CreatedDate <= @toDate`;
+      request.input('fromDate', sql.Date, new Date(fromDate));
+      request.input('toDate', sql.Date, new Date(toDate));
+      query += ` WHERE ISNULL(start_date, CAST(CreatedDate AS DATE)) BETWEEN @fromDate AND @toDate`;
     }
     query += ` ORDER BY CreatedDate DESC`;
 
