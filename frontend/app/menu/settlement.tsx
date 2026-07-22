@@ -452,7 +452,8 @@ export default function SettlementScreen() {
           "Authorization": `Bearer ${token}`
         },
         body: JSON.stringify({
-          username: user?.userName || "admin"
+          username: user?.userName || "admin",
+          businessDate: getLocalDateStr(selectedDate)
         })
       });
       const data = await res.json();
@@ -616,9 +617,12 @@ const [artistSearch, setArtistSearch] = useState("");
       try {
         const res = await axios.get(`${API_URL}/api/settlement/active-day`);
         if (res.data?.success && res.data?.active && res.data?.startDate) {
-          // Adjust for timezone offset to prevent off-by-one errors
-          const parsed = new Date(res.data.startDate);
-          setSelectedDate(parsed);
+          const parts = res.data.startDate.split("-");
+          if (parts.length === 3) {
+            setSelectedDate(new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
+          } else {
+            setSelectedDate(new Date(res.data.startDate));
+          }
         }
       } catch (err) {
         console.error("Error fetching active day:", err);

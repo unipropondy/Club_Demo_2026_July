@@ -53,7 +53,10 @@ router.post("/day-end", async (req, res) => {
 
     // Fetch active start date before deleting DateEntry
     const activeDayRes = await pool.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
-    const activeStartDate = activeDayRes.recordset[0]?.StartDate;
+    let activeStartDate = activeDayRes.recordset[0]?.StartDate;
+    if (!activeStartDate && req.body?.businessDate) {
+      activeStartDate = req.body.businessDate;
+    }
 
     // Log Day End in BusinessDayLog
     if (activeStartDate) {
@@ -61,9 +64,13 @@ router.post("/day-end", async (req, res) => {
         .input("startDate", sql.Date, activeStartDate)
         .input("username", sql.VarChar(30), req.body?.username || 'admin')
         .query(`
-          UPDATE BusinessDayLog 
-          SET EndedAt = GETDATE(), EndedBy = @username 
-          WHERE BusinessDate = @startDate
+          IF EXISTS (SELECT 1 FROM BusinessDayLog WHERE BusinessDate = @startDate)
+            UPDATE BusinessDayLog 
+            SET EndedAt = GETDATE(), EndedBy = @username 
+            WHERE BusinessDate = @startDate
+          ELSE
+            INSERT INTO BusinessDayLog (BusinessDate, StartedAt, StartedBy, EndedAt, EndedBy)
+            VALUES (@startDate, GETDATE(), @username, GETDATE(), @username)
         `);
     }
 
