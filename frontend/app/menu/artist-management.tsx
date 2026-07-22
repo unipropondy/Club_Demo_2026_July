@@ -108,10 +108,10 @@ export default function ArtistManagementScreen() {
   const totalAllTimePending = Object.values(pendingByArtist).reduce((s, v) => s + v, 0);
 
   const quickLinks = [
-    { title: "Bonus Payments", icon: "cash",          color: "#16A34A", bg: "#F0FDF4", route: "/menu/artist-bonus-payments" },
-    { title: "Bonus Master",   icon: "settings",      color: "#F97316", bg: "#FFF7ED", route: "/menu/artist-bonus-master" },
-    { title: "Artist Sales",   icon: "bar-chart",     color: "#3B82F6", bg: "#EFF6FF", route: "/menu/artist-sales" },
-    { title: "Reports",        icon: "document-text", color: "#8B5CF6", bg: "#F5F3FF", route: "/menu/artist-reports" },
+    { title: "Bonus Payments", subtitle: "Settle unpaid fees", icon: "cash",          color: "#16A34A", bg: "#F0FDF4", route: "/menu/artist-bonus-payments" },
+    { title: "Bonus Master",   subtitle: "Setup rules & limits", icon: "settings",      color: "#F97316", bg: "#FFF7ED", route: "/menu/artist-bonus-master" },
+    { title: "Artist Sales",   subtitle: "Realtime sales metrics", icon: "bar-chart",     color: "#3B82F6", bg: "#EFF6FF", route: "/menu/artist-sales" },
+    { title: "Reports",        subtitle: "Audit & log history", icon: "document-text", color: "#8B5CF6", bg: "#F5F3FF", route: "/menu/artist-reports" },
   ];
 
   return (
@@ -217,14 +217,15 @@ export default function ArtistManagementScreen() {
           {quickLinks.map(link => (
             <TouchableOpacity
               key={link.route}
-              style={[styles.quickLink, { backgroundColor: link.bg }]}
+              style={[styles.quickLink, { backgroundColor: link.bg, paddingVertical: 12 }]}
               onPress={() => router.push(link.route as any)}
               activeOpacity={0.75}
             >
               <View style={[styles.quickLinkIcon, { backgroundColor: link.color + "22" }]}>
                 <Ionicons name={link.icon as any} size={20} color={link.color} />
               </View>
-              <Text style={[styles.quickLinkText, { color: link.color }]}>{link.title}</Text>
+              <Text style={[styles.quickLinkText, { color: link.color, fontSize: 11, fontFamily: Fonts.bold }]}>{link.title}</Text>
+              <Text style={{ fontSize: 9, color: link.color, opacity: 0.8, fontFamily: Fonts.medium, textAlign: "center", marginTop: 2 }}>{link.subtitle}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -296,6 +297,56 @@ export default function ArtistManagementScreen() {
             </View>
           </>
         )}
+
+        {/* ── STATUS GUIDE ── */}
+        <View style={{
+          backgroundColor: "#F8FAFC",
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: Theme.border,
+          padding: 16,
+          marginTop: 8,
+          gap: 12
+        }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Ionicons name="information-circle-outline" size={18} color={Theme.textSecondary} />
+            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>Understanding Statuses</Text>
+          </View>
+          <View style={{ gap: 8 }}>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+              <View style={{ backgroundColor: "#E0F2FE", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, width: 75, height: 20, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: "#0284C7", fontFamily: Fonts.bold, fontSize: 10 }}>Active</Text>
+              </View>
+              <Text style={{ flex: 1, fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, lineHeight: 16 }}>
+                Artist is currently performing and accumulating live sales for the active business day.
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+              <View style={{ backgroundColor: "#FEF2F2", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, width: 75, height: 20, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: "#DC2626", fontFamily: Fonts.bold, fontSize: 10 }}>Pending</Text>
+              </View>
+              <Text style={{ flex: 1, fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, lineHeight: 16 }}>
+                Artist has reached a bonus threshold in a finalized business day, but the bonus remains unpaid/outstanding.
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+              <View style={{ backgroundColor: "#FFFBEB", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, width: 75, height: 20, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: "#D97706", fontFamily: Fonts.bold, fontSize: 10 }}>Partially Paid</Text>
+              </View>
+              <Text style={{ flex: 1, fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, lineHeight: 16 }}>
+                Artist has received partial payment towards their earned bonus, with some outstanding balance remaining.
+              </Text>
+            </View>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+              <View style={{ backgroundColor: "#F0FDF4", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, width: 75, height: 20, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ color: "#16A34A", fontFamily: Fonts.bold, fontSize: 10 }}>Paid</Text>
+              </View>
+              <Text style={{ flex: 1, fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, lineHeight: 16 }}>
+                All bonuses earned by the artist have been fully settled and paid out.
+              </Text>
+            </View>
+          </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );

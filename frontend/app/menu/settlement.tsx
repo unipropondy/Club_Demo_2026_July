@@ -673,6 +673,8 @@ const loadDishes = async () => {
   } catch (err) {
     console.log(err);
   }
+};
+
 const fetchDayHistory = async () => {
   try {
     setLoadingHistory(true);

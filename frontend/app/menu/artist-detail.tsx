@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { formatToSingaporeDateTime } from "@/utils/timezoneHelper";
+import { artistDateState } from "@/stores/artistDateStore";
 
 const pad = (n: number) => n.toString().padStart(2, "0");
 const fmtDate = (raw: string | null) => {
@@ -56,6 +57,10 @@ export default function ArtistDetailScreen() {
     bonusEarned: 0,
     bonusPaid: 0,
     pendingBonus: 0,
+    periodSales: 0,
+    periodEarned: 0,
+    periodPaid: 0,
+    periodPending: 0,
     lifetimeEarned: 0,
     lifetimePaid: 0,
     lifetimePending: 0,
@@ -73,13 +78,16 @@ export default function ArtistDetailScreen() {
   const [payRemarks, setPayRemarks]     = useState("");
   const [paying, setPaying]             = useState(false);
 
-  // Fetch all-time data — no dates so backend returns lifetime data
+  // Fetch data using date range from state to retrieve period metrics
   const fetchData = useCallback(async () => {
     if (!dishId) return;
     try {
       setLoading(true);
+      const params = artistDateState.fromDate && artistDateState.toDate
+        ? `?fromDate=${artistDateState.fromDate}&toDate=${artistDateState.toDate}`
+        : "";
       const res = await axios.get(
-        `${API_URL}/api/artist-bonus/artist/${dishId}`,
+        `${API_URL}/api/artist-bonus/artist/${dishId}${params}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data.success) {
@@ -218,12 +226,12 @@ export default function ArtistDetailScreen() {
             </View>
             <View style={styles.cardsRow}>
               {[
-                { label: "Lifetime Earned",  value: `$${(summary.lifetimeEarned ?? summary.bonusEarned).toFixed(2)}`, color: Theme.primary, bg: "#FFF7ED" },
-                { label: "Total Paid",       value: `$${(summary.lifetimePaid ?? summary.bonusPaid).toFixed(2)}`,   color: "#16A34A",     bg: "#F0FDF4" },
+                { label: "Lifetime Earned",  value: `$${(summary.lifetimeEarned ?? summary.bonusEarned ?? 0).toFixed(2)}`, color: Theme.primary, bg: "#FFF7ED" },
+                { label: "Total Paid",       value: `$${(summary.lifetimePaid ?? summary.bonusPaid ?? 0).toFixed(2)}`,   color: "#16A34A",     bg: "#F0FDF4" },
                 { label: "Outstanding",      value: `$${totalOutstanding.toFixed(2)}`,                               color: totalOutstanding > 0 ? "#DC2626" : "#16A34A", bg: totalOutstanding > 0 ? "#FEF2F2" : "#F0FDF4" },
               ].map(c => (
                 <View key={c.label} style={[styles.card, { backgroundColor: c.bg }]}>
-                  <Text style={[styles.cardValue, { color: c.color }]}>{c.value}</Text>
+                  <Text style={[styles.cardValue, { color: c.color }]} numberOfLines={1}>{c.value}</Text>
                   <Text style={styles.cardLabel}>{c.label}</Text>
                 </View>
               ))}

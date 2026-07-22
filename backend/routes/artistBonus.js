@@ -137,6 +137,122 @@ function calculateBonus(totalSales, thresholdAmount, bonusAmount, isRepeating) {
   return bonusAmount; // one-time: just the flat bonus
 }
 
+/**
+ * Synchronize (insert or update) the ArtistBonusTransaction record for the active business day.
+ * If the active day is ongoing, sales and earned bonus can grow, so we update the record.
+ */
+async function syncActiveDayTransactions(pool, specificArtistDishId = null) {
+  try {
+    let activeDay = await getActiveStartDate(pool);
+    if (!activeDay) {
+      const latestLog = await pool.request().query("SELECT TOP 1 BusinessDate FROM BusinessDayLog ORDER BY BusinessDate DESC");
+      if (latestLog.recordset.length > 0) {
+        const rawDate = latestLog.recordset[0].BusinessDate;
+        activeDay = rawDate instanceof Date ? rawDate.toISOString().split("T")[0] : String(rawDate).split("T")[0];
+      }
+    }
+    if (!activeDay) return;
+
+    // 1. Fetch active global bonus rule
+    const ruleRes = await pool.request().query(`
+      SELECT TOP 1 Id, ThresholdAmount, BonusAmount, IsRepeating
+      FROM ArtistBonusMaster WHERE IsActive = 1 AND ArtistDishId IS NULL
+      ORDER BY CreatedDate DESC
+    `);
+    const globalRule = ruleRes.recordset[0];
+    if (!globalRule) return;
+
+    // 2. Fetch artist(s)
+    let artists = [];
+    if (specificArtistDishId) {
+      const artistRes = await pool.request()
+        .input('dishId', sql.UniqueIdentifier, specificArtistDishId)
+        .query("SELECT DishId, Name FROM DishMaster WHERE DishId = @dishId AND IsActive = 1 AND IsSplitDish = 1 AND IsGroupDish = 0");
+      artists = artistRes.recordset;
+    } else {
+      const artistsResult = await pool.request().query(`
+        SELECT DishId, Name FROM DishMaster
+        WHERE IsSplitDish = 1 AND IsGroupDish = 0 AND IsActive = 1
+      `);
+      artists = artistsResult.recordset;
+    }
+
+    for (const artist of artists) {
+      // Check override rule
+      const artistRuleRes = await pool.request()
+        .input('dishId', sql.UniqueIdentifier, artist.DishId)
+        .query(`
+          SELECT TOP 1 Id, ThresholdAmount, BonusAmount, IsRepeating
+          FROM ArtistBonusMaster
+          WHERE IsActive = 1 AND ArtistDishId = @dishId
+          ORDER BY CreatedDate DESC
+        `);
+      const rule = artistRuleRes.recordset[0] || globalRule;
+
+      // Get live sales for the active day
+      const totalSales = await getArtistSales(pool, artist.DishId, artist.Name, activeDay, activeDay);
+
+      // Calculate bonus
+      const bonusEarned = calculateBonus(totalSales, rule.ThresholdAmount, rule.BonusAmount, rule.IsRepeating);
+
+      // Check if transaction already exists for this active day
+      const checkRes = await pool.request()
+        .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
+        .input('activeDay', sql.Date, activeDay)
+        .query(`
+          SELECT Id, TotalSales, BonusEarned 
+          FROM ArtistBonusTransaction 
+          WHERE ArtistDishId = @artistDishId 
+            AND CAST(SalesFromDate AS DATE) = @activeDay
+            AND CAST(SalesToDate AS DATE) = @activeDay
+        `);
+
+      if (checkRes.recordset.length > 0) {
+        const existingTxn = checkRes.recordset[0];
+        // If sales or bonus changed, update the existing record
+        if (Number(existingTxn.TotalSales) !== totalSales || Number(existingTxn.BonusEarned) !== bonusEarned) {
+          await pool.request()
+            .input('id', sql.UniqueIdentifier, existingTxn.Id)
+            .input('totalSales', sql.Decimal(18, 2), totalSales)
+            .input('bonusEarned', sql.Decimal(18, 2), bonusEarned)
+            .query(`
+              UPDATE ArtistBonusTransaction
+              SET TotalSales = @totalSales,
+                  BonusEarned = @bonusEarned
+              WHERE Id = @id
+            `);
+        }
+      } else {
+        // Only insert if totalSales > 0 to avoid empty/unused draft transaction entries
+        if (totalSales > 0) {
+          const newId = crypto.randomUUID();
+          await pool.request()
+            .input('id', sql.UniqueIdentifier, newId)
+            .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
+            .input('artistName', sql.NVarChar(200), artist.Name)
+            .input('fromDate', sql.DateTime, activeDay)
+            .input('toDate', sql.DateTime, activeDay)
+            .input('totalSales', sql.Decimal(18, 2), totalSales)
+            .input('threshold', sql.Decimal(18, 2), rule.ThresholdAmount)
+            .input('bonusRuleAmount', sql.Decimal(18, 2), rule.BonusAmount)
+            .input('bonusEarned', sql.Decimal(18, 2), bonusEarned)
+            .input('isRepeating', sql.Bit, rule.IsRepeating)
+            .query(`
+              INSERT INTO ArtistBonusTransaction
+                (Id, ArtistDishId, ArtistName, SalesFromDate, SalesToDate, TotalSales,
+                 ThresholdAmount, BonusRuleAmount, BonusEarned, IsRepeating)
+              VALUES
+                (@id, @artistDishId, @artistName, @fromDate, @toDate, @totalSales,
+                 @threshold, @bonusRuleAmount, @bonusEarned, @isRepeating)
+            `);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[ArtistBonus] syncActiveDayTransactions error:', err.message);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. BONUS MASTER CRUD
 // ─────────────────────────────────────────────────────────────────────────────
@@ -260,6 +376,7 @@ router.delete('/master/:id', async (req, res) => {
 router.get('/sales-summary', async (req, res) => {
   try {
     const pool = getPool();
+    await syncActiveDayTransactions(pool);
     let { fromDate, toDate } = req.query;
 
     // Default to active business day if no dates supplied
@@ -279,14 +396,14 @@ router.get('/sales-summary', async (req, res) => {
     }
 
     const today = new Date().toISOString().split('T')[0];
-    const parsedFrom = fromDate ? new Date(fromDate) : new Date(today);
-    const parsedTo   = toDate   ? new Date(toDate)   : new Date(today);
+    const fromStr = fromDate || today;
+    const toStr   = toDate   || today;
 
     // Determine if we're looking at the active business day
     const activeDay = await getActiveStartDate(pool);
     const isDayActive = !!activeDay;
     const activeDayStr = activeDay || today;
-    const isActiveDayView = fromDate === activeDayStr && toDate === activeDayStr;
+    const isActiveDayView = fromStr === activeDayStr && toStr === activeDayStr;
 
     // Get all active artist dishes
     const artistsResult = await pool.request().query(`
@@ -306,13 +423,13 @@ router.get('/sales-summary', async (req, res) => {
 
     // For each artist, dynamically calculate live actual sales + fetch calculated bonus ledger totals
     const artistList = await Promise.all(artists.map(async (artist) => {
-      const totalSales = await getArtistSales(pool, artist.DishId, artist.Name, parsedFrom, parsedTo);
+      const totalSales = await getArtistSales(pool, artist.DishId, artist.Name, fromStr, toStr);
 
       // Get calculated bonus earned from transactions
       const txnRes = await pool.request()
         .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
-        .input('fromDate', sql.Date, parsedFrom)
-        .input('toDate', sql.Date, parsedTo)
+        .input('fromDate', sql.Date, fromStr)
+        .input('toDate', sql.Date, toStr)
         .query(`
           SELECT SUM(BonusEarned) AS BonusEarned
           FROM ArtistBonusTransaction
@@ -324,8 +441,8 @@ router.get('/sales-summary', async (req, res) => {
       // Get total payments associated with transactions from this date range
       const payRes = await pool.request()
         .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
-        .input('fromDate', sql.Date, parsedFrom)
-        .input('toDate', sql.Date, parsedTo)
+        .input('fromDate', sql.Date, fromStr)
+        .input('toDate', sql.Date, toStr)
         .query(`
           SELECT ISNULL(SUM(PaymentAmount), 0) AS PeriodPaid
           FROM ArtistBonusPayment
@@ -434,6 +551,7 @@ router.get('/artist/:dishId', async (req, res) => {
   try {
     const pool = getPool();
     const { dishId } = req.params;
+    await syncActiveDayTransactions(pool, dishId);
     let { fromDate, toDate } = req.query;
 
     // NOTE: We intentionally do NOT default to active business day here.
@@ -449,11 +567,9 @@ router.get('/artist/:dishId', async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     // When explicit date range is given, use it; otherwise null = all-time
     const hasDates = !!(fromDate && toDate);
-    const parsedFrom = hasDates ? new Date(fromDate) : null;
-    const parsedTo   = hasDates ? new Date(toDate)   : null;
     // For sales history display: default to last 30 days if no date filter
-    const salesFrom = parsedFrom || new Date(new Date().setDate(new Date().getDate() - 30));
-    const salesTo   = parsedTo   || new Date(today);
+    const salesFrom = fromDate || new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
+    const salesTo   = toDate   || today;
 
     // Get artist info
     const artistRes = await pool.request()
@@ -569,6 +685,9 @@ router.get('/artist/:dishId', async (req, res) => {
     const pendingBonus = Math.max(0, bonusEarned - bonusPaid);
 
     // Period-specific values (only meaningful when explicit dates provided)
+    const parsedFrom = hasDates ? new Date(fromDate) : null;
+    const parsedTo   = hasDates ? new Date(toDate)   : null;
+
     const periodTxns = hasDates ? bonusHistory.filter(r => {
       const fromD = new Date(r.SalesFromDate);
       const toD = new Date(r.SalesToDate);
@@ -591,12 +710,16 @@ router.get('/artist/:dishId', async (req, res) => {
     const periodBonusPaid = periodPayments.reduce((s, r) => s + Number(r.PaymentAmount), 0);
     const periodPending = Math.max(0, periodBonusEarned - periodBonusPaid);
 
-    // Progress to next bonus milestone (use latest sales activity or today)
+    const activeDayCtx = await getActiveStartDate(pool);
+    const isDayActive = !!activeDayCtx;
+    const activeDayStr = activeDayCtx || today;
+
+    // Progress to next bonus milestone (use active business day if no dates provided)
     let progressToNext = null;
     if (activeRule) {
       const { ThresholdAmount, BonusAmount, IsRepeating } = activeRule;
-      const progressSalesFrom = parsedFrom || salesFrom;
-      const progressSalesTo   = parsedTo   || salesTo;
+      const progressSalesFrom = fromDate || activeDayStr;
+      const progressSalesTo   = toDate   || activeDayStr;
       const currentSalesTotal = await getArtistSales(pool, dishId, artist.Name, progressSalesFrom, progressSalesTo);
       const currentTier = Math.floor(currentSalesTotal / ThresholdAmount);
       const nextMilestone = (currentTier + 1) * ThresholdAmount;
@@ -610,10 +733,6 @@ router.get('/artist/:dishId', async (req, res) => {
         progressPct: Math.min(100, (currentSalesTotal % ThresholdAmount) / ThresholdAmount * 100),
       };
     }
-
-    const activeDayCtx = await getActiveStartDate(pool);
-    const isDayActive = !!activeDayCtx;
-    const activeDayStr = activeDayCtx || today;
 
     res.json({
       success: true,
