@@ -211,7 +211,16 @@ export default function ArtistBonusMasterScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity 
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/menu/artist-management" as any);
+            }
+          }} 
+          style={styles.backBtn}
+        >
           <Ionicons name="chevron-back" size={22} color={Theme.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>

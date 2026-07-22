@@ -1284,6 +1284,10 @@ router.post("/cancel", async (req, res) => {
     );
     const voidQty = items.reduce((sum, item) => sum + (item.Quantity || 0), 0);
 
+    const activeDayRes = await pool.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
+    const activeStartDate = activeDayRes.recordset[0]?.StartDate;
+    const formattedStartDate = activeStartDate instanceof Date ? activeStartDate.toISOString().split("T")[0] : activeStartDate;
+
     const transaction = new sql.Transaction(pool);
     await transaction.begin();
     try {
@@ -1307,17 +1311,19 @@ router.post("/cancel", async (req, res) => {
         .input("subTotal", sql.Money, subTotal)
         .input("voidQty", sql.Int, voidQty)
         .input("voidAmt", sql.Money, subTotal)
-        .input("mobile", sql.NVarChar(50), header.MobileNo).query(`
+        .input("mobile", sql.NVarChar(50), header.MobileNo)
+        .input("startDate", sql.Date, formattedStartDate || null)
+        .query(`
           INSERT INTO SettlementHeader (
             SettlementID, LastSettlementDate, BillNo, OrderType, TableNo, Section, 
             CashierID, BusinessUnitId, SysAmount, ManualAmount, CreatedBy, CreatedOn, 
             IsCancelled, CancellationReason, CancelledDate, CancelledByUserName, 
-            SubTotal, TotalTax, DiscountAmount, MobileNo, VoidItemQty, VoidItemAmount
+            SubTotal, TotalTax, DiscountAmount, MobileNo, VoidItemQty, VoidItemAmount, start_date
           ) VALUES (
             @sid, GETDATE(), @oid, 'DINE-IN', @tableNo, @section, 
             @userId, @bizId, 0, 0, @userId, GETDATE(), 
             1, @reason, GETDATE(), @userName, 
-            @subTotal, 0, 0, @mobile, @voidQty, @voidAmt
+            @subTotal, 0, 0, @mobile, @voidQty, @voidAmt, @startDate
           )
         `);
 
@@ -1333,13 +1339,15 @@ router.post("/cancel", async (req, res) => {
           .input("price", sql.Decimal(18, 2), item.PricePerUnit)
           .input("catId", sql.UniqueIdentifier, item.CategoryId)
           .input("catName", sql.NVarChar(255), item.CategoryName)
-          .input("groupName", sql.NVarChar(255), item.DishGroupName).query(`
+          .input("groupName", sql.NVarChar(255), item.DishGroupName)
+          .input("startDate", sql.Date, formattedStartDate || null)
+          .query(`
             INSERT INTO SettlementItemDetail (
               SettlementID, DishId, DishName,SongName, Qty, Price, Status, OrderDateTime,
-              CategoryId, CategoryName, SubCategoryName
+              CategoryId, CategoryName, SubCategoryName, start_date
             ) VALUES (
               @sid, @dishId, @dishName,  @songName,@qty, @price, 'VOIDED', GETDATE(),
-              @catId, @catName, @groupName
+              @catId, @catName, @groupName, @startDate
             )
           `);
       }

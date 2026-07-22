@@ -849,7 +849,12 @@ const loadDishes = async () => {
   }, 0);
 
   const transactionsTotal = baseTransactionsTotal + displayOpeningAmount - totalCashOut + totalCashInEntries;
-  const salesCash = parseFloat(payments.find(p => p.PaymodeName?.toUpperCase() === 'CASH')?.Amount) || 0;
+  const salesCash = payments
+    .filter(p => {
+      const name = p.PaymodeName?.toUpperCase();
+      return name === 'CASH' || name === 'CASH BOX ENTRY' || name === 'CASHBOX' || name === 'CASH BOX';
+    })
+    .reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0);
 
   const sysCash = salesCash + transactionsTotal;
 
@@ -1963,7 +1968,8 @@ const loadDishes = async () => {
                     </View>
                   ))}
                   {payments.map((p, i) => {
-                    const isCash = p.PaymodeName?.toUpperCase() === "CASH";
+                    const modeUpper = p.PaymodeName?.toUpperCase() || "";
+                    const isCash = modeUpper === "CASH" || modeUpper === "CASH BOX ENTRY" || modeUpper === "CASHBOX" || modeUpper === "CASH BOX";
                     return (
                       <View key={`pay-${i}`} style={styles.tableRow}>
                         <Text style={[styles.tableCellText, { flex: 2 }]}>{p.PaymodeName}</Text>

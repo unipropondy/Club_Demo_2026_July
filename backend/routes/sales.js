@@ -102,7 +102,7 @@ const resolveBusinessDateColumn = (col) => {
   const cleanCol = String(col).trim();
   if (cleanCol.includes("LastSettlementDate")) {
     const prefix = cleanCol.includes(".") ? cleanCol.split(".")[0] + "." : "";
-    return `${prefix}start_date`;
+    return `ISNULL(${prefix}start_date, CAST(${prefix}LastSettlementDate AS DATE))`;
   }
   if (cleanCol.includes("ptd.CreatedDate") || cleanCol.includes("ptd.CreatedOn")) {
     return `ptd.CreatedDate`;
@@ -277,7 +277,7 @@ router.get("/all", async (req, res) => {
              sh.RoundedBy as RoundedBy,
              ISNULL(ri.DiscountPercentage, 0) as DiscountPercentage,
              ISNULL(cct_sale.OutstandingAmount, 0) AS OutstandingAmount,
-             COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name) AS CustomerName,
+             COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name, cb.ArtistName) AS CustomerName,
              sh.GuestName as GuestName,
              sh.Pax as Pax
            FROM SettlementHeader sh
@@ -288,6 +288,7 @@ router.get("/all", async (req, res) => {
            LEFT JOIN CreditCustomerMaster ccm ON sh.MemberId = ccm.CustomerId
            LEFT JOIN MemberMaster mm_sale ON cct_sale.MemberId = mm_sale.MemberId
            LEFT JOIN CreditCustomerMaster ccm_sale ON cct_sale.MemberId = ccm_sale.CustomerId
+           LEFT JOIN ArtistCashBox cb ON sh.SettlementID = cb.SettlementID
            WHERE ${shWhere}
  
            UNION ALL
@@ -1048,6 +1049,7 @@ router.get("/artist-target", async (req, res) => {
           OR b.DishName LIKE '%' + LTRIM(RTRIM(a.CustomerName)) + '%'
         )
           AND sh.IsCancelled = 0
+          AND ISNULL(sh.OrderType, '') <> 'CASHBOX'
           AND ISNULL(b.Status, 'NORMAL') <> 'VOIDED'
           AND b.OrderDateTime >= CAST(a.FromDate AS DATETIME)
           AND b.OrderDateTime < DATEADD(DAY, 1, CAST(a.ToDate AS DATETIME))

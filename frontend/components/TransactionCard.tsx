@@ -95,9 +95,9 @@ const TransactionCard = React.memo(
               ? `${item.OrderId || 'Member Payment Collected'}: ${item.Section || 'Customer'}`
               : (SCREEN_W < 450 ? `#${formatOrderId(item).split("-").pop()}` : `Order #${formatOrderId(item)}`)}
           </Text>
-          {item.OrderType !== "LEDGER" && item.CustomerName && (modeUpper === "CREDIT" || modeUpper === "MEMBER") && (
+          {item.OrderType !== "LEDGER" && item.CustomerName && (modeUpper === "CREDIT" || modeUpper === "MEMBER" || item.OrderType === "CASHBOX" || modeUpper === "CASH BOX ENTRY" || modeUpper === "CASHBOX") && (
             <Text style={styles.txMemberName}>
-              {modeUpper === "CREDIT" ? "Credit Customer: " : "Member: "}{item.CustomerName}
+              {modeUpper === "CREDIT" ? "Credit Customer: " : modeUpper === "MEMBER" ? "Member: " : "Artist: "}{item.CustomerName}
             </Text>
           )}
           {item.OrderType === "DINE-IN" && item.GuestName && (
@@ -134,7 +134,13 @@ const TransactionCard = React.memo(
                     ? "🔳"
                     : "💳"
                 } Member Account Settlement`
-              : `${item.OrderType === "TAKEAWAY" ? "🛍️ Takeaway" : `🪑 Table ${item.TableNo || "N/A"}`} • ${
+              : `${
+                  item.OrderType === "CASHBOX"
+                    ? ""
+                    : item.OrderType === "TAKEAWAY"
+                    ? "🛍️ Takeaway • "
+                    : `🪑 Table ${item.TableNo || "N/A"} • `
+                }${
                   modeUpper === "CASH"
                     ? "Cash"
                     : modeUpper === "MEMBER"

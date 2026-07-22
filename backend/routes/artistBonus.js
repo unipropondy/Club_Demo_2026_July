@@ -60,6 +60,7 @@ async function getArtistSales(pool, artistDishId, artistName, fromDate, toDate) 
     DECLARE @sgtEnd   DATETIME = DATEADD(DAY, 1, CAST(@toDate AS DATETIME));
 
     -- Source 1: App POS settlements (join with DishMaster to verify IsSplitDish = 1)
+    -- NOTE: Excludes CASHBOX OrderType headers — those are counted in Source 3 (ArtistCashBox)
     WITH AppSales AS (
       SELECT
         ISNULL(SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
@@ -73,6 +74,7 @@ async function getArtistSales(pool, artistDishId, artistName, fromDate, toDate) 
         OR sid.DishName LIKE '%' + d.Name + '%'
       )
       WHERE sh.IsCancelled = 0
+        AND ISNULL(sh.OrderType, '') <> 'CASHBOX'
         AND (
           (sh.start_date IS NOT NULL AND sh.start_date >= @fromDate AND sh.start_date <= @toDate)
           OR
@@ -319,28 +321,36 @@ router.get('/sales-summary', async (req, res) => {
             AND CAST(SalesToDate   AS DATE) <= @toDate
         `);
 
-      // Get total bonus paid for this artist (either paid in this date range, or paid for transactions in this range)
+      // Get total payments associated with transactions from this date range
       const payRes = await pool.request()
         .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
         .input('fromDate', sql.Date, parsedFrom)
         .input('toDate', sql.Date, parsedTo)
         .query(`
-          SELECT ISNULL(SUM(PaymentAmount), 0) AS TotalPaid
+          SELECT ISNULL(SUM(PaymentAmount), 0) AS PeriodPaid
           FROM ArtistBonusPayment
           WHERE ArtistDishId = @artistDishId
-            AND (
-              (CAST(PaidDate AS DATE) >= @fromDate AND CAST(PaidDate AS DATE) <= @toDate)
-              OR BonusTransactionId IN (
-                SELECT Id FROM ArtistBonusTransaction
-                WHERE ArtistDishId = @artistDishId
-                  AND CAST(SalesFromDate AS DATE) >= @fromDate
-                  AND CAST(SalesToDate   AS DATE) <= @toDate
-              )
+            AND BonusTransactionId IN (
+              SELECT Id FROM ArtistBonusTransaction
+              WHERE ArtistDishId = @artistDishId
+                AND CAST(SalesFromDate AS DATE) >= @fromDate
+                AND CAST(SalesToDate   AS DATE) <= @toDate
             )
         `);
 
       const bonusEarned = Number(txnRes.recordset[0]?.BonusEarned) || 0;
-      const bonusPaid   = Number(payRes.recordset[0]?.TotalPaid) || 0;
+      const bonusPaid   = Number(payRes.recordset[0]?.PeriodPaid) || 0;
+
+      // Get overall lifetime outstanding balance
+      const ledgerRes = await pool.request()
+        .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
+        .query(`
+          SELECT 
+            (SELECT ISNULL(SUM(BonusEarned), 0) FROM ArtistBonusTransaction WHERE ArtistDishId = @artistDishId) AS LifetimeEarned,
+            (SELECT ISNULL(SUM(PaymentAmount), 0) FROM ArtistBonusPayment WHERE ArtistDishId = @artistDishId) AS LifetimePaid
+        `);
+      const lifetimeEarned = Number(ledgerRes.recordset[0]?.LifetimeEarned) || 0;
+      const lifetimePaid   = Number(ledgerRes.recordset[0]?.LifetimePaid) || 0;
 
       // Fetch rule override or global rule to calculate expected/estimated bonus on the fly
       const artistRuleRes = await pool.request()
@@ -381,6 +391,7 @@ router.get('/sales-summary', async (req, res) => {
         bonusPaid,
         pendingBonus,
         status,
+        lifetimeOutstanding: Math.max(0, lifetimeEarned - lifetimePaid),
         // Live day progress info
         thresholdAmount,
         thresholdReached,
@@ -487,6 +498,7 @@ router.get('/artist/:dishId', async (req, res) => {
           OR sid.DishName LIKE '%' + d.Name + '%'
         )
         WHERE sh.IsCancelled = 0
+          AND ISNULL(sh.OrderType, '') <> 'CASHBOX'
           AND sh.LastSettlementDate >= @sgtStart
           AND sh.LastSettlementDate <  @sgtEnd
           AND ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
@@ -554,11 +566,25 @@ router.get('/artist/:dishId', async (req, res) => {
     const totalPaidFromTxns    = bonusHistory.reduce((s, r) => s + Number(r.BonusPaid), 0);
     const bonusPaid  = Math.max(totalPaidFromTxns, totalPaidFromHistory);
 
-    let bonusEarned = bonusHistory.reduce((s, r) => s + Number(r.BonusEarned), 0);
-    if (bonusEarned === 0 && activeRule) {
-      bonusEarned = calculateBonus(totalSales, activeRule.ThresholdAmount, activeRule.BonusAmount, activeRule.IsRepeating);
-    }
+    const bonusEarned = bonusHistory.reduce((s, r) => s + Number(r.BonusEarned), 0);
     const pendingBonus = Math.max(0, bonusEarned - bonusPaid);
+
+    // Calculate period specific values
+    const periodTxns = bonusHistory.filter(r => {
+      const fromD = new Date(r.SalesFromDate);
+      const toD = new Date(r.SalesToDate);
+      return fromD >= parsedFrom && toD <= parsedTo;
+    });
+    const periodBonusEarned = periodTxns.reduce((s, r) => s + Number(r.BonusEarned), 0) || (
+      activeRule ? calculateBonus(totalSales, activeRule.ThresholdAmount, activeRule.BonusAmount, activeRule.IsRepeating) : 0
+    );
+
+    const periodPayments = payHistRes.recordset.filter(r => {
+      const paidD = new Date(r.PaidDate);
+      return paidD >= parsedFrom && paidD <= parsedTo;
+    });
+    const periodBonusPaid = periodPayments.reduce((s, r) => s + Number(r.PaymentAmount), 0);
+    const periodPending = Math.max(0, periodBonusEarned - periodBonusPaid);
 
     // Progress to next bonus milestone
     let progressToNext = null;
@@ -588,7 +614,19 @@ router.get('/artist/:dishId', async (req, res) => {
     res.json({
       success: true,
       artist: { dishId: artist.DishId, name: artist.Name },
-      summary: { totalSales, bonusEarned, bonusPaid, pendingBonus },
+      summary: { 
+        totalSales, 
+        bonusEarned, 
+        bonusPaid, 
+        pendingBonus,
+        periodSales: totalSales,
+        periodEarned: periodBonusEarned,
+        periodPaid: periodBonusPaid,
+        periodPending: periodPending,
+        lifetimeEarned: bonusEarned,
+        lifetimePaid: bonusPaid,
+        lifetimePending: pendingBonus
+      },
       activeRule,
       progressToNext,
       salesHistory: salesHistRes.recordset,
@@ -768,27 +806,9 @@ router.post('/calculate', async (req, res) => {
       // 2c. Calculate bonus
       const bonusEarned = calculateBonus(totalSales, rule.ThresholdAmount, rule.BonusAmount, rule.IsRepeating);
 
-      // 2d. Idempotency: check if transaction already exists for this artist + date range
-      const existingRes = await pool.request()
-        .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
-        .input('fromDate', sql.Date, parsedFrom)
-        .input('toDate', sql.Date, parsedTo)
-        .query(`
-          SELECT Id FROM ArtistBonusTransaction
-          WHERE ArtistDishId = @artistDishId
-            AND CAST(SalesFromDate AS DATE) = @fromDate
-            AND CAST(SalesToDate   AS DATE) = @toDate
-        `);
-
-      if (existingRes.recordset.length > 0) {
-        // Already exists — skip (immutable ledger)
-        results.push({ artist: artist.Name, totalSales, bonusEarned, action: 'skipped_exists' });
-        continue;
-      }
-
-      // Only insert if bonus earned > 0 (or insert even 0 for full traceability)
+      // 2d. Idempotency: conditional insert inside a concurrent-safe lock to prevent race conditions
       const newId = crypto.randomUUID();
-      await pool.request()
+      const insertResult = await pool.request()
         .input('id', sql.UniqueIdentifier, newId)
         .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
         .input('artistName', sql.NVarChar(200), artist.Name)
@@ -800,15 +820,33 @@ router.post('/calculate', async (req, res) => {
         .input('bonusEarned', sql.Decimal(18, 2), bonusEarned)
         .input('isRepeating', sql.Bit, rule.IsRepeating)
         .query(`
-          INSERT INTO ArtistBonusTransaction
-            (Id, ArtistDishId, ArtistName, SalesFromDate, SalesToDate, TotalSales,
-             ThresholdAmount, BonusRuleAmount, BonusEarned, IsRepeating)
-          VALUES
-            (@id, @artistDishId, @artistName, @fromDate, @toDate, @totalSales,
-             @threshold, @bonusRuleAmount, @bonusEarned, @isRepeating)
+          IF NOT EXISTS (
+            SELECT 1 FROM ArtistBonusTransaction WITH (UPDLOCK, HOLDLOCK)
+            WHERE ArtistDishId = @artistDishId
+              AND CAST(SalesFromDate AS DATE) <= @toDate
+              AND CAST(SalesToDate   AS DATE) >= @fromDate
+          )
+          BEGIN
+            INSERT INTO ArtistBonusTransaction
+              (Id, ArtistDishId, ArtistName, SalesFromDate, SalesToDate, TotalSales,
+               ThresholdAmount, BonusRuleAmount, BonusEarned, IsRepeating)
+            VALUES
+              (@id, @artistDishId, @artistName, @fromDate, @toDate, @totalSales,
+               @threshold, @bonusRuleAmount, @bonusEarned, @isRepeating);
+            SELECT 1 AS inserted;
+          END
+          ELSE
+          BEGIN
+            SELECT 0 AS inserted;
+          END
         `);
 
-      results.push({ artist: artist.Name, totalSales, bonusEarned, action: 'created' });
+      const inserted = insertResult.recordset?.[0]?.inserted === 1;
+      if (inserted) {
+        results.push({ artist: artist.Name, totalSales, bonusEarned, action: 'created' });
+      } else {
+        results.push({ artist: artist.Name, totalSales, bonusEarned, action: 'skipped_exists' });
+      }
     }
 
     res.json({ success: true, results, fromDate, toDate });
@@ -853,36 +891,52 @@ router.get('/payments', async (req, res) => {
 // POST /api/artist-bonus/pay
 // Body: { transactionId, paymentAmount, remarks }
 router.post('/pay', async (req, res) => {
+  const pool = getPool();
+  const transaction = new sql.Transaction(pool);
+  let isTransactionActive = false;
   try {
-    const pool = getPool();
     const { transactionId, paymentAmount, remarks } = req.body;
     const paidBy = req.user?.userName || req.user?.username || 'Admin';
 
     if (!transactionId) return res.status(400).json({ error: 'transactionId is required' });
     if (!paymentAmount || Number(paymentAmount) <= 0) return res.status(400).json({ error: 'paymentAmount must be > 0' });
 
-    // Fetch transaction
-    const txnRes = await pool.request()
+    await transaction.begin();
+    isTransactionActive = true;
+
+    // Fetch transaction with lock to prevent race conditions
+    const txnRes = await transaction.request()
       .input('id', sql.UniqueIdentifier, transactionId)
-      .query("SELECT Id, ArtistDishId, ArtistName, BonusEarned FROM ArtistBonusTransaction WHERE Id = @id");
-    if (!txnRes.recordset.length) return res.status(404).json({ error: 'Bonus transaction not found' });
+      .query("SELECT Id, ArtistDishId, ArtistName, BonusEarned FROM ArtistBonusTransaction WITH (UPDLOCK, HOLDLOCK) WHERE Id = @id");
+    
+    if (!txnRes.recordset.length) {
+      await transaction.rollback();
+      isTransactionActive = false;
+      return res.status(404).json({ error: 'Bonus transaction not found' });
+    }
     const txn = txnRes.recordset[0];
 
-    // Compute current total paid
-    const paidRes = await pool.request()
+    // Compute current total paid using the active transaction
+    const paidRes = await transaction.request()
       .input('txnId', sql.UniqueIdentifier, transactionId)
       .query("SELECT ISNULL(SUM(PaymentAmount), 0) AS TotalPaid FROM ArtistBonusPayment WHERE BonusTransactionId = @txnId");
     const currentPaid = Number(paidRes.recordset[0].TotalPaid);
     const pending     = Number(txn.BonusEarned) - currentPaid;
 
-    if (pending <= 0) return res.status(409).json({ error: 'This bonus has already been fully paid.' });
+    if (pending <= 0) {
+      await transaction.rollback();
+      isTransactionActive = false;
+      return res.status(409).json({ error: 'This bonus has already been fully paid.' });
+    }
     if (Number(paymentAmount) > pending) {
+      await transaction.rollback();
+      isTransactionActive = false;
       return res.status(400).json({ error: `Payment amount ($${paymentAmount}) exceeds pending bonus ($${pending.toFixed(2)}).` });
     }
 
     // Insert payment record
     const payId = crypto.randomUUID();
-    await pool.request()
+    await transaction.request()
       .input('id', sql.UniqueIdentifier, payId)
       .input('txnId', sql.UniqueIdentifier, transactionId)
       .input('artistDishId', sql.UniqueIdentifier, txn.ArtistDishId)
@@ -897,6 +951,9 @@ router.post('/pay', async (req, res) => {
           (@id, @txnId, @artistDishId, @artistName, @amount, @paidBy, @remarks)
       `);
 
+    await transaction.commit();
+    isTransactionActive = false;
+
     const newPaid    = currentPaid + Number(paymentAmount);
     const newPending = Math.max(0, Number(txn.BonusEarned) - newPaid);
 
@@ -910,6 +967,13 @@ router.post('/pay', async (req, res) => {
     });
   } catch (err) {
     console.error('[ArtistBonus] POST /pay error:', err.message);
+    if (isTransactionActive) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackErr) {
+        console.error('[ArtistBonus] Rollback error:', rollbackErr.message);
+      }
+    }
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -1228,26 +1292,9 @@ async function processDayEndBonusCalculations(pool) {
       // Calculate bonus earned
       const bonusEarned = calculateBonus(totalSales, rule.ThresholdAmount, rule.BonusAmount, rule.IsRepeating);
 
-      // Idempotency: skip if transaction already exists
-      const existingRes = await pool.request()
-        .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
-        .input('fromDate', sql.Date, parsedFrom)
-        .input('toDate', sql.Date, parsedTo)
-        .query(`
-          SELECT Id FROM ArtistBonusTransaction
-          WHERE ArtistDishId = @artistDishId
-            AND CAST(SalesFromDate AS DATE) = @fromDate
-            AND CAST(SalesToDate   AS DATE) = @toDate
-        `);
-
-      if (existingRes.recordset.length > 0) {
-        results.push({ artist: artist.Name, totalSales, bonusEarned, action: 'skipped_exists' });
-        continue;
-      }
-
-      // Insert finalized bonus transaction for this day
+      // Idempotency: conditional insert inside a concurrent-safe lock to prevent race conditions
       const newId = crypto.randomUUID();
-      await pool.request()
+      const insertResult = await pool.request()
         .input('id', sql.UniqueIdentifier, newId)
         .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
         .input('artistName', sql.NVarChar(200), artist.Name)
@@ -1259,15 +1306,33 @@ async function processDayEndBonusCalculations(pool) {
         .input('bonusEarned', sql.Decimal(18, 2), bonusEarned)
         .input('isRepeating', sql.Bit, rule.IsRepeating)
         .query(`
-          INSERT INTO ArtistBonusTransaction
-            (Id, ArtistDishId, ArtistName, SalesFromDate, SalesToDate, TotalSales,
-             ThresholdAmount, BonusRuleAmount, BonusEarned, IsRepeating)
-          VALUES
-            (@id, @artistDishId, @artistName, @fromDate, @toDate, @totalSales,
-             @threshold, @bonusRuleAmount, @bonusEarned, @isRepeating)
+          IF NOT EXISTS (
+            SELECT 1 FROM ArtistBonusTransaction WITH (UPDLOCK, HOLDLOCK)
+            WHERE ArtistDishId = @artistDishId
+              AND CAST(SalesFromDate AS DATE) <= @toDate
+              AND CAST(SalesToDate   AS DATE) >= @fromDate
+          )
+          BEGIN
+            INSERT INTO ArtistBonusTransaction
+              (Id, ArtistDishId, ArtistName, SalesFromDate, SalesToDate, TotalSales,
+               ThresholdAmount, BonusRuleAmount, BonusEarned, IsRepeating)
+            VALUES
+              (@id, @artistDishId, @artistName, @fromDate, @toDate, @totalSales,
+               @threshold, @bonusRuleAmount, @bonusEarned, @isRepeating);
+            SELECT 1 AS inserted;
+          END
+          ELSE
+          BEGIN
+            SELECT 0 AS inserted;
+          END
         `);
 
-      results.push({ artist: artist.Name, totalSales, bonusEarned, action: 'created' });
+      const inserted = insertResult.recordset?.[0]?.inserted === 1;
+      if (inserted) {
+        results.push({ artist: artist.Name, totalSales, bonusEarned, action: 'created' });
+      } else {
+        results.push({ artist: artist.Name, totalSales, bonusEarned, action: 'skipped_exists' });
+      }
     } catch (artistErr) {
       console.error(`[ArtistBonus] processDayEndBonusCalculations error for ${artist.Name}:`, artistErr.message);
       results.push({ artist: artist.Name, error: artistErr.message, action: 'error' });

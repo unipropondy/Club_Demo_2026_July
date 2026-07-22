@@ -421,6 +421,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
         OR b.DishName LIKE '%' + LTRIM(RTRIM(a.CustomerName)) + '%'
       )
         AND sh.IsCancelled = 0
+        AND ISNULL(sh.OrderType, '') <> 'CASHBOX'
         AND ISNULL(b.Status, 'NORMAL') <> 'VOIDED'
         AND b.OrderDateTime >= CAST(a.FromDate AS DATETIME)
         AND b.OrderDateTime < DATEADD(DAY, 1, CAST(a.ToDate AS DATETIME))

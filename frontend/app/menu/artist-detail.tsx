@@ -60,7 +60,19 @@ export default function ArtistDetailScreen() {
   const [activeDay, setActiveDay]     = useState<string | null>(null);
 
   const [artist, setArtist]           = useState<{ dishId: string; name: string } | null>(null);
-  const [summary, setSummary]         = useState({ totalSales: 0, bonusEarned: 0, bonusPaid: 0, pendingBonus: 0 });
+  const [summary, setSummary]         = useState({ 
+    totalSales: 0, 
+    bonusEarned: 0, 
+    bonusPaid: 0, 
+    pendingBonus: 0,
+    periodSales: 0,
+    periodEarned: 0,
+    periodPaid: 0,
+    periodPending: 0,
+    lifetimeEarned: 0,
+    lifetimePaid: 0,
+    lifetimePending: 0
+  });
   const [activeRule, setActiveRule]   = useState<any>(null);
   const [progress, setProgress]       = useState<any>(null);
   const [salesHistory, setSalesHistory] = useState<any[]>([]);
@@ -178,7 +190,16 @@ export default function ArtistDetailScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity 
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/menu/artist-management" as any);
+            }
+          }} 
+          style={styles.backBtn}
+        >
           <Ionicons name="chevron-back" size={22} color={Theme.textPrimary} />
         </TouchableOpacity>
         <View style={styles.artistHeaderInfo}>
@@ -202,13 +223,33 @@ export default function ArtistDetailScreen() {
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} colors={[Theme.primary]} tintColor={Theme.primary} />}
           >
-            {/* Summary Cards */}
-            <View style={styles.cardsRow}>
+            {/* Section 1: Period Performance */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+              <Text style={styles.sectionTitle}>Period Performance</Text>
+            </View>
+            <View style={[styles.cardsRow, { paddingTop: 0 }]}>
               {[
-                { label: "Total Sales", value: `$${summary.totalSales.toFixed(2)}`, color: "#3B82F6" },
-                { label: "Bonus Earned", value: `$${summary.bonusEarned.toFixed(2)}`, color: Theme.primary },
-                { label: "Bonus Paid", value: `$${summary.bonusPaid.toFixed(2)}`, color: "#16A34A" },
-                { label: "Pending", value: `$${summary.pendingBonus.toFixed(2)}`, color: "#DC2626" },
+                { label: "Period Sales", value: `$${(summary.periodSales ?? summary.totalSales).toFixed(2)}`, color: "#3B82F6" },
+                { label: "Period Bonus Earned", value: `$${(summary.periodEarned ?? 0).toFixed(2)}`, color: Theme.primary },
+                { label: "Period Bonus Paid", value: `$${(summary.periodPaid ?? 0).toFixed(2)}`, color: "#16A34A" },
+                { label: "Period Outstanding", value: `$${(summary.periodPending ?? 0).toFixed(2)}`, color: "#DC2626" },
+              ].map(c => (
+                <View key={c.label} style={styles.card}>
+                  <Text style={[styles.cardValue, { color: c.color }]}>{c.value}</Text>
+                  <Text style={styles.cardLabel}>{c.label}</Text>
+                </View>
+              ))}
+            </View>
+
+            {/* Section 2: Bonus Ledger */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+              <Text style={styles.sectionTitle}>Bonus Ledger</Text>
+            </View>
+            <View style={[styles.cardsRow, { paddingTop: 0 }]}>
+              {[
+                { label: "Lifetime Bonus Earned", value: `$${(summary.lifetimeEarned ?? summary.bonusEarned).toFixed(2)}`, color: Theme.primary },
+                { label: "Lifetime Bonus Paid", value: `$${(summary.lifetimePaid ?? summary.bonusPaid).toFixed(2)}`, color: "#16A34A" },
+                { label: "Outstanding Bonus", value: `$${(summary.lifetimePending ?? summary.pendingBonus).toFixed(2)}`, color: "#DC2626" },
               ].map(c => (
                 <View key={c.label} style={styles.card}>
                   <Text style={[styles.cardValue, { color: c.color }]}>{c.value}</Text>
@@ -291,12 +332,16 @@ export default function ArtistDetailScreen() {
                   onPress={openPayModal}
                 >
                   <Ionicons name="cash-outline" size={18} color="#fff" />
-                  <Text style={styles.payBtnText}>Pay Bonus (${summary.pendingBonus.toFixed(2)})</Text>
+                  <Text style={styles.payBtnText}>Pay Outstanding Bonus (${summary.pendingBonus.toFixed(2)})</Text>
                 </TouchableOpacity>
               ) : (
-                <View style={[styles.payBtn, { backgroundColor: Theme.bgMuted, borderColor: Theme.border, borderWidth: 1, flexDirection: "row", justifyContent: "center", gap: 8 }]}>
+                <View style={[styles.payBtn, { backgroundColor: Theme.bgMuted, borderColor: Theme.border, borderWidth: 1, flexDirection: "row", justifyContent: "center", gap: 8, paddingHorizontal: 12 }]}>
                   <Ionicons name="checkmark-circle-outline" size={18} color={Theme.textMuted} />
-                  <Text style={[styles.payBtnText, { color: Theme.textMuted }]}>All Settled (No Pending Bonus)</Text>
+                  <Text style={[styles.payBtnText, { color: Theme.textMuted, fontSize: 12 }]} numberOfLines={1}>
+                    {summary.periodPending > 0 
+                      ? `All Settled (Today's $${summary.periodPending.toFixed(2)} Bonus will be available after Day End)`
+                      : "All Settled (No Outstanding Bonus)"}
+                  </Text>
                 </View>
               )}
             </View>
@@ -417,7 +462,7 @@ export default function ArtistDetailScreen() {
                 <SummaryRow label="Bonus Earned" value={`$${Number(selectedTxn.BonusEarned).toFixed(2)}`} color={Theme.primary} />
                 <SummaryRow label="Already Paid" value={`$${Number(selectedTxn.BonusPaid).toFixed(2)}`} color="#16A34A" />
                 <View style={styles.summaryDivider} />
-                <SummaryRow label="Pending Bonus" value={`$${Number(selectedTxn.pendingBonus).toFixed(2)}`} color="#DC2626" bold />
+                <SummaryRow label="Outstanding Bonus" value={`$${Number(selectedTxn.pendingBonus).toFixed(2)}`} color="#DC2626" bold />
               </View>
             )}
 

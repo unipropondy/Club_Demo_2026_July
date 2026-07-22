@@ -1130,6 +1130,7 @@ router.get('/artist-target-live', authenticateToken, async (req, res) => {
         LEFT JOIN DishMaster d ON sid.DishId = d.DishId
         WHERE sh.LastSettlementDate >= @sgtStart
           AND sh.LastSettlementDate <  @sgtEnd
+          AND ISNULL(sh.OrderType, '') <> 'CASHBOX'
           AND ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), 'Unmapped') = 'Entertainment'
         GROUP BY 
           ISNULL(

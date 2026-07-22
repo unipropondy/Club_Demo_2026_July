@@ -320,6 +320,9 @@ export default function SalesReport() {
         if (!defaultModes.includes("VOID")) {
           defaultModes.push("VOID");
         }
+        if (!defaultModes.includes("CASH BOX ENTRY")) {
+          defaultModes.push("CASH BOX ENTRY");
+        }
         if (stored) {
           try {
             const parsed = JSON.parse(stored);
@@ -3282,11 +3285,15 @@ export default function SalesReport() {
                   )}
                 </ScrollView>
 
-                {/* Member / Credit Customer Info */}
+                {/* Member / Credit Customer / Artist Info */}
                 {selectedOrder?.CustomerName && (
                   <View style={{ marginBottom: 12, paddingHorizontal: 4 }}>
                     <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary }}>
-                      {String(selectedOrder.PayMode || '').toUpperCase().includes("MEMBER") ? "Member" : "Credit Customer"}: {selectedOrder.CustomerName}
+                      {String(selectedOrder.PayMode || '').toUpperCase().includes("MEMBER")
+                        ? "Member"
+                        : (selectedOrder.OrderType === "CASHBOX" || String(selectedOrder.PayMode || '').toUpperCase().includes("CASH BOX")
+                          ? "Artist"
+                          : "Credit Customer")}: {selectedOrder.CustomerName}
                     </Text>
                   </View>
                 )}
@@ -3544,7 +3551,7 @@ export default function SalesReport() {
                   <View style={styles.sidebarSection}>
                     <Text style={styles.sectionLabel}>PAYMENT MODES</Text>
                     <View style={styles.chipRow}>
-                      {["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER", "CREDIT"].map((m) => (
+                      {["CASH", "CARD", "NETS", "PAYNOW", "VOID", "MEMBER", "CREDIT", "CASH BOX ENTRY"].map((m) => (
                         <TouchableOpacity
                           key={m}
                           onPress={() => togglePaymentMode(m)}

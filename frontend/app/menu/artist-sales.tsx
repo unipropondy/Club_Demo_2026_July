@@ -42,6 +42,7 @@ interface ArtistRow {
   bonusEarned: number;
   bonusPaid: number;
   pendingBonus: number;
+  lifetimeOutstanding: number;
   status: string;
   thresholdAmount?: number;
   thresholdReached?: boolean;
@@ -263,10 +264,10 @@ export default function ArtistSalesScreen() {
       {isTablet ? (
         <View style={styles.summaryStrip}>
           {[
-            { label: "Sales", value: `$${cards.totalArtistSales.toFixed(2)}`, color: "#3B82F6" },
-            { label: "Earned", value: `$${cards.totalBonusEarned.toFixed(2)}`, color: Theme.primary },
-            { label: "Paid", value: `$${cards.totalBonusPaid.toFixed(2)}`, color: "#16A34A" },
-            { label: "Pending", value: `$${cards.pendingBonus.toFixed(2)}`, color: "#DC2626" },
+            { label: "Period Sales", value: `$${cards.totalArtistSales.toFixed(2)}`, color: "#3B82F6" },
+            { label: "Period Earned", value: `$${cards.totalBonusEarned.toFixed(2)}`, color: Theme.primary },
+            { label: "Period Paid", value: `$${cards.totalBonusPaid.toFixed(2)}`, color: "#16A34A" },
+            { label: "Period Outstanding", value: `$${cards.pendingBonus.toFixed(2)}`, color: "#DC2626" },
           ].map(s => (
             <View key={s.label} style={styles.summaryItemFlex}>
               <Text style={[styles.summaryValue, { color: s.color }]}>{s.value}</Text>
@@ -282,10 +283,10 @@ export default function ArtistSalesScreen() {
           contentContainerStyle={styles.summaryScrollContainer}
         >
           {[
-            { label: "Sales", value: `$${cards.totalArtistSales.toFixed(2)}`, color: "#3B82F6" },
-            { label: "Earned", value: `$${cards.totalBonusEarned.toFixed(2)}`, color: Theme.primary },
-            { label: "Paid", value: `$${cards.totalBonusPaid.toFixed(2)}`, color: "#16A34A" },
-            { label: "Pending", value: `$${cards.pendingBonus.toFixed(2)}`, color: "#DC2626" },
+            { label: "Period Sales", value: `$${cards.totalArtistSales.toFixed(2)}`, color: "#3B82F6" },
+            { label: "Period Earned", value: `$${cards.totalBonusEarned.toFixed(2)}`, color: Theme.primary },
+            { label: "Period Paid", value: `$${cards.totalBonusPaid.toFixed(2)}`, color: "#16A34A" },
+            { label: "Period Outstanding", value: `$${cards.pendingBonus.toFixed(2)}`, color: "#DC2626" },
           ].map(s => (
             <View key={s.label} style={styles.summaryItem}>
               <Text style={[styles.summaryValue, { color: s.color }]} numberOfLines={1}>{s.value}</Text>
@@ -304,11 +305,12 @@ export default function ArtistSalesScreen() {
               <View>
                 <View style={styles.tableHeader}>
                   <Text style={[styles.thCell, { flex: 2 }]}>Artist</Text>
-                  <Text style={[styles.thCell, { flex: 1.4, textAlign: "right" }]}>Sales</Text>
-                  <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Earned</Text>
-                  <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Paid</Text>
-                  <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Pending</Text>
-                  <Text style={[styles.thCell, { flex: 1.3, textAlign: "center" }]}>Status</Text>
+                  <Text style={[styles.thCell, { flex: 1, textAlign: "right" }]}>Sales</Text>
+                  <Text style={[styles.thCell, { flex: 1, textAlign: "right" }]}>Earned</Text>
+                  <Text style={[styles.thCell, { flex: 1, textAlign: "right" }]}>Paid</Text>
+                  <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Period Out.</Text>
+                  <Text style={[styles.thCell, { flex: 1.3, textAlign: "right" }]}>Outstanding</Text>
+                  <Text style={[styles.thCell, { flex: 1.1, textAlign: "center" }]}>Status</Text>
                 </View>
                 {filtered.length === 0 && (
                   <View style={styles.emptyRow}>
@@ -331,11 +333,12 @@ export default function ArtistSalesScreen() {
                         </View>
                         <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
                       </View>
-                      <Text style={[styles.tdCell, { flex: 1.4, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
-                      <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right", color: Theme.primary }]}>${artist.bonusEarned.toFixed(2)}</Text>
-                      <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right", color: "#16A34A" }]}>${artist.bonusPaid.toFixed(2)}</Text>
+                      <Text style={[styles.tdCell, { flex: 1, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
+                      <Text style={[styles.tdCell, { flex: 1, textAlign: "right", color: Theme.primary }]}>${artist.bonusEarned.toFixed(2)}</Text>
+                      <Text style={[styles.tdCell, { flex: 1, textAlign: "right", color: "#16A34A" }]}>${artist.bonusPaid.toFixed(2)}</Text>
                       <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right", color: "#DC2626" }]}>${artist.pendingBonus.toFixed(2)}</Text>
-                      <View style={[{ flex: 1.3 }, styles.badgeWrap]}>
+                      <Text style={[styles.tdCell, { flex: 1.3, textAlign: "right", color: "#DC2626", fontFamily: Fonts.bold }]}>${(artist.lifetimeOutstanding || 0).toFixed(2)}</Text>
+                      <View style={[{ flex: 1.1 }, styles.badgeWrap]}>
                         <View style={[styles.badge, { backgroundColor: sc.bg }]}>
                           <Text style={[styles.badgeText, { color: sc.text }]} numberOfLines={1}>{artist.status}</Text>
                         </View>
@@ -348,13 +351,14 @@ export default function ArtistSalesScreen() {
             ) : (
               // ── Mobile: fixed-width columns + horizontal scroll ──
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ minWidth: 680 }}>
+                <View style={{ minWidth: 780 }}>
                   <View style={styles.tableHeader}>
                     <Text style={[styles.thCell, { width: 160 }]}>Artist</Text>
-                    <Text style={[styles.thCell, { width: 120, textAlign: "right" }]}>Sales</Text>
-                    <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>Earned</Text>
+                    <Text style={[styles.thCell, { width: 100, textAlign: "right" }]}>Sales</Text>
+                    <Text style={[styles.thCell, { width: 100, textAlign: "right" }]}>Earned</Text>
                     <Text style={[styles.thCell, { width: 100, textAlign: "right" }]}>Paid</Text>
-                    <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>Pending</Text>
+                    <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>Period Out.</Text>
+                    <Text style={[styles.thCell, { width: 110, textAlign: "right" }]}>Outstanding</Text>
                     <Text style={[styles.thCell, { width: 100, textAlign: "center" }]}>Status</Text>
                   </View>
                   {filtered.length === 0 && (
@@ -378,10 +382,11 @@ export default function ArtistSalesScreen() {
                           </View>
                           <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
                         </View>
-                        <Text style={[styles.tdCell, { width: 120, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
-                        <Text style={[styles.tdCell, { width: 110, textAlign: "right", color: Theme.primary }]}>${artist.bonusEarned.toFixed(2)}</Text>
+                        <Text style={[styles.tdCell, { width: 100, textAlign: "right" }]}>${artist.totalSales.toFixed(2)}</Text>
+                        <Text style={[styles.tdCell, { width: 100, textAlign: "right", color: Theme.primary }]}>${artist.bonusEarned.toFixed(2)}</Text>
                         <Text style={[styles.tdCell, { width: 100, textAlign: "right", color: "#16A34A" }]}>${artist.bonusPaid.toFixed(2)}</Text>
                         <Text style={[styles.tdCell, { width: 110, textAlign: "right", color: "#DC2626" }]}>${artist.pendingBonus.toFixed(2)}</Text>
+                        <Text style={[styles.tdCell, { width: 110, textAlign: "right", color: "#DC2626", fontFamily: Fonts.bold }]}>${(artist.lifetimeOutstanding || 0).toFixed(2)}</Text>
                         <View style={[{ width: 100 }, styles.badgeWrap]}>
                           <View style={[styles.badge, { backgroundColor: sc.bg }]}>
                             <Text style={[styles.badgeText, { color: sc.text }]} numberOfLines={1}>{artist.status}</Text>
