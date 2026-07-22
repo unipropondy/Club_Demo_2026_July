@@ -701,6 +701,21 @@ async function initDB(pool) {
       END
     `);
 
+    // 19.3 Create BusinessDayAuditLog table for full append-only Day Start / Day End history
+    await runQuery("Create BusinessDayAuditLog table", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[BusinessDayAuditLog]') AND type in (N'U'))
+      BEGIN
+          CREATE TABLE [dbo].[BusinessDayAuditLog](
+              [AuditId] [uniqueidentifier] NOT NULL PRIMARY KEY DEFAULT NEWID(),
+              [BusinessDate] [date] NOT NULL,
+              [EventType] [varchar](20) NOT NULL,
+              [EventTime] [datetime] NOT NULL DEFAULT GETDATE(),
+              [ActionBy] [varchar](30) NULL,
+              [Remarks] [nvarchar](255) NULL
+          )
+      END
+    `);
+
     // 20. Create CashDrawerRemarks table
     await runQuery("Create CashDrawerRemarks table", `
       IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[CashDrawerRemarks]') AND type in (N'U'))

@@ -29,7 +29,7 @@ router.post("/day-start", async (req, res) => {
         VALUES (@username, @startDate, @createdBy, GETDATE())
       `);
 
-    // Log Day Start
+    // Log Day Start in BusinessDayLog
     await pool.request()
       .input("username", sql.VarChar(30), username || "admin")
       .input("startDate", sql.Date, startDate)
@@ -38,6 +38,15 @@ router.post("/day-start", async (req, res) => {
           UPDATE BusinessDayLog SET StartedAt = GETDATE(), StartedBy = @username, EndedAt = NULL, EndedBy = NULL WHERE BusinessDate = @startDate
         ELSE
           INSERT INTO BusinessDayLog (BusinessDate, StartedAt, StartedBy) VALUES (@startDate, GETDATE(), @username)
+      `);
+
+    // Record append-only audit trail
+    await pool.request()
+      .input("username", sql.VarChar(30), username || "admin")
+      .input("startDate", sql.Date, startDate)
+      .query(`
+        INSERT INTO BusinessDayAuditLog (BusinessDate, EventType, EventTime, ActionBy)
+        VALUES (@startDate, 'DAY_START', GETDATE(), @username)
       `);
       
     res.json({ success: true, message: "Day started successfully" });
@@ -58,11 +67,13 @@ router.post("/day-end", async (req, res) => {
       activeStartDate = req.body.businessDate;
     }
 
+    const actionUser = req.body?.username || 'admin';
+
     // Log Day End in BusinessDayLog
     if (activeStartDate) {
       await pool.request()
         .input("startDate", sql.Date, activeStartDate)
-        .input("username", sql.VarChar(30), req.body?.username || 'admin')
+        .input("username", sql.VarChar(30), actionUser)
         .query(`
           IF EXISTS (SELECT 1 FROM BusinessDayLog WHERE BusinessDate = @startDate)
             UPDATE BusinessDayLog 
@@ -71,6 +82,15 @@ router.post("/day-end", async (req, res) => {
           ELSE
             INSERT INTO BusinessDayLog (BusinessDate, StartedAt, StartedBy, EndedAt, EndedBy)
             VALUES (@startDate, GETDATE(), @username, GETDATE(), @username)
+        `);
+
+      // Record append-only audit trail
+      await pool.request()
+        .input("startDate", sql.Date, activeStartDate)
+        .input("username", sql.VarChar(30), actionUser)
+        .query(`
+          INSERT INTO BusinessDayAuditLog (BusinessDate, EventType, EventTime, ActionBy)
+          VALUES (@startDate, 'DAY_END', GETDATE(), @username)
         `);
     }
 
@@ -135,6 +155,37 @@ router.get("/day-log", async (req, res) => {
     }
   } catch (err) {
     console.error("Day Log Fetch Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /day-history?date=YYYY-MM-DD or /day-history?fromDate=YYYY-MM-DD&toDate=YYYY-MM-DD
+router.get("/day-history", async (req, res) => {
+  try {
+    const { date, fromDate, toDate } = req.query;
+    const pool = getPool();
+    const request = pool.request();
+
+    let query = `
+      SELECT AuditId, BusinessDate, EventType, EventTime, ActionBy, Remarks
+      FROM BusinessDayAuditLog
+    `;
+
+    if (date) {
+      request.input("date", sql.Date, date);
+      query += ` WHERE BusinessDate = @date`;
+    } else if (fromDate && toDate) {
+      request.input("fromDate", sql.Date, fromDate);
+      request.input("toDate", sql.Date, toDate);
+      query += ` WHERE BusinessDate BETWEEN @fromDate AND @toDate`;
+    }
+
+    query += ` ORDER BY EventTime DESC`;
+
+    const result = await request.query(query);
+    res.json({ success: true, data: result.recordset || [] });
+  } catch (err) {
+    console.error("Day History Fetch Error:", err);
     res.status(500).json({ error: err.message });
   }
 });

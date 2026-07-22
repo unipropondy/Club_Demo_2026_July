@@ -556,6 +556,9 @@ const [artistSearch, setArtistSearch] = useState("");
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dayLog, setDayLog] = useState<{ StartedAt: string | null; StartedBy: string | null; EndedAt: string | null; EndedBy: string | null } | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyLogs, setHistoryLogs] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const userId = user?.userId || "0";
 
@@ -669,6 +672,22 @@ const loadDishes = async () => {
     setDishList(res.data.data || []);
   } catch (err) {
     console.log(err);
+  }
+const fetchDayHistory = async () => {
+  try {
+    setLoadingHistory(true);
+    const dateStr = getLocalDateStr(selectedDate);
+    const res = await axios.get(`${API_URL}/api/settlement/day-history?date=${dateStr}`);
+    if (res.data?.success) {
+      setHistoryLogs(res.data.data || []);
+    } else {
+      setHistoryLogs([]);
+    }
+  } catch (err) {
+    console.error("Error fetching day history:", err);
+    setHistoryLogs([]);
+  } finally {
+    setLoadingHistory(false);
   }
 };
 
@@ -1545,6 +1564,31 @@ const loadDishes = async () => {
           {isTablet && (
             <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
               <TouchableOpacity
+                style={{
+                  backgroundColor: "#3b82f6",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  elevation: 2,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 1.41,
+                }}
+                onPress={() => {
+                  setShowHistoryModal(true);
+                  fetchDayHistory();
+                }}
+              >
+                <Ionicons name="time-outline" size={18} color="#fff" />
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#fff" }}>History</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={[styles.confirmBtn, { paddingVertical: 8, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 }]}
                 onPress={handlePrintReport}
               >
@@ -1559,20 +1603,19 @@ const loadDishes = async () => {
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 6,
-                  paddingVertical: 8,
                   paddingHorizontal: 16,
+                  paddingVertical: 8,
                   borderRadius: 10,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 3,
                   elevation: 2,
-                  height: 38
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 1.41,
                 }}
                 onPress={handleDayEnd}
               >
                 <Ionicons name="moon-outline" size={18} color="#fff" />
-                <Text style={{ color: "#fff", fontSize: 13, fontFamily: Fonts.black }}>Day End</Text>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: "#fff" }}>Day End</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -1760,77 +1803,6 @@ const loadDishes = async () => {
                   </View>
                 </View>
               </View>
-
-              {/* === SALES SUMMARY === */}
-              {/* <View style={[styles.card, isTablet && styles.cardTablet]}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardHeaderTitle}>SALES SUMMARY</Text>
-                </View>
-                <View style={styles.tableHeader}>
-                  <Text style={[styles.tableHeaderText, { flex: 2 }]}>Paymode</Text>
-                  <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Sys Amount</Text>
-                  <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Manual Amount</Text>
-                </View>
-                <ScrollView style={styles.cardBodyScroll} nestedScrollEnabled> */}
-              {/* Opening Cash Row */}
-              {/* <TouchableOpacity
-                    style={[styles.tableRow, styles.clickableRow, { alignItems: "center" }]}
-                    onPress={() => {
-                      setLovMode("OPEN");
-                      setShowLov(true);
-                    }}
-                  >
-                    <View style={{ flex: 2, flexDirection: "row", alignItems: "center" }}>
-                      <Text style={[styles.tableCellText, { fontFamily: Fonts.bold, color: Theme.textSecondary }]}>OPENING AMOUNT</Text>
-                      <Ionicons name="create-outline" size={14} color={Theme.textSecondary} style={{ marginLeft: 6 }} />
-                    </View>
-                    <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}></Text>
-                    <Text style={[styles.tableCellText, { flex: 1, textAlign: "right", fontFamily: Fonts.bold, color: Theme.textSecondary }]}>
-                      {formatCurrency(displayOpeningAmount)}
-                    </Text>
-                  </TouchableOpacity> */}
-
-              {/* Hardcoded CASH Row */}
-              {/* <TouchableOpacity
-                    style={[styles.tableRow, styles.clickableRow, { alignItems: "center" }]}
-                    onPress={() => {
-                      setLovMode("CLOSE");
-                      setShowLov(true);
-                    }}
-                  >
-                    <View style={{ flex: 2, flexDirection: "row", alignItems: "center" }}>
-                      <Text style={[styles.tableCellText, { fontFamily: Fonts.bold, color: Theme.primary }]}>CASH</Text>
-                      <Ionicons name="create-outline" size={14} color={Theme.primary} style={{ marginLeft: 6 }} />
-                    </View>
-                    <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}>
-                      {formatCurrency(sysCash)}
-                    </Text>
-                    <Text style={[styles.tableCellText, { flex: 1, textAlign: "right", fontFamily: Fonts.bold }]}>
-                      {formatCurrency(totalClosing)}
-                    </Text>
-                  </TouchableOpacity> */}
-
-              {/* Cash Out Row */}
-              {/* <TouchableOpacity
-                    style={[styles.tableRow, styles.clickableRow, { alignItems: "center" }]}
-                    onPress={() => setShowCashOutModal(true)}
-                  >
-                    <View style={{ flex: 2, flexDirection: "row", alignItems: "center" }}>
-                      <Text style={[styles.tableCellText, { fontFamily: Fonts.bold, color: Theme.danger }]}>CASH OUT</Text>
-                      <Ionicons name="create-outline" size={14} color={Theme.danger} style={{ marginLeft: 6 }} />
-                    </View>
-                    <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}></Text>
-                    <Text style={[styles.tableCellText, { flex: 1, textAlign: "right", fontFamily: Fonts.bold, color: Theme.danger }]}>
-                      {formatCurrency(totalCashOut)}
-                    </Text>
-                  </TouchableOpacity>
-                </ScrollView>
-                <View style={styles.cardFooter}>
-                  <Text style={styles.footerLabel}>Total</Text>
-                  <Text style={styles.footerValue}>{formatCurrency(totalClosing)}</Text>
-                </View>
-                </View>
-              </View> */}
 
               {/* === SALES === */}
               <View style={[styles.card, isTablet && styles.cardTablet]}>
@@ -2552,6 +2524,127 @@ const loadDishes = async () => {
                   <Text style={{ fontFamily: Fonts.bold, fontSize: 15, color: "#fff" }}>
                     Confirm
                   </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* DAY HISTORY MODAL */}
+      <Modal
+        visible={showHistoryModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowHistoryModal(false)}
+      >
+        <TouchableOpacity 
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 20
+          }}
+          activeOpacity={1}
+          onPress={() => setShowHistoryModal(false)}
+        >
+          <TouchableWithoutFeedback>
+            <View 
+              style={{
+                width: "100%",
+                maxWidth: 560,
+                backgroundColor: Theme.bgCard || "#ffffff",
+                borderRadius: 24,
+                padding: 24,
+                maxHeight: "85%",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 10 },
+                shadowOpacity: 0.25,
+                shadowRadius: 20,
+                elevation: 10
+              }}
+            >
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottomWidth: 1, borderBottomColor: Theme.border, paddingBottom: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#eff6ff", justifyContent: "center", alignItems: "center" }}>
+                    <Ionicons name="time" size={20} color="#3b82f6" />
+                  </View>
+                  <View>
+                    <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary }}>Day Start & End History</Text>
+                    <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary }}>
+                      {getLocalDateStr(selectedDate)} Audit Logs
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => setShowHistoryModal(false)} style={{ padding: 4 }}>
+                  <Ionicons name="close-circle" size={26} color={Theme.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {loadingHistory ? (
+                <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                  <ActivityIndicator size="large" color={Theme.primary} />
+                </View>
+              ) : historyLogs.length === 0 ? (
+                <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                  <Ionicons name="document-text-outline" size={48} color={Theme.textMuted} />
+                  <Text style={{ fontFamily: Fonts.bold, fontSize: 15, color: Theme.textSecondary, marginTop: 12 }}>No audit history found</Text>
+                  <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textMuted, marginTop: 4 }}>No Day Start or Day End recorded for this date.</Text>
+                </View>
+              ) : (
+                <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+                  <View style={{ gap: 12 }}>
+                    {historyLogs.map((log: any, idx: number) => {
+                      const isStart = log.EventType === "DAY_START";
+                      return (
+                        <View 
+                          key={log.AuditId || idx}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: isStart ? "#fffbe6" : "#fef2f2",
+                            borderLeftWidth: 4,
+                            borderLeftColor: isStart ? "#f59e0b" : "#ef4444",
+                            padding: 14,
+                            borderRadius: 12,
+                            justifyContent: "space-between"
+                          }}
+                        >
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                            <Text style={{ fontSize: 22 }}>{isStart ? "☀️" : "🌙"}</Text>
+                            <View>
+                              <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: isStart ? "#b45309" : "#b91c1c" }}>
+                                {isStart ? "Day Started" : "Day Ended"}
+                              </Text>
+                              <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, marginTop: 2 }}>
+                                Action by: <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary }}>{log.ActionBy || "admin"}</Text>
+                              </Text>
+                            </View>
+                          </View>
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>
+                              {formatToSingaporeDateTime(log.EventTime)}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              )}
+
+              <View style={{ marginTop: 16, paddingTop: 12, borderTopWidth: 1, borderTopColor: Theme.border, alignItems: "flex-end" }}>
+                <TouchableOpacity
+                  style={{
+                    paddingHorizontal: 20,
+                    paddingVertical: 10,
+                    borderRadius: 10,
+                    backgroundColor: Theme.bgMuted,
+                  }}
+                  onPress={() => setShowHistoryModal(false)}
+                >
+                  <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>Close</Text>
                 </TouchableOpacity>
               </View>
             </View>
