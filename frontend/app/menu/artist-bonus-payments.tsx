@@ -196,80 +196,107 @@ export default function ArtistBonusPaymentsScreen() {
               </View>
             )}
 
-            {transactions.map((txn, idx) => {
-              const sc = STATUS_COLORS[txn.status] || STATUS_COLORS.Pending;
-              const isOpen = expanded === txn.Id;
-              const txnPayments = payments[txn.Id] || [];
+            {/* Group transactions by artist */}
+            {(() => {
+              // Group by ArtistName
+              const groups: Record<string, typeof transactions> = {};
+              const groupDishId: Record<string, string> = {};
+              transactions.forEach(txn => {
+                const name = txn.ArtistName || "Unknown";
+                if (!groups[name]) groups[name] = [];
+                groups[name].push(txn);
+                groupDishId[name] = txn.ArtistDishId;
+              });
 
-              return (
-                <View key={txn.Id} style={styles.txnCard}>
-                  {/* Top Row */}
-                  <View style={styles.txnHeader}>
-                    <View style={styles.artistInfo}>
-                      <View style={styles.avatarCircle}>
-                        <Text style={styles.avatarText}>{(txn.ArtistName || "?")[0].toUpperCase()}</Text>
+              return Object.entries(groups).map(([artistName, artistTxns]) => {
+                const totalOwed = artistTxns.reduce((s, t) => s + Number(t.pendingBonus), 0);
+                const dishId = groupDishId[artistName];
+                return (
+                  <View key={artistName} style={styles.artistGroup}>
+                    {/* Artist group header */}
+                    <View style={styles.artistGroupHeader}>
+                      <View style={styles.artistInfo}>
+                        <View style={styles.avatarCircle}>
+                          <Text style={styles.avatarText}>{(artistName || "?")[0].toUpperCase()}</Text>
+                        </View>
+                        <View>
+                          <Text style={styles.artistName}>{artistName}</Text>
+                          <Text style={styles.periodText}>
+                            {artistTxns.length} period{artistTxns.length > 1 ? "s" : ""} · ${totalOwed.toFixed(2)} outstanding
+                          </Text>
+                        </View>
                       </View>
-                      <View>
-                        <Text style={styles.artistName}>{txn.ArtistName}</Text>
-                        <Text style={styles.periodText}>{fmtPeriod(txn.SalesFromDate, txn.SalesToDate)}</Text>
-                      </View>
+                      <TouchableOpacity
+                        style={styles.settleAllBtn}
+                        onPress={() => router.push(`/menu/artist-detail?dishId=${dishId}` as any)}
+                      >
+                        <Ionicons name="cash" size={14} color="#fff" />
+                        <Text style={styles.settleAllText}>Settle All</Text>
+                      </TouchableOpacity>
                     </View>
-                    <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-                      <Text style={[styles.badgeText, { color: sc.text }]}>{txn.status}</Text>
-                    </View>
-                  </View>
 
-                  {/* Amounts Row */}
-                  <View style={styles.amountsRow}>
-                    <AmountCell label="Sales" value={`$${Number(txn.TotalSales).toFixed(2)}`} color="#3B82F6" />
-                    <AmountCell label="Earned" value={`$${Number(txn.BonusEarned).toFixed(2)}`} color={Theme.primary} />
-                    <AmountCell label="Paid" value={`$${Number(txn.BonusPaid).toFixed(2)}`} color="#16A34A" />
-                    <AmountCell label="Pending" value={`$${Number(txn.pendingBonus).toFixed(2)}`} color="#DC2626" />
-                  </View>
+                    {/* Individual period transactions */}
+                    {artistTxns.map((txn) => {
+                      const sc = STATUS_COLORS[txn.status] || STATUS_COLORS.Pending;
+                      const isOpen = expanded === txn.Id;
+                      const txnPayments = payments[txn.Id] || [];
 
-                  {/* Actions */}
-                  <View style={styles.txnActions}>
-                    <TouchableOpacity
-                      style={styles.expandBtn}
-                      onPress={() => toggleExpand(txn.Id)}
-                    >
-                      <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={15} color={Theme.textSecondary} />
-                      <Text style={styles.expandBtnText}>
-                        {isOpen ? "Hide" : "View"} Payment History
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.payBtn}
-                      onPress={() => openPayModal(txn)}
-                    >
-                      <Ionicons name="cash" size={16} color="#fff" />
-                      <Text style={styles.payBtnText}>Pay Bonus</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Expanded Payment History */}
-                  {isOpen && (
-                    <View style={styles.payHistSection}>
-                      <Text style={styles.payHistTitle}>Payment Records</Text>
-                      {txnPayments.length === 0
-                        ? <Text style={styles.payHistEmpty}>No payments recorded yet for this bonus.</Text>
-                        : txnPayments.map((pay, pi) => (
-                          <View key={pay.Id} style={[styles.payRow, pi % 2 === 1 && { backgroundColor: "#FAFAF9" }]}>
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.payRowDate}>{fmtDate(pay.PaidDate)}</Text>
-                              <Text style={styles.payRowBy}>by {pay.PaidBy}</Text>
-                              {pay.Remarks ? <Text style={styles.payRowRemarks}>{pay.Remarks}</Text> : null}
+                      return (
+                        <View key={txn.Id} style={styles.txnCard}>
+                          {/* Period + status */}
+                          <View style={styles.txnHeader}>
+                            <Text style={styles.periodText}>{fmtPeriod(txn.SalesFromDate, txn.SalesToDate)}</Text>
+                            <View style={[styles.badge, { backgroundColor: sc.bg }]}>
+                              <Text style={[styles.badgeText, { color: sc.text }]}>{txn.status}</Text>
                             </View>
-                            <Text style={styles.payRowAmt}>+${Number(pay.PaymentAmount).toFixed(2)}</Text>
                           </View>
-                        ))
-                      }
-                    </View>
-                  )}
-                </View>
-              );
-            })}
+
+                          {/* Amounts */}
+                          <View style={styles.amountsRow}>
+                            <AmountCell label="Sales"   value={`$${Number(txn.TotalSales).toFixed(2)}`}    color="#3B82F6" />
+                            <AmountCell label="Earned"  value={`$${Number(txn.BonusEarned).toFixed(2)}`}  color={Theme.primary} />
+                            <AmountCell label="Paid"    value={`$${Number(txn.BonusPaid).toFixed(2)}`}    color="#16A34A" />
+                            <AmountCell label="Pending" value={`$${Number(txn.pendingBonus).toFixed(2)}`} color="#DC2626" />
+                          </View>
+
+                          {/* Actions */}
+                          <View style={styles.txnActions}>
+                            <TouchableOpacity style={styles.expandBtn} onPress={() => toggleExpand(txn.Id)}>
+                              <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={15} color={Theme.textSecondary} />
+                              <Text style={styles.expandBtnText}>{isOpen ? "Hide" : "View"} History</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.payBtn} onPress={() => openPayModal(txn)}>
+                              <Ionicons name="cash" size={15} color="#fff" />
+                              <Text style={styles.payBtnText}>Pay Period</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          {/* Expanded Payment History */}
+                          {isOpen && (
+                            <View style={styles.payHistSection}>
+                              <Text style={styles.payHistTitle}>Payment Records</Text>
+                              {txnPayments.length === 0
+                                ? <Text style={styles.payHistEmpty}>No payments yet for this period.</Text>
+                                : txnPayments.map((pay, pi) => (
+                                  <View key={pay.Id} style={[styles.payRow, pi % 2 === 1 && { backgroundColor: "#FAFAF9" }]}>
+                                    <View style={{ flex: 1 }}>
+                                      <Text style={styles.payRowDate}>{fmtDate(pay.PaidDate)}</Text>
+                                      <Text style={styles.payRowBy}>by {pay.PaidBy}</Text>
+                                      {pay.Remarks ? <Text style={styles.payRowRemarks}>{pay.Remarks}</Text> : null}
+                                    </View>
+                                    <Text style={styles.payRowAmt}>+${Number(pay.PaymentAmount).toFixed(2)}</Text>
+                                  </View>
+                                ))
+                              }
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              });
+            })()}
           </ScrollView>
         )
       }
@@ -397,6 +424,18 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center",
   },
   scroll: { padding: 16, gap: 12, paddingBottom: 40 },
+
+  artistGroup: { marginBottom: 8 },
+  artistGroupHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 4, paddingVertical: 10,
+  },
+  settleAllBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
+    backgroundColor: "#16A34A",
+  },
+  settleAllText: { fontFamily: Fonts.bold, fontSize: 12, color: "#fff" },
 
   txnCard: {
     backgroundColor: Theme.bgCard, borderRadius: 16, padding: 16,

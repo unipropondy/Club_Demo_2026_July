@@ -22,12 +22,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { formatToSingaporeDateTime } from "@/utils/timezoneHelper";
 
 const pad = (n: number) => n.toString().padStart(2, "0");
-const formatDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const firstOfMonth = () => { const d = new Date(); d.setDate(1); return formatDateStr(d); };
-const todayStr = () => formatDateStr(new Date());
-
 const fmtDate = (raw: string | null) => {
   if (!raw) return "—";
   const d = new Date(raw);
@@ -40,7 +37,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   Pending:          { bg: "#FEE2E2", text: "#DC2626" },
 };
 
-type TabKey = "sales" | "bonus" | "payments";
+type TabKey = "bonus" | "payments" | "sales";
 
 export default function ArtistDetailScreen() {
   const { dishId } = useLocalSearchParams<{ dishId: string }>();
@@ -53,25 +50,15 @@ export default function ArtistDetailScreen() {
   const [loading, setLoading]     = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Date range for historical lookup; empty = use active business day (backend default)
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate]     = useState("");
-  const [isDayActive, setIsDayActive] = useState(false);
-  const [activeDay, setActiveDay]     = useState<string | null>(null);
-
   const [artist, setArtist]           = useState<{ dishId: string; name: string } | null>(null);
-  const [summary, setSummary]         = useState({ 
-    totalSales: 0, 
-    bonusEarned: 0, 
-    bonusPaid: 0, 
+  const [summary, setSummary]         = useState({
+    totalSales: 0,
+    bonusEarned: 0,
+    bonusPaid: 0,
     pendingBonus: 0,
-    periodSales: 0,
-    periodEarned: 0,
-    periodPaid: 0,
-    periodPending: 0,
     lifetimeEarned: 0,
     lifetimePaid: 0,
-    lifetimePending: 0
+    lifetimePending: 0,
   });
   const [activeRule, setActiveRule]   = useState<any>(null);
   const [progress, setProgress]       = useState<any>(null);
@@ -81,21 +68,18 @@ export default function ArtistDetailScreen() {
 
   // Pay modal state
   const [showPayModal, setShowPayModal] = useState(false);
-  const [selectedTxn, setSelectedTxn]   = useState<any>(null);
+  const [pendingTxns, setPendingTxns]   = useState<any[]>([]);
   const [payAmount, setPayAmount]       = useState("");
   const [payRemarks, setPayRemarks]     = useState("");
   const [paying, setPaying]             = useState(false);
 
-  // fetchData: if no fromDate/toDate, backend defaults to active business day
-  const fetchData = useCallback(async (explicitFrom?: string, explicitTo?: string) => {
+  // Fetch all-time data — no dates so backend returns lifetime data
+  const fetchData = useCallback(async () => {
     if (!dishId) return;
     try {
       setLoading(true);
-      const from = explicitFrom !== undefined ? explicitFrom : fromDate;
-      const to   = explicitTo   !== undefined ? explicitTo   : toDate;
-      const params = from && to ? `?fromDate=${from}&toDate=${to}` : "";
       const res = await axios.get(
-        `${API_URL}/api/artist-bonus/artist/${dishId}${params}`,
+        `${API_URL}/api/artist-bonus/artist/${dishId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       if (res.data.success) {
@@ -106,8 +90,6 @@ export default function ArtistDetailScreen() {
         setSalesHistory(res.data.salesHistory || []);
         setBonusHistory(res.data.bonusHistory || []);
         setPayHistory(res.data.paymentHistory || []);
-        setIsDayActive(res.data.isDayActive ?? false);
-        setActiveDay(res.data.activeDay ?? null);
       }
     } catch (err: any) {
       showToast({ type: "error", message: "Load Failed", subtitle: err.message });
@@ -115,61 +97,65 @@ export default function ArtistDetailScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [dishId, fromDate, toDate, token]);
+  }, [dishId, token]);
 
-  // On mount: fetch active day (no date params)
-  useEffect(() => { fetchData("", ""); }, [dishId, token]);
+  useEffect(() => { fetchData(); }, [dishId, token]);
+
+  const totalOutstanding = summary.lifetimePending ?? summary.pendingBonus;
 
   const openPayModal = () => {
-    // Find the first transaction in bonusHistory that has a pending bonus > 0
-    const firstPendingTxn = bonusHistory.find(r => (Number(r.BonusEarned) - Number(r.BonusPaid)) > 0);
-    if (!firstPendingTxn) {
-      showToast({ type: "error", message: "No Pending Bonus", subtitle: "Please calculate bonuses first or resolve payments." });
+    // Get all transactions with pending balance
+    const allPendingTxns = bonusHistory.filter(r => (Number(r.BonusEarned) - Number(r.BonusPaid)) > 0);
+    if (allPendingTxns.length === 0) {
+      showToast({ type: "error", message: "No Pending Bonus", subtitle: "No outstanding bonus to settle." });
       return;
     }
-    const pendingVal = Number(firstPendingTxn.BonusEarned) - Number(firstPendingTxn.BonusPaid);
-    setSelectedTxn({
-      ...firstPendingTxn,
-      pendingBonus: pendingVal
-    });
-    setPayAmount(pendingVal.toFixed(2));
+    setPendingTxns(allPendingTxns);
+    setPayAmount(totalOutstanding.toFixed(2));
     setPayRemarks("");
     setShowPayModal(true);
   };
 
   const handlePay = async () => {
-    if (!selectedTxn) return;
     const amount = parseFloat(payAmount);
     if (!amount || amount <= 0) {
       showToast({ type: "error", message: "Validation", subtitle: "Payment amount must be greater than $0." });
       return;
     }
-    if (amount > selectedTxn.pendingBonus) {
-      showToast({ type: "error", message: "Validation", subtitle: `Amount cannot exceed pending bonus ($${selectedTxn.pendingBonus.toFixed(2)}).` });
+    if (amount > totalOutstanding + 0.01) {
+      showToast({ type: "error", message: "Validation", subtitle: `Amount cannot exceed outstanding ($${totalOutstanding.toFixed(2)}).` });
       return;
     }
 
+    // Pay off transactions one by one from oldest first
+    const txnsToSettle = [...pendingTxns].reverse(); // oldest first
+    let remaining = amount;
+
     try {
       setPaying(true);
-      const res = await axios.post(
-        `${API_URL}/api/artist-bonus/pay`,
-        {
-          transactionId: selectedTxn.Id,
-          paymentAmount: amount,
-          remarks: payRemarks || null,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (res.data.success) {
-        showToast({
-          type: "success",
-          message: "Payment Recorded",
-          subtitle: `$${amount.toFixed(2)} paid to ${artist?.name}. Pending: $${res.data.pendingBonus.toFixed(2)}`,
-        });
-        setShowPayModal(false);
-        fetchData(); // Refresh history
+      for (const txn of txnsToSettle) {
+        if (remaining <= 0) break;
+        const txnPending = Number(txn.BonusEarned) - Number(txn.BonusPaid);
+        const payForThisTxn = Math.min(remaining, txnPending);
+        await axios.post(
+          `${API_URL}/api/artist-bonus/pay`,
+          {
+            transactionId: txn.Id,
+            paymentAmount: parseFloat(payForThisTxn.toFixed(2)),
+            remarks: payRemarks || null,
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        remaining -= payForThisTxn;
       }
+
+      showToast({
+        type: "success",
+        message: "Payment Recorded",
+        subtitle: `$${amount.toFixed(2)} paid to ${artist?.name}.`,
+      });
+      setShowPayModal(false);
+      fetchData();
     } catch (err: any) {
       const msg = err?.response?.data?.error || err.message;
       showToast({ type: "error", message: "Payment Failed", subtitle: msg });
@@ -179,9 +165,9 @@ export default function ArtistDetailScreen() {
   };
 
   const TABS: { key: TabKey; label: string; icon: string }[] = [
-    { key: "bonus",    label: "Bonus History",   icon: "trophy" },
-    { key: "payments", label: "Payment History",  icon: "cash" },
-    { key: "sales",    label: "Sales History",    icon: "bar-chart" },
+    { key: "bonus",    label: "Bonus History",  icon: "trophy" },
+    { key: "payments", label: "Payments",        icon: "cash" },
+    { key: "sales",    label: "Sales",           icon: "bar-chart" },
   ];
 
   return (
@@ -190,25 +176,28 @@ export default function ArtistDetailScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => {
-            if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace("/menu/artist-management" as any);
-            }
-          }} 
+            if (router.canGoBack()) router.back();
+            else router.replace("/menu/artist-management" as any);
+          }}
           style={styles.backBtn}
         >
           <Ionicons name="chevron-back" size={22} color={Theme.textPrimary} />
         </TouchableOpacity>
         <View style={styles.artistHeaderInfo}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{(artist?.name || "?")[0].toUpperCase()}</Text>
+          <View style={[styles.avatarCircle, totalOutstanding > 0 && { backgroundColor: "#FEE2E2" }]}>
+            <Text style={[styles.avatarText, totalOutstanding > 0 && { color: "#DC2626" }]}>
+              {(artist?.name || "?")[0].toUpperCase()}
+            </Text>
           </View>
           <View>
             <Text style={styles.headerTitle}>{artist?.name || "Artist"}</Text>
-            <Text style={styles.headerSub}>{fromDate} → {toDate}</Text>
+            <Text style={styles.headerSub}>
+              {totalOutstanding > 0
+                ? `$${totalOutstanding.toFixed(2)} outstanding`
+                : "All bonuses settled ✓"}
+            </Text>
           </View>
         </View>
         <TouchableOpacity onPress={() => { setRefreshing(true); fetchData(); }} style={styles.refreshBtn}>
@@ -223,67 +212,45 @@ export default function ArtistDetailScreen() {
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} colors={[Theme.primary]} tintColor={Theme.primary} />}
           >
-            {/* Section 1: Period Performance */}
-            <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
-              <Text style={styles.sectionTitle}>Period Performance</Text>
+            {/* ── BONUS SUMMARY ── */}
+            <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
+              <Text style={styles.sectionTitle}>Bonus Summary</Text>
             </View>
-            <View style={[styles.cardsRow, { paddingTop: 0 }]}>
+            <View style={styles.cardsRow}>
               {[
-                { label: "Period Sales", value: `$${(summary.periodSales ?? summary.totalSales).toFixed(2)}`, color: "#3B82F6" },
-                { label: "Period Bonus Earned", value: `$${(summary.periodEarned ?? 0).toFixed(2)}`, color: Theme.primary },
-                { label: "Period Bonus Paid", value: `$${(summary.periodPaid ?? 0).toFixed(2)}`, color: "#16A34A" },
-                { label: "Period Outstanding", value: `$${(summary.periodPending ?? 0).toFixed(2)}`, color: "#DC2626" },
+                { label: "Lifetime Earned",  value: `$${(summary.lifetimeEarned ?? summary.bonusEarned).toFixed(2)}`, color: Theme.primary, bg: "#FFF7ED" },
+                { label: "Total Paid",       value: `$${(summary.lifetimePaid ?? summary.bonusPaid).toFixed(2)}`,   color: "#16A34A",     bg: "#F0FDF4" },
+                { label: "Outstanding",      value: `$${totalOutstanding.toFixed(2)}`,                               color: totalOutstanding > 0 ? "#DC2626" : "#16A34A", bg: totalOutstanding > 0 ? "#FEF2F2" : "#F0FDF4" },
               ].map(c => (
-                <View key={c.label} style={styles.card}>
+                <View key={c.label} style={[styles.card, { backgroundColor: c.bg }]}>
                   <Text style={[styles.cardValue, { color: c.color }]}>{c.value}</Text>
                   <Text style={styles.cardLabel}>{c.label}</Text>
                 </View>
               ))}
             </View>
 
-            {/* Section 2: Bonus Ledger */}
-            <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
-              <Text style={styles.sectionTitle}>Bonus Ledger</Text>
-            </View>
-            <View style={[styles.cardsRow, { paddingTop: 0 }]}>
-              {[
-                { label: "Lifetime Bonus Earned", value: `$${(summary.lifetimeEarned ?? summary.bonusEarned).toFixed(2)}`, color: Theme.primary },
-                { label: "Lifetime Bonus Paid", value: `$${(summary.lifetimePaid ?? summary.bonusPaid).toFixed(2)}`, color: "#16A34A" },
-                { label: "Outstanding Bonus", value: `$${(summary.lifetimePending ?? summary.pendingBonus).toFixed(2)}`, color: "#DC2626" },
-              ].map(c => (
-                <View key={c.label} style={styles.card}>
-                  <Text style={[styles.cardValue, { color: c.color }]}>{c.value}</Text>
-                  <Text style={styles.cardLabel}>{c.label}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Active Rule Section */}
+            {/* ── ACTIVE BONUS RULE ── */}
             {activeRule && (
               <View style={styles.ruleSection}>
-                <Text style={styles.sectionTitle}>Current Bonus Rule</Text>
+                <Text style={styles.sectionTitle}>Bonus Rule</Text>
                 <View style={styles.rulePill}>
                   <View style={styles.ruleBlock}>
-                    <Text style={styles.ruleBlockLabel}>Threshold</Text>
+                    <Text style={styles.ruleBlockLabel}>Every</Text>
                     <Text style={styles.ruleBlockVal}>${activeRule.ThresholdAmount}</Text>
+                    <Text style={[styles.ruleBlockLabel, { marginTop: 2 }]}>in sales</Text>
                   </View>
-                  <View style={styles.ruleArrow}>
-                    <Ionicons name="arrow-forward" size={20} color={Theme.primary} />
-                  </View>
+                  <Ionicons name="arrow-forward" size={22} color={Theme.primary} />
                   <View style={styles.ruleBlock}>
-                    <Text style={styles.ruleBlockLabel}>Bonus</Text>
+                    <Text style={styles.ruleBlockLabel}>Earns</Text>
                     <Text style={[styles.ruleBlockVal, { color: "#16A34A" }]}>${activeRule.BonusAmount}</Text>
-                  </View>
-                  <View style={styles.ruleBlock}>
-                    <Text style={styles.ruleBlockLabel}>Type</Text>
-                    <Text style={styles.ruleBlockVal}>{activeRule.IsRepeating ? "Repeating" : "One-time"}</Text>
+                    <Text style={[styles.ruleBlockLabel, { marginTop: 2 }]}>{activeRule.IsRepeating ? "repeating" : "one-time"}</Text>
                   </View>
                 </View>
               </View>
             )}
 
-            {/* Progress to Next Bonus */}
-            {progress && (
+            {/* ── PROGRESS TO NEXT BONUS ── */}
+            {progress && progress.remaining > 0 && (
               <View style={styles.progressSection}>
                 <Text style={styles.sectionTitle}>Progress to Next Bonus</Text>
                 <View style={styles.progressCard}>
@@ -295,20 +262,18 @@ export default function ArtistDetailScreen() {
                       </Text>
                     </View>
                     <View style={styles.progressStat}>
-                      <Text style={styles.progressStatLabel}>Next Milestone</Text>
+                      <Text style={styles.progressStatLabel}>Next at</Text>
                       <Text style={[styles.progressStatVal, { color: Theme.primary }]}>
                         ${progress.nextMilestone.toFixed(2)}
                       </Text>
                     </View>
                     <View style={styles.progressStat}>
-                      <Text style={styles.progressStatLabel}>Remaining</Text>
+                      <Text style={styles.progressStatLabel}>Need</Text>
                       <Text style={[styles.progressStatVal, { color: "#DC2626" }]}>
                         ${progress.remaining.toFixed(2)}
                       </Text>
                     </View>
                   </View>
-
-                  {/* Progress Bar */}
                   <View style={styles.progressBarTrack}>
                     <View
                       style={[
@@ -324,29 +289,28 @@ export default function ArtistDetailScreen() {
               </View>
             )}
 
-            {/* Pay Bonus Button */}
+            {/* ── PAY BONUS BUTTON ── */}
             <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-              {summary.pendingBonus > 0 ? (
-                <TouchableOpacity
-                  style={styles.payBtn}
-                  onPress={openPayModal}
-                >
-                  <Ionicons name="cash-outline" size={18} color="#fff" />
-                  <Text style={styles.payBtnText}>Pay Outstanding Bonus (${summary.pendingBonus.toFixed(2)})</Text>
+              {totalOutstanding > 0 ? (
+                <TouchableOpacity style={styles.payBtn} onPress={openPayModal}>
+                  <Ionicons name="cash-outline" size={20} color="#fff" />
+                  <View>
+                    <Text style={styles.payBtnText}>Settle Outstanding Bonus</Text>
+                    <Text style={[styles.payBtnText, { fontSize: 12, opacity: 0.85 }]}>
+                      ${totalOutstanding.toFixed(2)} across {bonusHistory.filter(r => Number(r.BonusEarned) - Number(r.BonusPaid) > 0).length} period(s)
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#fff" />
                 </TouchableOpacity>
               ) : (
-                <View style={[styles.payBtn, { backgroundColor: Theme.bgMuted, borderColor: Theme.border, borderWidth: 1, flexDirection: "row", justifyContent: "center", gap: 8, paddingHorizontal: 12 }]}>
-                  <Ionicons name="checkmark-circle-outline" size={18} color={Theme.textMuted} />
-                  <Text style={[styles.payBtnText, { color: Theme.textMuted, fontSize: 12 }]} numberOfLines={1}>
-                    {summary.periodPending > 0 
-                      ? `All Settled (Today's $${summary.periodPending.toFixed(2)} Bonus will be available after Day End)`
-                      : "All Settled (No Outstanding Bonus)"}
-                  </Text>
+                <View style={styles.settledBanner}>
+                  <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+                  <Text style={styles.settledText}>All Bonuses Settled</Text>
                 </View>
               )}
             </View>
 
-            {/* Tabs */}
+            {/* ── TABS ── */}
             <View style={styles.tabBar}>
               {TABS.map(tab => (
                 <TouchableOpacity
@@ -356,7 +320,7 @@ export default function ArtistDetailScreen() {
                 >
                   <Ionicons
                     name={tab.icon as any}
-                    size={15}
+                    size={14}
                     color={activeTab === tab.key ? Theme.primary : Theme.textMuted}
                   />
                   <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
@@ -366,15 +330,16 @@ export default function ArtistDetailScreen() {
               ))}
             </View>
 
-            {/* Tab Content */}
+            {/* ── TAB CONTENT ── */}
             <View style={styles.tabContent}>
 
-              {/* BONUS HISTORY TAB */}
+              {/* BONUS HISTORY */}
               {activeTab === "bonus" && (
                 bonusHistory.length === 0
-                  ? <EmptySection label="No bonus records for this period" icon="trophy-outline" />
+                  ? <EmptySection label="No bonus records yet" icon="trophy-outline" />
                   : bonusHistory.map((row, idx) => {
                     const sc = STATUS_COLORS[row.status] || STATUS_COLORS.Pending;
+                    const pending = Number(row.BonusEarned) - Number(row.BonusPaid);
                     return (
                       <View key={row.Id} style={[styles.histRow, idx % 2 === 1 && styles.histRowAlt]}>
                         <View style={styles.histRowTop}>
@@ -386,40 +351,40 @@ export default function ArtistDetailScreen() {
                           </View>
                         </View>
                         <View style={styles.histRowMeta}>
-                          <MetaItem label="Sales" value={`$${Number(row.TotalSales).toFixed(2)}`} color="#3B82F6" flex={1} />
-                          <MetaItem label="Earned" value={`$${Number(row.BonusEarned).toFixed(2)}`} color={Theme.primary} flex={1} />
-                          <MetaItem label="Paid" value={`$${Number(row.BonusPaid).toFixed(2)}`} color="#16A34A" flex={1} />
-                          <MetaItem label="Pending" value={`$${Number(row.pendingBonus).toFixed(2)}`} color="#DC2626" flex={1} />
+                          <MetaItem label="Sales"   value={`$${Number(row.TotalSales).toFixed(2)}`}  color="#3B82F6" flex={1} />
+                          <MetaItem label="Earned"  value={`$${Number(row.BonusEarned).toFixed(2)}`} color={Theme.primary} flex={1} />
+                          <MetaItem label="Paid"    value={`$${Number(row.BonusPaid).toFixed(2)}`}   color="#16A34A" flex={1} />
+                          <MetaItem label="Pending" value={`$${pending.toFixed(2)}`}                 color={pending > 0 ? "#DC2626" : "#16A34A"} flex={1} />
                         </View>
                       </View>
                     );
                   })
               )}
 
-              {/* PAYMENT HISTORY TAB */}
+              {/* PAYMENT HISTORY */}
               {activeTab === "payments" && (
                 payHistory.length === 0
                   ? <EmptySection label="No payments recorded yet" icon="cash-outline" />
                   : payHistory.map((row, idx) => (
                     <View key={row.Id} style={[styles.histRow, idx % 2 === 1 && styles.histRowAlt]}>
                       <View style={styles.histRowTop}>
-                        <Text style={styles.histPeriod}>{fmtDate(row.PaidDate)}</Text>
+                        <Text style={styles.histPeriod}>{formatToSingaporeDateTime(row.PaidDate)}</Text>
                         <Text style={[styles.payAmt, { color: "#16A34A" }]}>
                           +${Number(row.PaymentAmount).toFixed(2)}
                         </Text>
                       </View>
                       <View style={styles.histRowMeta}>
-                        <MetaItem label="Paid By" value={row.PaidBy || "—"} flex={1} />
+                        <MetaItem label="By"      value={row.PaidBy || "—"} flex={1} />
                         <MetaItem label="Remarks" value={row.Remarks || "—"} flex={2.5} />
                       </View>
                     </View>
                   ))
               )}
 
-              {/* SALES HISTORY TAB */}
+              {/* SALES HISTORY */}
               {activeTab === "sales" && (
                 salesHistory.length === 0
-                  ? <EmptySection label="No sales records for this period" icon="bar-chart-outline" />
+                  ? <EmptySection label="No sales in the last 30 days" icon="bar-chart-outline" />
                   : salesHistory.map((row, idx) => (
                     <View key={idx} style={[styles.histRow, idx % 2 === 1 && styles.histRowAlt]}>
                       <View style={styles.histRowTop}>
@@ -429,7 +394,7 @@ export default function ArtistDetailScreen() {
                       <View style={styles.histRowMeta}>
                         <MetaItem label="Bill" value={row.BillNo || "—"} flex={1} />
                         <MetaItem label="Item" value={row.ItemName || "—"} flex={2} />
-                        <MetaItem label="Qty" value={String(row.Qty || 1)} flex={0.6} />
+                        <MetaItem label="Qty"  value={String(row.Qty || 1)} flex={0.6} />
                       </View>
                     </View>
                   ))
@@ -441,14 +406,14 @@ export default function ArtistDetailScreen() {
         )
       }
 
-      {/* Pay Bonus Modal */}
+      {/* ── PAY MODAL ── */}
       <Modal visible={showPayModal} transparent animationType="slide" onRequestClose={() => setShowPayModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            {/* Modal Header */}
+            {/* Header */}
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Record Payment</Text>
+                <Text style={styles.modalTitle}>Settle Bonus</Text>
                 <Text style={styles.modalSubtitle}>{artist?.name}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowPayModal(false)} style={styles.closeBtn}>
@@ -456,47 +421,53 @@ export default function ArtistDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Bonus Summary */}
-            {selectedTxn && (
-              <View style={styles.modalSummary}>
-                <SummaryRow label="Bonus Earned" value={`$${Number(selectedTxn.BonusEarned).toFixed(2)}`} color={Theme.primary} />
-                <SummaryRow label="Already Paid" value={`$${Number(selectedTxn.BonusPaid).toFixed(2)}`} color="#16A34A" />
-                <View style={styles.summaryDivider} />
-                <SummaryRow label="Outstanding Bonus" value={`$${Number(selectedTxn.pendingBonus).toFixed(2)}`} color="#DC2626" bold />
+            {/* Outstanding Summary */}
+            <View style={styles.modalSummary}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                <Text style={styles.summaryRowLabel}>Total Earned</Text>
+                <Text style={[styles.summaryRowValue, { color: Theme.primary }]}>${(summary.lifetimeEarned ?? 0).toFixed(2)}</Text>
               </View>
-            )}
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
+                <Text style={styles.summaryRowLabel}>Already Paid</Text>
+                <Text style={[styles.summaryRowValue, { color: "#16A34A" }]}>${(summary.lifetimePaid ?? 0).toFixed(2)}</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={[styles.summaryRowLabel, { fontFamily: Fonts.bold }]}>Outstanding</Text>
+                <Text style={[styles.summaryRowValue, { color: "#DC2626", fontSize: 18 }]}>${totalOutstanding.toFixed(2)}</Text>
+              </View>
+              {pendingTxns.length > 1 && (
+                <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted, marginTop: 8 }}>
+                  Across {pendingTxns.length} bonus periods — settled oldest first
+                </Text>
+              )}
+            </View>
 
-            {/* Payment Amount */}
-            <Text style={styles.fieldLabel}>Payment Amount ($)</Text>
+            {/* Amount */}
+            <Text style={styles.fieldLabel}>Amount to Pay ($)</Text>
             <TextInput
               style={styles.input}
               value={payAmount}
               onChangeText={setPayAmount}
               keyboardType="decimal-pad"
-              placeholder="Enter amount to pay"
+              placeholder="Enter amount"
               placeholderTextColor={Theme.textMuted}
             />
-            {selectedTxn && (
-              <View style={styles.quickAmtRow}>
-                {[25, 50, 75, 100].map(pct => {
-                  const amt = (Number(selectedTxn.pendingBonus) * pct / 100);
-                  return (
-                    <TouchableOpacity
-                      key={pct}
-                      style={styles.quickAmtBtn}
-                      onPress={() => setPayAmount(amt.toFixed(2))}
-                    >
-                      <Text style={styles.quickAmtText}>{pct}% (${amt.toFixed(2)})</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+            <View style={styles.quickAmtRow}>
+              {[25, 50, 75, 100].map(pct => {
+                const amt = totalOutstanding * pct / 100;
+                return (
+                  <TouchableOpacity key={pct} style={styles.quickAmtBtn} onPress={() => setPayAmount(amt.toFixed(2))}>
+                    <Text style={styles.quickAmtText}>{pct}%</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
             {/* Remarks */}
             <Text style={styles.fieldLabel}>Remarks (optional)</Text>
             <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: "top" }]}
+              style={[styles.input, { height: 70, textAlignVertical: "top" }]}
               value={payRemarks}
               onChangeText={setPayRemarks}
               placeholder="e.g. Cash payment, weekly settlement..."
@@ -504,7 +475,6 @@ export default function ArtistDetailScreen() {
               multiline
             />
 
-            {/* Footer */}
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowPayModal(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -523,15 +493,6 @@ export default function ArtistDetailScreen() {
         </View>
       </Modal>
     </SafeAreaView>
-  );
-}
-
-function SummaryRow({ label, value, color, bold }: { label: string; value: string; color?: string; bold?: boolean }) {
-  return (
-    <View style={styles.summaryRow}>
-      <Text style={styles.summaryRowLabel}>{label}</Text>
-      <Text style={[styles.summaryRowValue, color ? { color } : {}, bold ? { fontSize: 18 } : {}]}>{value}</Text>
-    </View>
   );
 }
 
@@ -567,10 +528,10 @@ const styles = StyleSheet.create({
   },
   artistHeaderInfo: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
   avatarCircle: {
-    width: 38, height: 38, borderRadius: 19,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center",
   },
-  avatarText: { fontFamily: Fonts.black, fontSize: 15, color: Theme.primary },
+  avatarText: { fontFamily: Fonts.black, fontSize: 16, color: Theme.primary },
   headerTitle: { fontFamily: Fonts.black, fontSize: 16, color: Theme.textPrimary },
   headerSub: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 1 },
   refreshBtn: {
@@ -580,49 +541,60 @@ const styles = StyleSheet.create({
 
   cardsRow: {
     flexDirection: "row", flexWrap: "wrap", gap: 10,
-    paddingHorizontal: 16, paddingTop: 16,
+    paddingHorizontal: 16, paddingTop: 8,
   },
   card: {
-    flex: 1, minWidth: "22%", backgroundColor: Theme.bgCard, borderRadius: 14,
-    padding: 12, alignItems: "center",
+    flex: 1, minWidth: "28%", borderRadius: 14,
+    padding: 14, alignItems: "center",
     borderWidth: 1, borderColor: Theme.border,
     ...Platform.select({ web: { boxShadow: "0 2px 6px rgba(0,0,0,0.05)" } }) as any,
   },
-  cardValue: { fontFamily: Fonts.black, fontSize: 16 },
+  cardValue: { fontFamily: Fonts.black, fontSize: 17 },
   cardLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginTop: 4, textAlign: "center" },
 
   sectionTitle: {
-    fontFamily: Fonts.black, fontSize: 13, color: Theme.textPrimary,
-    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10,
+    fontFamily: Fonts.black, fontSize: 12, color: Theme.textSecondary,
+    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8,
   },
   ruleSection: { paddingHorizontal: 16, paddingTop: 20 },
   rulePill: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: Theme.primaryLight, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: Theme.primaryBorder, gap: 8,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-around",
+    backgroundColor: Theme.primaryLight, borderRadius: 14, padding: 16,
+    borderWidth: 1, borderColor: Theme.primaryBorder,
   },
-  ruleBlock: { flex: 1, alignItems: "center" },
-  ruleBlockLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginBottom: 4, textTransform: "uppercase" },
-  ruleBlockVal: { fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary },
-  ruleArrow: { paddingHorizontal: 4 },
+  ruleBlock: { alignItems: "center" },
+  ruleBlockLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, textTransform: "uppercase" },
+  ruleBlockVal: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary, marginTop: 2 },
 
   progressSection: { paddingHorizontal: 16, paddingTop: 20 },
   progressCard: {
-    backgroundColor: Theme.bgCard, borderRadius: 16, padding: 16,
+    backgroundColor: Theme.bgCard, borderRadius: 14, padding: 14,
     borderWidth: 1, borderColor: Theme.border,
   },
-  progressStats: { flexDirection: "row", marginBottom: 16 },
+  progressStats: { flexDirection: "row", marginBottom: 14 },
   progressStat: { flex: 1, alignItems: "center" },
   progressStatLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginBottom: 4 },
-  progressStatVal: { fontFamily: Fonts.black, fontSize: 16 },
+  progressStatVal: { fontFamily: Fonts.black, fontSize: 15 },
   progressBarTrack: {
     height: 14, backgroundColor: Theme.bgMuted, borderRadius: 7, overflow: "hidden", marginBottom: 8,
     width: "70%", alignSelf: "center",
   },
-  progressBarFill: {
-    height: "100%", backgroundColor: Theme.primary, borderRadius: 7,
-  },
+  progressBarFill: { height: "100%", backgroundColor: Theme.primary, borderRadius: 7 },
   progressBarLabel: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, textAlign: "center" },
+
+  payBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 16, paddingHorizontal: 18, borderRadius: 14,
+    backgroundColor: "#16A34A", gap: 12,
+    ...Platform.select({ web: { boxShadow: "0 4px 12px rgba(22,163,74,0.3)" } }) as any,
+  },
+  payBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: "#fff", flex: 1 },
+  settledBanner: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 14, borderRadius: 12,
+    backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#86EFAC",
+  },
+  settledText: { fontFamily: Fonts.bold, fontSize: 14, color: "#16A34A" },
 
   tabBar: {
     flexDirection: "row", backgroundColor: Theme.bgCard,
@@ -632,16 +604,14 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent",
+    gap: 5, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent",
   },
   tabActive: { borderBottomColor: Theme.primary },
   tabText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textMuted, textTransform: "uppercase" },
   tabTextActive: { color: Theme.primary },
   tabContent: { paddingHorizontal: 16, paddingTop: 4 },
 
-  histRow: {
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Theme.border,
-  },
+  histRow: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Theme.border },
   histRowAlt: { backgroundColor: "#FAFAF9" },
   histRowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   histPeriod: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary },
@@ -658,17 +628,10 @@ const styles = StyleSheet.create({
   emptySection: { alignItems: "center", paddingVertical: 48, gap: 12 },
   emptyText: { fontFamily: Fonts.medium, fontSize: 14, color: Theme.textSecondary },
 
-  payBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 14, borderRadius: 12,
-    backgroundColor: "#16A34A",
-  },
-  payBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: "#fff" },
-
-  // Modal styles
+  // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.45)",
     ...Platform.select({
       web: { justifyContent: "center", alignItems: "center" },
       default: { justifyContent: "flex-end" }
@@ -678,19 +641,11 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.bgCard,
     padding: 24,
     ...Platform.select({
-      web: {
-        borderRadius: 24,
-        boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
-        width: "90%",
-        maxWidth: 500,
-      },
-      default: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-      }
+      web: { borderRadius: 24, boxShadow: "0 10px 30px rgba(0,0,0,0.15)", width: "90%", maxWidth: 500 },
+      default: { borderTopLeftRadius: 24, borderTopRightRadius: 24 }
     })
   },
-  modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 },
+  modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 },
   modalTitle: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary },
   modalSubtitle: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary, marginTop: 2 },
   closeBtn: {
@@ -701,23 +656,22 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.bgMuted, borderRadius: 14, padding: 14, marginBottom: 16,
     borderWidth: 1, borderColor: Theme.border,
   },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6 },
   summaryRowLabel: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary },
   summaryRowValue: { fontFamily: Fonts.black, fontSize: 15, color: Theme.textPrimary },
-  summaryDivider: { height: 1, backgroundColor: Theme.border, marginVertical: 6 },
+  summaryDivider: { height: 1, backgroundColor: Theme.border, marginVertical: 8 },
   fieldLabel: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary, marginBottom: 8, marginTop: 12 },
   input: {
     backgroundColor: Theme.bgInput, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
     fontFamily: Fonts.medium, fontSize: 15, color: Theme.textPrimary,
     borderWidth: 1, borderColor: Theme.border,
   },
-  quickAmtRow: { flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" },
+  quickAmtRow: { flexDirection: "row", gap: 8, marginTop: 8 },
   quickAmtBtn: {
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center",
     backgroundColor: Theme.bgMuted, borderWidth: 1, borderColor: Theme.border,
   },
-  quickAmtText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary },
-  modalFooter: { flexDirection: "row", gap: 12, marginTop: 24 },
+  quickAmtText: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary },
+  modalFooter: { flexDirection: "row", gap: 12, marginTop: 20 },
   cancelBtn: {
     flex: 1, paddingVertical: 14, borderRadius: 12,
     backgroundColor: Theme.bgMuted, alignItems: "center",

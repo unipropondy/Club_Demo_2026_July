@@ -429,21 +429,15 @@ router.get('/sales-summary', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // GET /api/artist-bonus/artist/:dishId?fromDate=&toDate=
-// If no dates provided, defaults to the active business day (StartDate from DateEntry).
+// If no dates provided, returns ALL-TIME data (bonus history always visible regardless of day state).
 router.get('/artist/:dishId', async (req, res) => {
   try {
     const pool = getPool();
     const { dishId } = req.params;
     let { fromDate, toDate } = req.query;
 
-    // Default to active business day if no dates supplied
-    if (!fromDate || !toDate) {
-      const activeDay = await getActiveStartDate(pool);
-      if (activeDay) {
-        fromDate = fromDate || activeDay;
-        toDate   = toDate   || activeDay;
-      }
-    }
+    // NOTE: We intentionally do NOT default to active business day here.
+    // Bonus settlements must be possible at any time, even after Day End.
 
     if (fromDate && isNaN(new Date(fromDate).getTime())) {
       return res.status(400).json({ success: false, error: 'Invalid fromDate format. Please use YYYY-MM-DD.' });
@@ -453,8 +447,13 @@ router.get('/artist/:dishId', async (req, res) => {
     }
 
     const today = new Date().toISOString().split('T')[0];
-    const parsedFrom = fromDate ? new Date(fromDate) : new Date(today);
-    const parsedTo   = toDate   ? new Date(toDate)   : new Date(today);
+    // When explicit date range is given, use it; otherwise null = all-time
+    const hasDates = !!(fromDate && toDate);
+    const parsedFrom = hasDates ? new Date(fromDate) : null;
+    const parsedTo   = hasDates ? new Date(toDate)   : null;
+    // For sales history display: default to last 30 days if no date filter
+    const salesFrom = parsedFrom || new Date(new Date().setDate(new Date().getDate() - 30));
+    const salesTo   = parsedTo   || new Date(today);
 
     // Get artist info
     const artistRes = await pool.request()
@@ -475,11 +474,11 @@ router.get('/artist/:dishId', async (req, res) => {
       `);
     const activeRule = ruleRes.recordset[0] || null;
 
-    // Sales history from SettlementItemDetail
+    // Sales history from SettlementItemDetail (last 30 days default, or explicit date range)
     const salesHistRes = await pool.request()
       .input('dishId', sql.UniqueIdentifier, dishId)
-      .input('fromDate', sql.Date, parsedFrom)
-      .input('toDate', sql.Date, parsedTo)
+      .input('fromDate', sql.Date, salesFrom)
+      .input('toDate', sql.Date, salesTo)
       .input('artistName', sql.NVarChar(200), artist.Name)
       .query(`
         DECLARE @sgtStart DATETIME = CAST(@fromDate AS DATETIME);
@@ -560,7 +559,7 @@ router.get('/artist/:dishId', async (req, res) => {
         ORDER BY abp.PaidDate DESC
       `);
 
-    // Summary totals (dynamic expected bonus if not finalized)
+    // Summary totals — all-time from bonus history
     const totalSales = salesHistRes.recordset.reduce((s, r) => s + Number(r.Amount), 0);
     const totalPaidFromHistory = payHistRes.recordset.reduce((s, r) => s + Number(r.PaymentAmount), 0);
     const totalPaidFromTxns    = bonusHistory.reduce((s, r) => s + Number(r.BonusPaid), 0);
@@ -569,30 +568,36 @@ router.get('/artist/:dishId', async (req, res) => {
     const bonusEarned = bonusHistory.reduce((s, r) => s + Number(r.BonusEarned), 0);
     const pendingBonus = Math.max(0, bonusEarned - bonusPaid);
 
-    // Calculate period specific values
-    const periodTxns = bonusHistory.filter(r => {
+    // Period-specific values (only meaningful when explicit dates provided)
+    const periodTxns = hasDates ? bonusHistory.filter(r => {
       const fromD = new Date(r.SalesFromDate);
       const toD = new Date(r.SalesToDate);
       return fromD >= parsedFrom && toD <= parsedTo;
-    });
-    const periodBonusEarned = periodTxns.reduce((s, r) => s + Number(r.BonusEarned), 0) || (
-      activeRule ? calculateBonus(totalSales, activeRule.ThresholdAmount, activeRule.BonusAmount, activeRule.IsRepeating) : 0
-    );
+    }) : bonusHistory;
+
+    const periodBonusEarned = hasDates
+      ? (periodTxns.reduce((s, r) => s + Number(r.BonusEarned), 0) || (
+          activeRule ? calculateBonus(totalSales, activeRule.ThresholdAmount, activeRule.BonusAmount, activeRule.IsRepeating) : 0
+        ))
+      : bonusEarned;
 
     const periodTxnIds = new Set(periodTxns.map(t => t.Id));
     const periodPayments = payHistRes.recordset.filter(r => {
       if (periodTxnIds.has(r.BonusTransactionId)) return true;
+      if (!hasDates) return true;
       const paidD = new Date(r.PaidDate);
       return paidD >= parsedFrom && paidD <= parsedTo;
     });
     const periodBonusPaid = periodPayments.reduce((s, r) => s + Number(r.PaymentAmount), 0);
     const periodPending = Math.max(0, periodBonusEarned - periodBonusPaid);
 
-    // Progress to next bonus milestone
+    // Progress to next bonus milestone (use latest sales activity or today)
     let progressToNext = null;
     if (activeRule) {
       const { ThresholdAmount, BonusAmount, IsRepeating } = activeRule;
-      const currentSalesTotal = await getArtistSales(pool, dishId, artist.Name, parsedFrom, parsedTo);
+      const progressSalesFrom = parsedFrom || salesFrom;
+      const progressSalesTo   = parsedTo   || salesTo;
+      const currentSalesTotal = await getArtistSales(pool, dishId, artist.Name, progressSalesFrom, progressSalesTo);
       const currentTier = Math.floor(currentSalesTotal / ThresholdAmount);
       const nextMilestone = (currentTier + 1) * ThresholdAmount;
       const remaining = nextMilestone - currentSalesTotal;
@@ -601,7 +606,7 @@ router.get('/artist/:dishId', async (req, res) => {
         nextMilestone,
         remaining: Math.max(0, remaining),
         currentBonus: calculateBonus(currentSalesTotal, ThresholdAmount, BonusAmount, IsRepeating),
-        nextBonus: BonusAmount, // Incremental bonus amount (e.g. $50.00)
+        nextBonus: BonusAmount,
         progressPct: Math.min(100, (currentSalesTotal % ThresholdAmount) / ThresholdAmount * 100),
       };
     }
@@ -609,9 +614,6 @@ router.get('/artist/:dishId', async (req, res) => {
     const activeDayCtx = await getActiveStartDate(pool);
     const isDayActive = !!activeDayCtx;
     const activeDayStr = activeDayCtx || today;
-    const resolvedFrom = fromDate || activeDayStr;
-    const resolvedTo   = toDate   || activeDayStr;
-    const isActiveDayView = resolvedFrom === activeDayStr && resolvedTo === activeDayStr;
 
     res.json({
       success: true,
@@ -637,9 +639,9 @@ router.get('/artist/:dishId', async (req, res) => {
       // Day context
       isDayActive,
       activeDay: activeDayStr,
-      isActiveDayView,
-      fromDate: resolvedFrom,
-      toDate: resolvedTo,
+      isActiveDayView: false,
+      fromDate: fromDate || null,
+      toDate: toDate || null,
     });
   } catch (err) {
     console.error('[ArtistBonus] GET /artist/:dishId error:', err.message);
