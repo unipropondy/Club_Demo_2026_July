@@ -325,8 +325,10 @@ export default function ArtistManagementScreen() {
                         <View style={[{ flex: 1.2, paddingHorizontal: 4, justifyContent: "center" }]}>
                           {artist.thresholdAmount > 0 ? (
                             <>
-                              <View style={styles.progressTrack}>
-                                <View style={[styles.progressFill, { width: `${artist.progressPct}%` as any, backgroundColor: artist.thresholdReached ? "#16A34A" : Theme.primary }]} />
+                              <View style={{ alignItems: "center" }}>
+                                <View style={styles.progressTrack}>
+                                  <View style={[styles.progressFill, { width: `${artist.progressPct}%` as any, backgroundColor: artist.thresholdReached ? "#16A34A" : Theme.primary }]} />
+                                </View>
                               </View>
                               <Text style={styles.progressLabel}>
                                 {artist.thresholdReached ? "✓ Bonus!" : `$${artist.remainingToThreshold.toFixed(0)} left`}
@@ -378,8 +380,10 @@ export default function ArtistManagementScreen() {
                           <View style={{ width: 140, paddingHorizontal: 6, justifyContent: "center" }}>
                             {artist.thresholdAmount > 0 ? (
                               <>
-                                <View style={styles.progressTrack}>
-                                  <View style={[styles.progressFill, { width: `${artist.progressPct}%` as any, backgroundColor: artist.thresholdReached ? "#16A34A" : Theme.primary }]} />
+                                <View style={{ alignItems: "center" }}>
+                                  <View style={styles.progressTrack}>
+                                    <View style={[styles.progressFill, { width: `${artist.progressPct}%` as any, backgroundColor: artist.thresholdReached ? "#16A34A" : Theme.primary }]} />
+                                  </View>
                                 </View>
                                 <Text style={styles.progressLabel}>
                                   {artist.thresholdReached ? "✓ Bonus!" : `$${artist.remainingToThreshold.toFixed(0)} left`}
@@ -666,15 +670,16 @@ const styles = StyleSheet.create({
     color: Theme.primary,
   },
   progressTrack: {
-    height: 6,
+    height: 10,
+    width: "75%",
     backgroundColor: "#E5E7EB",
-    borderRadius: 3,
+    borderRadius: 5,
     overflow: "hidden",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   progressFill: {
-    height: 6,
-    borderRadius: 3,
+    height: 10,
+    borderRadius: 5,
   },
   progressLabel: {
     fontFamily: Fonts.bold,

@@ -59,9 +59,10 @@ router.post("/day-end", async (req, res) => {
     if (activeStartDate) {
       await pool.request()
         .input("startDate", sql.Date, activeStartDate)
+        .input("username", sql.VarChar(30), req.body?.username || 'admin')
         .query(`
           UPDATE BusinessDayLog 
-          SET EndedAt = GETDATE(), EndedBy = 'admin' 
+          SET EndedAt = GETDATE(), EndedBy = @username 
           WHERE BusinessDate = @startDate
         `);
     }

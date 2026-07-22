@@ -459,6 +459,7 @@ export default function SettlementScreen() {
       if (res.ok && data.success) {
         const AsyncStorage = require("@react-native-async-storage/async-storage").default;
         await AsyncStorage.removeItem("selected_business_date");
+        fetchData();
         showToast({
           type: "success",
           message: "Day Ended Successfully",
@@ -485,7 +486,15 @@ export default function SettlementScreen() {
   };
 
   const handleDayEnd = () => {
-    if (dayLog && dayLog.EndedAt) {
+    if (!dayLog || !dayLog.StartedAt) {
+      showToast({
+        type: "warning",
+        message: "Day Not Started",
+        subtitle: "Please press Day Start before performing Day End."
+      });
+      return;
+    }
+    if (dayLog.EndedAt) {
       showToast({
         type: "warning",
         message: "Day Already Ended",

@@ -616,10 +616,11 @@ const styles = StyleSheet.create({
   progressStatLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginBottom: 4 },
   progressStatVal: { fontFamily: Fonts.black, fontSize: 16 },
   progressBarTrack: {
-    height: 10, backgroundColor: Theme.bgMuted, borderRadius: 5, overflow: "hidden", marginBottom: 8,
+    height: 14, backgroundColor: Theme.bgMuted, borderRadius: 7, overflow: "hidden", marginBottom: 8,
+    width: "70%", alignSelf: "center",
   },
   progressBarFill: {
-    height: "100%", backgroundColor: Theme.primary, borderRadius: 5,
+    height: "100%", backgroundColor: Theme.primary, borderRadius: 7,
   },
   progressBarLabel: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, textAlign: "center" },
 
