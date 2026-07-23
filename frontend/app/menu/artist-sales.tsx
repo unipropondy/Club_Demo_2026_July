@@ -22,6 +22,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { artistDateState } from "@/stores/artistDateStore";
+import { formatToSingaporeTime } from "@/utils/timezoneHelper";
 
 interface CustomDatePickerProps {
   visible: boolean;
@@ -278,7 +279,7 @@ export default function ArtistSalesScreen() {
         
         res.data.artists.slice(0, 3).forEach((a: any, i: number) => {
           const t = new Date(now.getTime() - i * 15 * 60000);
-          const timeStr = `${t.getHours().toString().padStart(2, '0')}:${t.getMinutes().toString().padStart(2, '0')} ${t.getHours() >= 12 ? 'PM' : 'AM'}`;
+          const timeStr = formatToSingaporeTime(t);
           
           if (a.totalSales > 0) {
             mockEvents.push({
