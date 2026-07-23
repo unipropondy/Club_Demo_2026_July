@@ -22,7 +22,7 @@ const dbConfig = {
   requestTimeout: 30000,
   pool: {
     max: 100,
-    min: 5,
+    min: 0,
     idleTimeoutMillis: 30000 // Recycle idle connections in 30s
   }
 };
