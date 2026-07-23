@@ -20,6 +20,7 @@ import {
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
+  ActivityIndicator,
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -360,6 +361,7 @@ type TableItem = {
   StartTime?: string | number | Date;
   totalAmount?: number;
   lockedByName?: string;
+  currentOrderId?: string;
   isOvertime?: number;
   isHoldOvertime?: number;
   entryStatus?: string;
@@ -414,9 +416,24 @@ export default function Category() {
   const [isGeneralSettingsVisible, setIsGeneralSettingsVisible] =
     useState(false);
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
+  const [isTablesExpanded, setIsTablesExpanded] = useState(false);
+  const [isStaffExpanded, setIsStaffExpanded] = useState(false);
+  const [isCustomerExpanded, setIsCustomerExpanded] = useState(false);
+  const [isArtistExpanded, setIsArtistExpanded] = useState(false);
+  const [isReportsExpanded, setIsReportsExpanded] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [isQRModalVisible, setIsQRModalVisible] = useState(false);
+  // ──── Move Table modal states ────────────────────────────────────────────
+  const [isMoveTableVisible, setIsMoveTableVisible] = useState(false);
+  const [moveSourceTable, setMoveSourceTable] = useState<TableItem | null>(
+    null,
+  );
+  const [moveDestTable, setMoveDestTable] = useState<TableItem | null>(null);
+  const [moveStep, setMoveStep] = useState<"source" | "dest">("source");
+  const [moveSearchQuery, setMoveSearchQuery] = useState("");
+  const [moveActiveSection, setMoveActiveSection] = useState("SECTION_1");
+  const [isMovingTable, setIsMovingTable] = useState(false);
   const sectionScrollRef = useRef<ScrollView>(null);
 
   // Customer guest name + pax modal states
@@ -502,6 +519,162 @@ export default function Category() {
       });
     } finally {
       setIsStartingDay(false);
+    }
+  };
+
+  const getTableRealStatus = (t: TableItem) => {
+    const tableData = useTableStatusStore.getState().tableMap[t.id];
+    if (tableData) {
+      if (tableData.status === "SENT") return 1;
+      if (tableData.status === "BILL_REQUESTED") return 2;
+      if (tableData.status === "HOLD") return 3;
+      if (tableData.status === "LOCKED") return 5;
+      return 0;
+    }
+    return Number(t.Status);
+  };
+
+  const getTableRealAmount = (t: TableItem) => {
+    const tableData = useTableStatusStore.getState().tableMap[t.id];
+    return tableData?.totalAmount !== undefined ? tableData.totalAmount : Number(t.totalAmount) || 0;
+  };
+
+  // ──── Move Table handler ──────────────────────────────────────────────────
+  const handleMoveTable = async (srcOverride?: TableItem, dstOverride?: TableItem) => {
+    const src = srcOverride || moveSourceTable;
+    const dst = dstOverride || moveDestTable;
+    if (!src || !dst) return;
+    if (isMovingTable) return;
+    setIsMovingTable(true);
+    try {
+      const res = await fetch(`${API_URL}/api/tables/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceTableId: src.id,
+          destTableId: dst.id,
+          userId: user?.userId,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Optimistic: clear source cart context in store
+        const srcSection = getSectionFromDiningSection(
+          src.DiningSection,
+        );
+        const dstSection = getSectionFromDiningSection(
+          dst.DiningSection,
+        );
+
+        // Update local state (allTables) optimistically
+        setAllTables((prev: TableItem[]) =>
+          prev.map((t: TableItem) => {
+            if (t.id === src.id) {
+              return {
+                ...t,
+                Status: 0,
+                totalAmount: 0,
+                currentOrderId: undefined,
+                customerName: undefined,
+                pax: undefined,
+              };
+            }
+            if (t.id === dst.id) {
+              return {
+                ...t,
+                Status: src.Status,
+                totalAmount:
+                  data.totalAmount || src.totalAmount || 0,
+                currentOrderId: data.orderId || src.currentOrderId,
+                customerName: src.customerName,
+                pax: src.pax,
+              };
+            }
+            return t;
+          }),
+        );
+
+        // Update tableStatusStore for source → Available
+        useTableStatusStore
+          .getState()
+          .updateTableStatus(
+            src.id,
+            srcSection,
+            src.label,
+            "SYNC",
+            "EMPTY",
+            undefined,
+            undefined,
+            0,
+            false,
+            false,
+            undefined,
+            undefined,
+            null as any,
+            null as any,
+          );
+
+        // Update tableStatusStore for destination → copy source status
+        const srcStatusType: TableStatusType =
+          src.Status === 5
+            ? "LOCKED"
+            : src.Status === 1
+              ? "SENT"
+              : src.Status === 2
+                ? "BILL_REQUESTED"
+                : src.Status === 3
+                  ? "HOLD"
+                  : "EMPTY";
+        useTableStatusStore
+          .getState()
+          .updateTableStatus(
+            dst.id,
+            dstSection,
+            dst.label,
+            data.orderId || "SYNC",
+            srcStatusType,
+            undefined,
+            undefined,
+            data.totalAmount || src.totalAmount || 0,
+          );
+
+        // Clear cart store for source context
+        const srcContext = {
+          orderType: "DINE_IN" as const,
+          section: srcSection,
+          tableNo: src.label,
+          tableId: src.id,
+        };
+        const srcContextId = getContextId(srcContext);
+        if (srcContextId) setCartItemsGlobal(srcContextId, [], true);
+
+        setIsMoveTableVisible(false);
+        setMoveSourceTable(null);
+        setMoveDestTable(null);
+        setMoveStep("source");
+        setMoveSearchQuery("");
+
+        showToast({
+          type: "success",
+          message: "Table Moved",
+          subtitle: `Table ${data.sourceTableNo} → Table ${data.destTableNo} ✓`,
+        });
+        fetchTables();
+      } else {
+        showToast({
+          type: "error",
+          message: "Move Failed",
+          subtitle: data.error || "Could not move the table.",
+        });
+      }
+    } catch (err) {
+      showToast({
+        type: "error",
+        message: "Network Error",
+        subtitle: "Failed to connect to server.",
+      });
+    } finally {
+      setIsMovingTable(false);
     }
   };
 
@@ -1380,6 +1553,16 @@ export default function Category() {
     ],
   );
 
+  const [dummyMoveState, setDummyMoveState] = useState(0); // to trigger modal re-render on active status changes
+  const tableMapGlobal = useTableStatusStore((state) => state.tableMap);
+
+  // Trigger modal updates when the global store changes
+  useEffect(() => {
+    if (isMoveTableVisible) {
+      setDummyMoveState(prev => prev + 1);
+    }
+  }, [tableMapGlobal, isMoveTableVisible]);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
@@ -1847,6 +2030,278 @@ export default function Category() {
           </View>
         </View>
       )}
+      <Modal
+        visible={isMoveTableVisible}
+        transparent={false}
+        animationType="slide"
+        onRequestClose={() => {
+          setIsMoveTableVisible(false);
+          setMoveSourceTable(null);
+          setMoveDestTable(null);
+          setMoveStep("source");
+        }}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF9F6" }}>
+          {/* Header */}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#EAE8E4", backgroundColor: "#FFF" }}>
+            <TouchableOpacity 
+              onPress={() => {
+                if (moveStep === "dest") {
+                  setMoveStep("source");
+                  setMoveDestTable(null);
+                } else {
+                  setIsMoveTableVisible(false);
+                }
+              }}
+              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#F5F3EF", justifyContent: "center", alignItems: "center" }}
+            >
+              <Ionicons name="arrow-back" size={20} color={Theme.textPrimary} />
+            </TouchableOpacity>
+            
+            <View style={{ alignItems: "center" }}>
+              <Text style={{ fontSize: 18, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                {moveStep === "source" ? "Select Source Table" : "Select Destination"}
+              </Text>
+              <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textMuted }}>
+                {moveStep === "source" ? "Which table are you moving FROM?" : "Which table are you moving TO?"}
+              </Text>
+            </View>
+
+            <TouchableOpacity 
+              onPress={() => {
+                setIsMoveTableVisible(false);
+                setMoveSourceTable(null);
+                setMoveDestTable(null);
+                setMoveStep("source");
+              }}
+              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#F5F3EF", justifyContent: "center", alignItems: "center" }}
+            >
+              <Ionicons name="close" size={20} color={Theme.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Selected Source Display (Orange Banner) */}
+          {moveStep === "dest" && moveSourceTable && (
+            <View style={{ paddingHorizontal: 16, paddingTop: 12, flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
+              <TouchableOpacity 
+                onPress={() => {
+                  setMoveStep("source");
+                  setMoveDestTable(null);
+                }}
+                style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fd7e14", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, gap: 6 }}
+              >
+                <Ionicons name="swap-horizontal" size={14} color="#FFF" />
+                <Text style={{ color: "#FFF", fontFamily: Fonts.bold, fontSize: 13 }}>
+                  FROM Table {moveSourceTable.label} ${getTableRealAmount(moveSourceTable).toFixed(2)}
+                </Text>
+                <Ionicons name="chevron-down" size={14} color="#FFF" />
+              </TouchableOpacity>
+
+              {moveDestTable && (
+                <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#fd7e14", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, gap: 6 }}>
+                  <Ionicons name="arrow-forward" size={14} color="#fd7e14" />
+                  <Text style={{ color: "#fd7e14", fontFamily: Fonts.bold, fontSize: 13 }}>
+                    TO Table {moveDestTable.label}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Search bar */}
+          <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FFF", borderWidth: 1, borderColor: "#EAE8E4", borderRadius: 12, paddingHorizontal: 12, height: 46 }}>
+              <Ionicons name="search" size={18} color={Theme.textMuted} style={{ marginRight: 8 }} />
+              <TextInput
+                style={{ flex: 1, height: "100%", fontSize: 15, fontFamily: Fonts.medium, color: Theme.textPrimary }}
+                placeholder={moveStep === "source" ? "Search occupied table..." : "Search available table..."}
+                placeholderTextColor={Theme.textMuted}
+                value={moveSearchQuery}
+                onChangeText={setMoveSearchQuery}
+              />
+              {moveSearchQuery !== "" && (
+                <TouchableOpacity onPress={() => setMoveSearchQuery("")}>
+                  <Ionicons name="close-circle" size={18} color={Theme.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {/* Section tabs */}
+          {moveStep === "dest" && (
+            <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 12 }}>
+              {SECTIONS.map((sec) => {
+                const isActive = moveActiveSection === sec;
+                const shortName = SECTION_SHORT[sec];
+                const iconName = sec === "TAKEAWAY" ? "bag-handle-outline" : "restaurant-outline";
+                return (
+                  <TouchableOpacity
+                    key={sec}
+                    onPress={() => setMoveActiveSection(sec)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: isActive ? "#fd7e14" : "#F5F3EF",
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                      gap: 6,
+                    }}
+                  >
+                    <Ionicons name={iconName as any} size={14} color={isActive ? "#FFF" : Theme.textSecondary} />
+                    <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: isActive ? "#FFF" : Theme.textSecondary }}>
+                      {shortName}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Main Grid */}
+          <ScrollView contentContainerStyle={{ padding: 16, flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+            {moveStep === "source" ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                {allTables.filter(t => [1, 2, 3].includes(getTableRealStatus(t)) && (moveSearchQuery === "" || t.label.toLowerCase().includes(moveSearchQuery.toLowerCase()))).length === 0 ? (
+                  <Text style={{ fontSize: 14, fontFamily: Fonts.medium, color: Theme.textMuted, padding: 12 }}>
+                    No active occupied tables.
+                  </Text>
+                ) : (
+                  allTables.filter(t => [1, 2, 3].includes(getTableRealStatus(t)) && (moveSearchQuery === "" || t.label.toLowerCase().includes(moveSearchQuery.toLowerCase()))).map((t) => {
+                    const realStatus = getTableRealStatus(t);
+                    const ui = getStatusUI(realStatus);
+                    const cardBorderColor = ui.color;
+                    const cardBgColor = ui.lightBg;
+                    const sectionName = t.DiningSection === 1 ? "S1" : t.DiningSection === 2 ? "S2" : t.DiningSection === 3 ? "S3" : "TW";
+                    return (
+                      <TouchableOpacity
+                        key={t.id}
+                        onPress={() => {
+                          setMoveSourceTable(t);
+                          setMoveStep("dest");
+                          setMoveSearchQuery("");
+                          setMoveActiveSection(getSectionFromDiningSection(t.DiningSection));
+                        }}
+                        style={{
+                          width: isTablet ? "32%" : "48%",
+                          backgroundColor: cardBgColor,
+                          borderWidth: 2,
+                          borderColor: cardBorderColor,
+                          borderRadius: 14,
+                          paddingVertical: 12,
+                          paddingHorizontal: 10,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 2,
+                          minHeight: 80,
+                        }}
+                      >
+                        <Text style={{ fontSize: 22, fontFamily: Fonts.bold, color: cardBorderColor }}>
+                          {t.label}
+                        </Text>
+                        <View style={{ borderColor: cardBorderColor, borderWidth: 1, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, backgroundColor: "#FFF" }}>
+                          <Text style={{ fontSize: 8, fontFamily: Fonts.bold, color: cardBorderColor }}>
+                            {ui.text}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize: 14, fontFamily: Fonts.black, color: cardBorderColor }}>
+                          ${getTableRealAmount(t).toFixed(2)}
+                        </Text>
+                        <Text style={{ fontSize: 9, fontFamily: Fonts.medium, color: Theme.textMuted }}>
+                          {sectionName}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            ) : (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {allTables.filter(t => getTableRealStatus(t) === 0 && getSectionFromDiningSection(t.DiningSection) === moveActiveSection && (moveSearchQuery === "" || t.label.toLowerCase().includes(moveSearchQuery.toLowerCase()))).length === 0 ? (
+                  <Text style={{ fontSize: 14, fontFamily: Fonts.medium, color: Theme.textMuted, padding: 12 }}>
+                    No available tables in this section.
+                  </Text>
+                ) : (
+                  allTables.filter(t => getTableRealStatus(t) === 0 && getSectionFromDiningSection(t.DiningSection) === moveActiveSection && (moveSearchQuery === "" || t.label.toLowerCase().includes(moveSearchQuery.toLowerCase()))).map((t) => {
+                    const isSelected = moveDestTable?.id === t.id;
+                    return (
+                      <TouchableOpacity
+                        key={t.id}
+                        onPress={() => setMoveDestTable(t)}
+                        style={{
+                          width: isTablet ? "12.5%" : "22%",
+                          backgroundColor: isSelected ? "#FFF7ED" : "#FFF",
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? "#fd7e14" : "#E5E7EB",
+                          borderRadius: 12,
+                          paddingVertical: 14,
+                          paddingHorizontal: 4,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 4,
+                          aspectRatio: 1,
+                          position: "relative",
+                        }}
+                      >
+                        <Text style={{ fontSize: isSelected ? 20 : 18, fontFamily: Fonts.bold, color: isSelected ? "#fd7e14" : Theme.textPrimary }}>
+                          {t.label}
+                        </Text>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#22c55e" }} />
+                        {isSelected && (
+                          <View style={{ position: "absolute", top: 5, right: 5, backgroundColor: "#fd7e14", borderRadius: 9, width: 16, height: 16, justifyContent: "center", alignItems: "center" }}>
+                            <Ionicons name="checkmark" size={10} color="#FFF" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Sticky Bottom Transfer Bar */}
+          {moveStep === "dest" && moveSourceTable && moveDestTable && (
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, backgroundColor: "#FFF", borderTopWidth: 1, borderTopColor: "#EAE8E4", elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.05, shadowRadius: 3 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Text style={{ fontSize: 11, fontFamily: Fonts.black, color: Theme.textMuted, letterSpacing: 0.8 }}>
+                  TRANSFER
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#F5F3EF", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "#EAE8E4" }}>
+                  <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                    Table {moveSourceTable.label}
+                  </Text>
+                </View>
+                <Ionicons name="arrow-forward" size={16} color={Theme.textMuted} />
+                <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FFF7ED", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "#fd7e14" }}>
+                  <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: "#fd7e14" }}>
+                    Table {moveDestTable.label}
+                  </Text>
+                </View>
+              </View>
+              
+              <TouchableOpacity
+                onPress={async () => {
+                  await handleMoveTable();
+                }}
+                disabled={isMovingTable}
+                style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fd7e14", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, gap: 8, opacity: isMovingTable ? 0.6 : 1 }}
+              >
+                {isMovingTable ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <Text style={{ color: "#FFF", fontFamily: Fonts.bold, fontSize: 15 }}>
+                      Transfer Now
+                    </Text>
+                    <Ionicons name="arrow-forward" size={16} color="#FFF" />
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </SafeAreaView>
+      </Modal>
 
       {/* 〰〰〰〰〰〰〰〰〰〰〰 QR ORDER MODAL 〰〰〰〰〰〰〰〰〰〰〰 */}
       <Modal
@@ -1962,191 +2417,199 @@ export default function Category() {
 
             {/* Menu Options */}
             <ScrollView showsVerticalScrollIndicator={false}>
-              {canAccessLockTables() && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setIsMenuVisible(false);
-                    router.push("/locked-tables");
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.warning + "10" },
-                    ]}
-                  >
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={18}
-                      color={Theme.warning}
-                    />
-                  </View>
-                  <Text style={styles.menuItemText}>Locked Tables</Text>
-                </TouchableOpacity>
-              )}
-
+              {/* 1. TABLES ACCORDION */}
               <TouchableOpacity
                 style={styles.menuItem}
-                onPress={() => {
-                  setIsMenuVisible(false);
-                  router.push("/waiters");
-                }}
+                onPress={() => setIsTablesExpanded(!isTablesExpanded)}
               >
-                <View
-                  style={[
-                    styles.menuIconContainer,
-                    { backgroundColor: Theme.primary + "10" },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name="account-group"
-                    size={18}
-                    color={Theme.primary}
-                  />
+                <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                  <Ionicons name="grid-outline" size={18} color={Theme.primary} />
                 </View>
-                <Text style={styles.menuItemText}>Waiters</Text>
+                <Text style={[styles.menuItemText, { flex: 1 }]}>Tables</Text>
+                <Ionicons
+                  name={isTablesExpanded ? "chevron-down" : "chevron-forward"}
+                  size={16}
+                  color={Theme.textSecondary}
+                />
               </TouchableOpacity>
+              {isTablesExpanded && (
+                <View style={styles.subMenuContainer}>
+                  {canAccessLockTables() && (
+                    <TouchableOpacity
+                      style={styles.subMenuItem}
+                      onPress={() => {
+                        setIsMenuVisible(false);
+                        router.push("/locked-tables");
+                      }}
+                    >
+                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.warning + "10" }]}>
+                        <Ionicons name="lock-closed-outline" size={18} color={Theme.warning} />
+                      </View>
+                      <Text style={styles.subMenuItemText}>Locked Tables</Text>
+                    </TouchableOpacity>
+                  )}
 
-              {canAccessStaffAttendance() && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setIsMenuVisible(false);
-                    router.push("/StaffAttendance");
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.primary + "10" },
-                    ]}
+                  <TouchableOpacity
+                    style={styles.subMenuItem}
+                    onPress={() => {
+                      setIsMenuVisible(false);
+                      setIsMoveTableVisible(true);
+                      setMoveSourceTable(null);
+                      setMoveDestTable(null);
+                      setMoveStep("source");
+                      setMoveSearchQuery("");
+                    }}
                   >
-                    <MaterialCommunityIcons
-                      name="calendar-clock"
-                      size={18}
-                      color={Theme.primary}
-                    />
-                  </View>
-                  <Text style={styles.menuItemText}>Staff Attendance</Text>
-                </TouchableOpacity>
+                    <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                      <Ionicons name="swap-horizontal-outline" size={18} color={Theme.primary} />
+                    </View>
+                    <Text style={styles.subMenuItemText}>Transfer Table</Text>
+                  </TouchableOpacity>
+                </View>
               )}
 
+              {/* 2. STAFF ACCORDION */}
               <TouchableOpacity
                 style={styles.menuItem}
-                onPress={() => {
-                  setIsMenuVisible(false);
-                  router.push("/loyalty");
-                }}
+                onPress={() => setIsStaffExpanded(!isStaffExpanded)}
               >
-                <View
-                  style={[
-                    styles.menuIconContainer,
-                    { backgroundColor: Theme.primary + "10" },
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name="card-outline"
-                    size={18}
-                    color={Theme.primary}
-                  />
+                <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                  <Ionicons name="people-outline" size={18} color={Theme.primary} />
                 </View>
-                <Text style={styles.menuItemText}>Loyalty</Text>
+                <Text style={[styles.menuItemText, { flex: 1 }]}>Staff</Text>
+                <Ionicons
+                  name={isStaffExpanded ? "chevron-down" : "chevron-forward"}
+                  size={16}
+                  color={Theme.textSecondary}
+                />
               </TouchableOpacity>
-
-              {canAccessMembers() && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setIsMenuVisible(false);
-                    router.push("/members");
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.info + "10" },
-                    ]}
+              {isStaffExpanded && (
+                <View style={styles.subMenuContainer}>
+                  <TouchableOpacity
+                    style={styles.subMenuItem}
+                    onPress={() => {
+                      setIsMenuVisible(false);
+                      router.push("/waiters");
+                    }}
                   >
-                    <Ionicons
-                      name="people-outline"
-                      size={18}
-                      color={Theme.info}
-                    />
-                  </View>
-                  <Text style={styles.menuItemText}>Members</Text>
-                </TouchableOpacity>
+                    <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                      <MaterialCommunityIcons name="account-group" size={18} color={Theme.primary} />
+                    </View>
+                    <Text style={styles.subMenuItemText}>Waiters</Text>
+                  </TouchableOpacity>
+
+                  {canAccessStaffAttendance() && (
+                    <TouchableOpacity
+                      style={styles.subMenuItem}
+                      onPress={() => {
+                        setIsMenuVisible(false);
+                        router.push("/StaffAttendance");
+                      }}
+                    >
+                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                        <MaterialCommunityIcons name="calendar-clock" size={18} color={Theme.primary} />
+                      </View>
+                      <Text style={styles.subMenuItemText}>Staff Attendance</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               )}
 
-              {canAccessMembers() && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setIsMenuVisible(false);
-                    router.push("/receivables");
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.primary + "10" },
-                    ]}
-                  >
-                    <Ionicons
-                      name="wallet-outline"
-                      size={18}
-                      color={Theme.primary}
-                    />
-                  </View>
-                  <Text style={styles.menuItemText}>Receivables</Text>
-                </TouchableOpacity>
-              )}
-
-              {canAccessSalesReport() && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setIsMenuVisible(false);
-                    router.push("/sales-report");
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.primary + "10" },
-                    ]}
-                  >
-                    <Ionicons
-                      name="bar-chart-outline"
-                      size={18}
-                      color={Theme.primary}
-                    />
-                  </View>
-                  <Text style={styles.menuItemText}>Sales Report</Text>
-                </TouchableOpacity>
-              )}
-
+              {/* 3. CUSTOMER ACCORDION */}
               <TouchableOpacity
                 style={styles.menuItem}
-                onPress={() => {
-                  setIsMenuVisible(false);
-                  router.push("/customer-display" as any);
-                }}
+                onPress={() => setIsCustomerExpanded(!isCustomerExpanded)}
               >
-                <View
-                  style={[
-                    styles.menuIconContainer,
-                    { backgroundColor: Theme.primary + "10" },
-                  ]}
-                >
-                  <Ionicons
-                    name="desktop-outline"
-                    size={18}
-                    color={Theme.primary}
-                  />
+                <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                  <Ionicons name="person-circle-outline" size={18} color={Theme.primary} />
                 </View>
-                <Text style={styles.menuItemText}>Customer Display</Text>
+                <Text style={[styles.menuItemText, { flex: 1 }]}>Customer</Text>
+                <Ionicons
+                  name={isCustomerExpanded ? "chevron-down" : "chevron-forward"}
+                  size={16}
+                  color={Theme.textSecondary}
+                />
               </TouchableOpacity>
+              {isCustomerExpanded && (
+                <View style={styles.subMenuContainer}>
+                  <TouchableOpacity
+                    style={styles.subMenuItem}
+                    onPress={() => {
+                      setIsMenuVisible(false);
+                      router.push("/loyalty");
+                    }}
+                  >
+                    <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                      <MaterialCommunityIcons name="card-outline" size={18} color={Theme.primary} />
+                    </View>
+                    <Text style={styles.subMenuItemText}>Loyalty</Text>
+                  </TouchableOpacity>
+
+                  {canAccessMembers() && (
+                    <TouchableOpacity
+                      style={styles.subMenuItem}
+                      onPress={() => {
+                        setIsMenuVisible(false);
+                        router.push("/members");
+                      }}
+                    >
+                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.info + "10" }]}>
+                        <Ionicons name="people-outline" size={18} color={Theme.info} />
+                      </View>
+                      <Text style={styles.subMenuItemText}>Members</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {canAccessMembers() && (
+                    <TouchableOpacity
+                      style={styles.subMenuItem}
+                      onPress={() => {
+                        setIsMenuVisible(false);
+                        router.push("/receivables");
+                      }}
+                    >
+                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                        <Ionicons name="wallet-outline" size={18} color={Theme.primary} />
+                      </View>
+                      <Text style={styles.subMenuItemText}>Receivables</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {/* 4. ARTIST ACCORDION */}
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => setIsArtistExpanded(!isArtistExpanded)}
+              >
+                <View style={[styles.menuIconContainer, { backgroundColor: "#F9731615" }]}>
+                  <Ionicons name="musical-notes-outline" size={18} color="#F97316" />
+                </View>
+                <Text style={[styles.menuItemText, { flex: 1 }]}>Artist</Text>
+                <Ionicons
+                  name={isArtistExpanded ? "chevron-down" : "chevron-forward"}
+                  size={16}
+                  color={Theme.textSecondary}
+                />
+              </TouchableOpacity>
+              {isArtistExpanded && (
+                <View style={styles.subMenuContainer}>
+                  <TouchableOpacity
+                    style={styles.subMenuItem}
+                    onPress={() => {
+                      setIsMenuVisible(false);
+                      router.push("/menu/artist-management");
+                    }}
+                  >
+                    <View style={[styles.menuIconContainer, { backgroundColor: "#F9731615" }]}>
+                      <Ionicons name="settings-outline" size={18} color="#F97316" />
+                    </View>
+                    <Text style={styles.subMenuItemText}>Artist Management</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* 5. SETTLEMENT DIRECT LINK */}
               {canAccessDayEnd() && (
                 <TouchableOpacity
                   style={styles.menuItem}
@@ -2155,119 +2618,76 @@ export default function Category() {
                     router.push("/menu/settlement");
                   }}
                 >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.primary + "10" },
-                    ]}
-                  >
-                    <Ionicons
-                      name="calculator-outline"
-                      size={18}
-                      color={Theme.primary}
-                    />
+                  <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                    <Ionicons name="calculator-outline" size={18} color={Theme.primary} />
                   </View>
                   <Text style={styles.menuItemText}>Settlement</Text>
                 </TouchableOpacity>
               )}
 
-              {/* Artist Management — Artist Sales, Bonus Tracking, Payments */}
+              {/* 6. REPORTS ACCORDION */}
               <TouchableOpacity
                 style={styles.menuItem}
-                onPress={() => {
-                  setIsMenuVisible(false);
-                  router.push("/menu/artist-management" as any);
-                }}
+                onPress={() => setIsReportsExpanded(!isReportsExpanded)}
               >
-                <View
-                  style={[
-                    styles.menuIconContainer,
-                    { backgroundColor: "#F97316" + "15" },
-                  ]}
-                >
-                  <Ionicons
-                    name="musical-notes-outline"
-                    size={18}
-                    color="#F97316"
-                  />
+                <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                  <Ionicons name="document-text-outline" size={18} color={Theme.primary} />
                 </View>
-                <Text style={styles.menuItemText}>Artist Management</Text>
+                <Text style={[styles.menuItemText, { flex: 1 }]}>Reports</Text>
+                <Ionicons
+                  name={isReportsExpanded ? "chevron-down" : "chevron-forward"}
+                  size={16}
+                  color={Theme.textSecondary}
+                />
               </TouchableOpacity>
+              {isReportsExpanded && (
+                <View style={styles.subMenuContainer}>
+                  {canAccessSalesReport() && (
+                    <TouchableOpacity
+                      style={styles.subMenuItem}
+                      onPress={() => {
+                        setIsMenuVisible(false);
+                        router.push("/sales-report");
+                      }}
+                    >
+                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                        <Ionicons name="bar-chart-outline" size={18} color={Theme.primary} />
+                      </View>
+                      <Text style={styles.subMenuItemText}>Sales Report</Text>
+                    </TouchableOpacity>
+                  )}
 
-              {/* Cash Drawer — visible to all roles, PIN gate is inside the screen */}
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setIsMenuVisible(false);
-                  router.push("/cash-drawer" as any);
-                }}
-              >
-                <View
-                  style={[
-                    styles.menuIconContainer,
-                    { backgroundColor: "#16A34A10" },
-                  ]}
-                >
-                  <Ionicons
-                    name="cash-outline"
-                    size={18}
-                    color="#16A34A"
-                  />
+                  {canAccessDayEnd() && (
+                    <TouchableOpacity
+                      style={styles.subMenuItem}
+                      onPress={() => {
+                        setIsMenuVisible(false);
+                        router.push("/day-end");
+                      }}
+                    >
+                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.warning + "10" }]}>
+                        <MaterialCommunityIcons name="calendar-clock" size={18} color={Theme.warning} />
+                      </View>
+                      <Text style={styles.subMenuItemText}>Day End Report</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <Text style={styles.menuItemText}>Cash Drawer</Text>
-              </TouchableOpacity>
-
-              {canAccessDayEnd() && (
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setIsMenuVisible(false);
-                    router.push("/day-end");
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.menuIconContainer,
-                      { backgroundColor: Theme.warning + "10" },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="calendar-clock"
-                      size={18}
-                      color={Theme.warning}
-                    />
-                  </View>
-                  <Text style={styles.menuItemText}>Day End</Text>
-                </TouchableOpacity>
               )}
 
-              {/* Settings Dropdown */}
+              {/* 7. SETTINGS ACCORDION */}
               {(canAccessStoreSettings() || canAccessReceiptSettings()) && (
                 <>
                   <TouchableOpacity
                     style={styles.menuItem}
                     onPress={() => setIsSettingsExpanded(!isSettingsExpanded)}
                   >
-                    <View
-                      style={[
-                        styles.menuIconContainer,
-                        { backgroundColor: Theme.textSecondary + "10" },
-                      ]}
-                    >
-                      <Ionicons
-                        name="settings-outline"
-                        size={18}
-                        color={Theme.textSecondary}
-                      />
+                    <View style={[styles.menuIconContainer, { backgroundColor: Theme.textSecondary + "10" }]}>
+                      <Ionicons name="settings-outline" size={18} color={Theme.textSecondary} />
                     </View>
-                    <Text style={[styles.menuItemText, { flex: 1 }]}>
-                      Settings
-                    </Text>
+                    <Text style={[styles.menuItemText, { flex: 1 }]}>Settings</Text>
                     <Ionicons
-                      name={
-                        isSettingsExpanded ? "chevron-down" : "chevron-forward"
-                      }
-                      size={18}
+                      name={isSettingsExpanded ? "chevron-down" : "chevron-forward"}
+                      size={16}
                       color={Theme.textSecondary}
                     />
                   </TouchableOpacity>
@@ -2282,21 +2702,10 @@ export default function Category() {
                             setIsSettingsVisible(true);
                           }}
                         >
-                          <View
-                            style={[
-                              styles.menuIconContainer,
-                              { backgroundColor: Theme.textSecondary + "10" },
-                            ]}
-                          >
-                            <Ionicons
-                              name="storefront-outline"
-                              size={18}
-                              color={Theme.textSecondary}
-                            />
+                          <View style={[styles.menuIconContainer, { backgroundColor: Theme.textSecondary + "10" }]}>
+                            <Ionicons name="storefront-outline" size={18} color={Theme.textSecondary} />
                           </View>
-                          <Text style={styles.subMenuItemText}>
-                            Store Settings
-                          </Text>
+                          <Text style={styles.subMenuItemText}>Store Settings</Text>
                         </TouchableOpacity>
                       )}
 
@@ -2308,21 +2717,10 @@ export default function Category() {
                             setIsGeneralSettingsVisible(true);
                           }}
                         >
-                          <View
-                            style={[
-                              styles.menuIconContainer,
-                              { backgroundColor: Theme.primary + "10" },
-                            ]}
-                          >
-                            <Ionicons
-                              name="options-outline"
-                              size={18}
-                              color={Theme.primary}
-                            />
+                          <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                            <Ionicons name="options-outline" size={18} color={Theme.primary} />
                           </View>
-                          <Text style={styles.subMenuItemText}>
-                            General Settings
-                          </Text>
+                          <Text style={styles.subMenuItemText}>General Settings</Text>
                         </TouchableOpacity>
                       )}
 
@@ -2331,59 +2729,64 @@ export default function Category() {
                           style={styles.subMenuItem}
                           onPress={() => {
                             setIsMenuVisible(false);
-                            router.push("/company-settings" as any);
+                            router.push("/company-settings");
                           }}
                         >
-                          <View
-                            style={[
-                              styles.menuIconContainer,
-                              { backgroundColor: Theme.primary + "10" },
-                            ]}
-                          >
-                            <Ionicons
-                              name="receipt-outline"
-                              size={18}
-                              color={Theme.primary}
-                            />
+                          <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                            <Ionicons name="receipt-outline" size={18} color={Theme.primary} />
                           </View>
-                          <Text style={styles.subMenuItemText}>
-                            Receipt Settings
-                          </Text>
+                          <Text style={styles.subMenuItemText}>Receipt Settings</Text>
                         </TouchableOpacity>
                       )}
 
-                      {/* Terminal Settings */}
                       {canAccessStoreSettings() && (
                         <TouchableOpacity
                           style={styles.subMenuItem}
                           onPress={() => {
                             setIsMenuVisible(false);
-                            router.push("/terminal-settings" as any);
+                            router.push("/terminal-settings");
                           }}
                         >
-                          <View
-                            style={[
-                              styles.menuIconContainer,
-                              { backgroundColor: Theme.primary + "10" },
-                            ]}
-                          >
-                            <Ionicons
-                              name="hardware-chip-outline"
-                              size={18}
-                              color={Theme.primary}
-                            />
+                          <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                            <Ionicons name="hardware-chip-outline" size={18} color={Theme.primary} />
                           </View>
-                          <Text style={styles.subMenuItemText}>
-                            Terminal Management
-                          </Text>
+                          <Text style={styles.subMenuItemText}>Terminal Management</Text>
                         </TouchableOpacity>
                       )}
+
+                      {/* Cash Drawer */}
+                      <TouchableOpacity
+                        style={styles.subMenuItem}
+                        onPress={() => {
+                          setIsMenuVisible(false);
+                          router.push("/cash-drawer");
+                        }}
+                      >
+                        <View style={[styles.menuIconContainer, { backgroundColor: "#16A34A10" }]}>
+                          <Ionicons name="cash-outline" size={18} color="#16A34A" />
+                        </View>
+                        <Text style={styles.subMenuItemText}>Cash Drawer</Text>
+                      </TouchableOpacity>
+
+                      {/* Customer Display */}
+                      <TouchableOpacity
+                        style={styles.subMenuItem}
+                        onPress={() => {
+                          setIsMenuVisible(false);
+                          router.push("/customer-display");
+                        }}
+                      >
+                        <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
+                          <Ionicons name="desktop-outline" size={18} color={Theme.primary} />
+                        </View>
+                        <Text style={styles.subMenuItemText}>Customer Display</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
                 </>
               )}
-
-              {/* Legend in Menu for Mobile */}
+            
+            {/* Legend in Menu for Mobile */}
               {!isTablet && (
                 <>
                   <View style={styles.menuDivider} />
