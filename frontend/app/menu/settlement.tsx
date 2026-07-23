@@ -678,8 +678,7 @@ const loadDishes = async () => {
 const fetchDayHistory = async () => {
   try {
     setLoadingHistory(true);
-    const dateStr = getLocalDateStr(selectedDate);
-    const res = await axios.get(`${API_URL}/api/settlement/day-history?date=${dateStr}`);
+    const res = await axios.get(`${API_URL}/api/settlement/day-history`);
     if (res.data?.success) {
       setHistoryLogs(res.data.data || []);
     } else {
@@ -2575,7 +2574,7 @@ const fetchDayHistory = async () => {
                   <View>
                     <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary }}>Day Start & End History</Text>
                     <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary }}>
-                      {getLocalDateStr(selectedDate)} Audit Logs
+                      Recent Business Day Audit Logs
                     </Text>
                   </View>
                 </View>
@@ -2592,13 +2591,17 @@ const fetchDayHistory = async () => {
                 <View style={{ paddingVertical: 40, alignItems: "center" }}>
                   <Ionicons name="document-text-outline" size={48} color={Theme.textMuted} />
                   <Text style={{ fontFamily: Fonts.bold, fontSize: 15, color: Theme.textSecondary, marginTop: 12 }}>No audit history found</Text>
-                  <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textMuted, marginTop: 4 }}>No Day Start or Day End recorded for this date.</Text>
+                  <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textMuted, marginTop: 4 }}>No Day Start or Day End logs recorded in the system.</Text>
                 </View>
               ) : (
                 <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
                   <View style={{ gap: 12 }}>
                     {historyLogs.map((log: any, idx: number) => {
                       const isStart = log.EventType === "DAY_START";
+                      const logDateStr = log.BusinessDate 
+                        ? new Date(log.BusinessDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                        : "—";
+
                       return (
                         <View 
                           key={log.AuditId || idx}
@@ -2613,19 +2616,22 @@ const fetchDayHistory = async () => {
                             justifyContent: "space-between"
                           }}
                         >
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
                             <Text style={{ fontSize: 22 }}>{isStart ? "☀️" : "🌙"}</Text>
-                            <View>
+                            <View style={{ flex: 1 }}>
                               <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: isStart ? "#b45309" : "#b91c1c" }}>
                                 {isStart ? "Day Started" : "Day Ended"}
                               </Text>
-                              <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, marginTop: 2 }}>
+                              <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, marginTop: 4 }}>
+                                Business Date: <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary }}>{logDateStr}</Text>
+                              </Text>
+                              <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted, marginTop: 2 }}>
                                 Action by: <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary }}>{log.ActionBy || "admin"}</Text>
                               </Text>
                             </View>
                           </View>
-                          <View style={{ alignItems: "flex-end" }}>
-                            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>
+                          <View style={{ alignItems: "flex-end", marginLeft: 10 }}>
+                            <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.textPrimary, textAlign: "right" }}>
                               {formatToSingaporeDateTime(log.EventTime)}
                             </Text>
                           </View>

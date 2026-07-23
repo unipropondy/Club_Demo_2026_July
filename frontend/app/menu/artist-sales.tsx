@@ -6,9 +6,10 @@ import { useToast } from "../../components/Toast";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Modal,
   Platform,
   ScrollView,
   StatusBar,
@@ -21,6 +22,182 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { artistDateState } from "@/stores/artistDateStore";
+
+interface CustomDatePickerProps {
+  visible: boolean;
+  onClose: () => void;
+  selectedDate: Date;
+  onApply: (date: Date) => void;
+  title: string;
+}
+
+function CustomDatePicker({ visible, onClose, selectedDate, onApply, title }: CustomDatePickerProps) {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 640;
+
+  const [viewDate, setViewDate] = useState(() => new Date(selectedDate));
+  const [selectedDay, setSelectedDay] = useState(() => new Date(selectedDate));
+
+  useEffect(() => {
+    if (visible) {
+      setViewDate(new Date(selectedDate));
+      setSelectedDay(new Date(selectedDate));
+    }
+  }, [visible, selectedDate]);
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  const prevMonth = () => { setViewDate(new Date(year, month - 1, 1)); };
+  const nextMonth = () => { setViewDate(new Date(year, month + 1, 1)); };
+
+  const days = useMemo(() => {
+    const firstDay = new Date(year, month, 1);
+    const startDayOfWeek = firstDay.getDay();
+    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+    const prevMonthDays = new Date(year, month, 0).getDate();
+
+    const arr = [];
+    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+      arr.push({
+        day: prevMonthDays - i,
+        month: month === 0 ? 11 : month - 1,
+        year: month === 0 ? year - 1 : year,
+        isCurrentMonth: false,
+      });
+    }
+    for (let i = 1; i <= totalDaysInMonth; i++) {
+      arr.push({
+        day: i,
+        month: month,
+        year: year,
+        isCurrentMonth: true,
+      });
+    }
+    const totalCells = arr.length;
+    const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+    for (let i = 1; i <= remaining; i++) {
+      arr.push({
+        day: i,
+        month: month === 11 ? 0 : month + 1,
+        year: month === 11 ? year + 1 : year,
+        isCurrentMonth: false,
+      });
+    }
+    return arr;
+  }, [year, month]);
+
+  const handleDaySelect = (dayObj: any) => {
+    setSelectedDay(new Date(dayObj.year, dayObj.month, dayObj.day));
+  };
+
+  const handleApply = () => {
+    const finalDate = new Date(selectedDay);
+    finalDate.setHours(0, 0, 0, 0);
+    onApply(finalDate);
+    onClose();
+  };
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={pickerStyles.overlay}>
+        <View style={[pickerStyles.modalContainer, { width: isTablet ? 360 : '90%', padding: 16 }]}>
+          <View style={pickerStyles.header}>
+            <Text style={pickerStyles.headerTitle}>{title}</Text>
+            <TouchableOpacity style={pickerStyles.closeBtn} onPress={onClose}>
+              <Ionicons name="close" size={18} color="#44403C" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ width: '100%' }}>
+            <View style={pickerStyles.calNavigator}>
+              <TouchableOpacity onPress={prevMonth} style={pickerStyles.navBtn}>
+                <Ionicons name="chevron-back" size={16} color="#44403C" />
+              </TouchableOpacity>
+              <Text style={pickerStyles.monthYearText}>{monthNames[month]} {year}</Text>
+              <TouchableOpacity onPress={nextMonth} style={pickerStyles.navBtn}>
+                <Ionicons name="chevron-forward" size={16} color="#44403C" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={pickerStyles.weekdaysRow}>
+              {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((wd, i) => (
+                <Text key={i} style={pickerStyles.weekdayText}>{wd}</Text>
+              ))}
+            </View>
+
+            <View style={pickerStyles.daysGrid}>
+              {days.map((dObj, idx) => {
+                const isSelected = selectedDay.getDate() === dObj.day &&
+                  selectedDay.getMonth() === dObj.month &&
+                  selectedDay.getFullYear() === dObj.year;
+
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => handleDaySelect(dObj)}
+                    style={[
+                      pickerStyles.dayBtn,
+                      isSelected && pickerStyles.dayBtnSelected
+                    ]}
+                  >
+                    <Text style={[
+                      pickerStyles.dayText,
+                      !dObj.isCurrentMonth && pickerStyles.dayTextInactive,
+                      isSelected && pickerStyles.dayTextSelected
+                    ]}>
+                      {dObj.day}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={pickerStyles.footer}>
+            <TouchableOpacity style={pickerStyles.cancelBtn} onPress={onClose}>
+              <Text style={pickerStyles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={pickerStyles.applyBtn} onPress={handleApply}>
+              <Text style={pickerStyles.applyBtnText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const pickerStyles = StyleSheet.create({
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
+  modalContainer: { backgroundColor: '#fff', borderRadius: 20, maxWidth: '95%', padding: 24 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 16 },
+  headerTitle: { fontSize: 16, fontFamily: Fonts.black, color: Theme.textPrimary },
+  closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
+  calNavigator: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingHorizontal: 8 },
+  navBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center' },
+  monthYearText: { fontSize: 14, fontFamily: Fonts.black, color: Theme.textPrimary },
+  weekdaysRow: { flexDirection: 'row', marginBottom: 8 },
+  weekdayText: { flex: 1, textAlign: 'center', fontSize: 12, fontFamily: Fonts.bold, color: '#9CA3AF' },
+  daysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  dayBtn: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginVertical: 2, borderRadius: 8 },
+  dayBtnSelected: { backgroundColor: '#F97316' },
+  dayText: { fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary },
+  dayTextInactive: { color: '#D1D5DB' },
+  dayTextSelected: { color: '#fff' },
+  footer: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  cancelBtn: { flex: 1, height: 44, borderRadius: 10, backgroundColor: '#F5F5F4', justifyContent: 'center', alignItems: 'center' },
+  cancelBtnText: { fontSize: 13, fontFamily: Fonts.black, color: '#44403C' },
+  applyBtn: { flex: 1, height: 44, borderRadius: 10, backgroundColor: '#F97316', justifyContent: 'center', alignItems: 'center' },
+  applyBtnText: { fontSize: 13, fontFamily: Fonts.black, color: '#fff' }
+});
 
 interface ArtistRow {
   dishId: string;
@@ -69,6 +246,16 @@ export default function ArtistSalesScreen() {
   const [activeRule, setActiveRule]   = useState<any>(null);
   const [events, setEvents]           = useState<EventLog[]>([]);
 
+  // Calendar Picker States
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker]     = useState(false);
+
+  const parsedFromDate = useMemo(() => fromDate ? new Date(fromDate) : new Date(), [fromDate]);
+  const parsedToDate   = useMemo(() => toDate ? new Date(toDate) : new Date(), [toDate]);
+
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const getLocalDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
   const fetchData = useCallback(async (explicitFrom?: string, explicitTo?: string) => {
     try {
       setLoading(true);
@@ -86,9 +273,6 @@ export default function ArtistSalesScreen() {
         setActiveDay(res.data.activeDay ?? null);
         setIsActiveDayView(res.data.isActiveDayView ?? true);
         
-        // Generate simulated event logs based on actual recent sales data
-        // in a real production app, this would poll a web socket.
-        // We will build a beautiful local generator to showcase this workflow.
         const mockEvents: EventLog[] = [];
         const now = new Date();
         
@@ -118,7 +302,6 @@ export default function ArtistSalesScreen() {
 
   useEffect(() => {
     fetchData("", "");
-    // Auto-refresh live sales every 15 seconds if business day is active
     const timer = setInterval(() => {
       if (isDayActive) {
         fetchData(fromDate, toDate);
@@ -171,33 +354,35 @@ export default function ArtistSalesScreen() {
           {isDayActive && <Text style={styles.liveUpdatingText}>Live updating...</Text>}
         </View>
 
-        {/* Historical Lookup */}
+        {/* Historical Lookup Calendar triggers */}
         <View style={styles.dateRow}>
-          <View style={styles.dateField}>
-            <TextInput
-              style={styles.dateInput}
-              value={fromDate}
-              onChangeText={handleFromDateChange}
-              placeholder="From: YYYY-MM-DD"
-              placeholderTextColor={Theme.textMuted}
-            />
-          </View>
+          <TouchableOpacity style={styles.dateFieldButton} onPress={() => setShowFromPicker(true)}>
+            <Text style={styles.dateButtonText}>
+              {fromDate || "From Date"}
+            </Text>
+            <Ionicons name="calendar-outline" size={16} color={Theme.textSecondary} />
+          </TouchableOpacity>
           <Ionicons name="arrow-forward" size={14} color={Theme.textMuted} />
-          <View style={styles.dateField}>
-            <TextInput
-              style={styles.dateInput}
-              value={toDate}
-              onChangeText={handleToDateChange}
-              placeholder="To: YYYY-MM-DD"
-              placeholderTextColor={Theme.textMuted}
-            />
-          </View>
+          <TouchableOpacity style={styles.dateFieldButton} onPress={() => setShowToPicker(true)}>
+            <Text style={styles.dateButtonText}>
+              {toDate || "To Date"}
+            </Text>
+            <Ionicons name="calendar-outline" size={16} color={Theme.textSecondary} />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.searchApplyBtn}
             onPress={() => { if (fromDate && toDate) fetchData(fromDate, toDate); else fetchData("", ""); }}
           >
             <Ionicons name="search" size={16} color="#fff" />
           </TouchableOpacity>
+          {(fromDate || toDate) && (
+            <TouchableOpacity
+              style={styles.clearBtn}
+              onPress={() => { handleFromDateChange(""); handleToDateChange(""); fetchData("", ""); }}
+            >
+              <Ionicons name="close-circle" size={20} color={Theme.textMuted} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -311,6 +496,22 @@ export default function ArtistSalesScreen() {
         </View>
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Date Pickers Modals */}
+      <CustomDatePicker
+        visible={showFromPicker}
+        onClose={() => setShowFromPicker(false)}
+        selectedDate={parsedFromDate}
+        onApply={(d) => handleFromDateChange(getLocalDateStr(d))}
+        title="Select Start Date"
+      />
+      <CustomDatePicker
+        visible={showToPicker}
+        onClose={() => setShowToPicker(false)}
+        selectedDate={parsedToDate}
+        onApply={(d) => handleToDateChange(getLocalDateStr(d))}
+        title="Select End Date"
+      />
     </SafeAreaView>
   );
 }
@@ -334,12 +535,14 @@ const styles = StyleSheet.create({
   activeDayText: { fontFamily: Fonts.bold, fontSize: 12, flex: 1 },
   liveUpdatingText: { fontFamily: Fonts.bold, fontSize: 10, color: "#2563EB", textTransform: "uppercase" },
   dateRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dateField: { flex: 1 },
-  dateInput: {
-    backgroundColor: Theme.bgInput, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
-    fontFamily: Fonts.medium, fontSize: 13, color: Theme.textPrimary, borderWidth: 1, borderColor: Theme.border,
+  dateFieldButton: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: Theme.bgInput, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 10,
+    borderWidth: 1, borderColor: Theme.border,
   },
+  dateButtonText: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textPrimary },
   searchApplyBtn: { width: 38, height: 38, borderRadius: 10, backgroundColor: Theme.primary, justifyContent: "center", alignItems: "center" },
+  clearBtn: { padding: 4 },
 
   // Events Feed
   eventsCard: { backgroundColor: "#EFF6FF", margin: 16, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "#BFDBFE" },
