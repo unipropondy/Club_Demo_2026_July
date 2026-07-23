@@ -2229,27 +2229,27 @@ export default function Category() {
                         key={t.id}
                         onPress={() => setMoveDestTable(t)}
                         style={{
-                          width: isTablet ? "12.5%" : "22%",
+                          width: isTablet ? "9.1%" : "18.2%",
                           backgroundColor: isSelected ? "#FFF7ED" : "#FFF",
                           borderWidth: 1.5,
                           borderColor: isSelected ? "#fd7e14" : "#E5E7EB",
-                          borderRadius: 12,
-                          paddingVertical: 14,
-                          paddingHorizontal: 4,
+                          borderRadius: 10,
+                          paddingVertical: 10,
+                          paddingHorizontal: 2,
                           alignItems: "center",
                           justifyContent: "center",
-                          gap: 4,
+                          gap: 3,
                           aspectRatio: 1,
                           position: "relative",
                         }}
                       >
-                        <Text style={{ fontSize: isSelected ? 20 : 18, fontFamily: Fonts.bold, color: isSelected ? "#fd7e14" : Theme.textPrimary }}>
+                        <Text style={{ fontSize: isSelected ? 16 : 14, fontFamily: Fonts.bold, color: isSelected ? "#fd7e14" : Theme.textPrimary }}>
                           {t.label}
                         </Text>
-                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#22c55e" }} />
+                        <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: "#22c55e" }} />
                         {isSelected && (
-                          <View style={{ position: "absolute", top: 5, right: 5, backgroundColor: "#fd7e14", borderRadius: 9, width: 16, height: 16, justifyContent: "center", alignItems: "center" }}>
-                            <Ionicons name="checkmark" size={10} color="#FFF" />
+                          <View style={{ position: "absolute", top: 3, right: 3, backgroundColor: "#fd7e14", borderRadius: 7, width: 14, height: 14, justifyContent: "center", alignItems: "center" }}>
+                            <Ionicons name="checkmark" size={9} color="#FFF" />
                           </View>
                         )}
                       </TouchableOpacity>
