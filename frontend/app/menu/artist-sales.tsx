@@ -257,9 +257,9 @@ export default function ArtistSalesScreen() {
   const pad = (n: number) => n.toString().padStart(2, '0');
   const getLocalDateStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-  const fetchData = useCallback(async (explicitFrom?: string, explicitTo?: string) => {
+  const fetchData = useCallback(async (explicitFrom?: string, explicitTo?: string, isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       const from = explicitFrom !== undefined ? explicitFrom : fromDate;
       const to   = explicitTo   !== undefined ? explicitTo   : toDate;
       const params = from && to ? `?fromDate=${from}&toDate=${to}` : "";
@@ -284,11 +284,11 @@ export default function ArtistSalesScreen() {
           if (a.totalSales > 0) {
             mockEvents.push({
               time: timeStr,
-              billNo: `#${1000 + Math.floor(Math.random() * 8999)}`,
+              billNo: "",
               artistName: a.name,
-              amount: Math.floor(a.totalSales * 0.25) || 50,
+              amount: a.totalSales,
               remaining: a.remainingToThreshold,
-              milestoneReached: a.thresholdReached && i === 0,
+              milestoneReached: a.thresholdReached,
             });
           }
         });
@@ -302,12 +302,12 @@ export default function ArtistSalesScreen() {
   }, [fromDate, toDate, token]);
 
   useEffect(() => {
-    fetchData("", "");
+    fetchData("", "", false);
     const timer = setInterval(() => {
       if (isDayActive) {
-        fetchData(fromDate, toDate);
+        fetchData(fromDate, toDate, true);
       }
-    }, 15000);
+    }, 20000);
     return () => clearInterval(timer);
   }, [isDayActive, fromDate, toDate]);
 
@@ -411,9 +411,8 @@ export default function ArtistSalesScreen() {
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                     <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
                       <Text style={styles.eventTime}>{ev.time}</Text>
-                      <Text style={styles.eventBill}>{ev.billNo}</Text>
                       <Text style={styles.eventText}>
-                        <Text style={{ fontFamily: Fonts.bold }}>{ev.artistName}</Text> +${ev.amount} Sales
+                        <Text style={{ fontFamily: Fonts.bold }}>{ev.artistName}</Text> · Today's Sales: <Text style={{ fontFamily: Fonts.bold }}>${ev.amount.toFixed(0)}</Text>
                       </Text>
                     </View>
                     <Text style={styles.eventRemainingText}>Need ${ev.remaining} for next bonus</Text>
