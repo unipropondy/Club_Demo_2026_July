@@ -424,7 +424,7 @@ export default function ArtistSalesScreen() {
         )}
 
         {/* ── ARTIST SALES LIST ── */}
-        <View style={styles.cardsContainer}>
+        <View style={[styles.cardsContainer, { flexDirection: width >= 768 ? "row" : "column", flexWrap: width >= 768 ? "wrap" : "nowrap", justifyContent: "space-between" }]}>
           {filtered.map((a) => {
             const hasEarned = a.bonusEarned > 0;
             const threshold = a.thresholdAmount || activeRule?.ThresholdAmount || 500;
@@ -434,7 +434,7 @@ export default function ArtistSalesScreen() {
             return (
               <TouchableOpacity
                 key={a.dishId}
-                style={styles.artistCard}
+                style={[styles.artistCard, { width: width >= 768 ? "49%" : "100%" }]}
                 onPress={() => router.push(`/menu/artist-detail?dishId=${a.dishId}`)}
               >
                 <View style={styles.cardHeader}>
