@@ -25,6 +25,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { formatToSingaporeDateTime } from "@/utils/timezoneHelper";
 import { artistDateState } from "@/stores/artistDateStore";
 
+import * as Print from "expo-print";
+
 const pad = (n: number) => n.toString().padStart(2, "0");
 const fmtDate = (raw: string | null) => {
   if (!raw) return "—";
@@ -32,13 +34,12 @@ const fmtDate = (raw: string | null) => {
   return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
 };
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  Paid:             { bg: "#DCFCE7", text: "#16A34A" },
-  "Partially Paid": { bg: "#FEF9C3", text: "#CA8A04" },
-  Pending:          { bg: "#FEE2E2", text: "#DC2626" },
+const WALLET_STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  Paid:             { bg: "#DCFCE7", text: "#16A34A", label: "🟢 Settled" },
+  "Partially Paid": { bg: "#FFF7ED", text: "#F97316", label: "🟠 Partial Payment" },
+  Pending:          { bg: "#FEE2E2", text: "#DC2626", label: "🟡 Waiting Payment" },
+  "No Bonus":      { bg: "#F5F5F4", text: "#78716C", label: "⚪ Wallet Empty" },
 };
-
-type TabKey = "bonus" | "payments" | "sales";
 
 export default function ArtistDetailScreen() {
   const { dishId } = useLocalSearchParams<{ dishId: string }>();
@@ -47,7 +48,6 @@ export default function ArtistDetailScreen() {
   const { showToast } = useToast();
   const { width } = useWindowDimensions();
 
-  const [activeTab, setActiveTab] = useState<TabKey>("bonus");
   const [loading, setLoading]     = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -71,14 +71,20 @@ export default function ArtistDetailScreen() {
   const [bonusHistory, setBonusHistory] = useState<any[]>([]);
   const [payHistory, setPayHistory]   = useState<any[]>([]);
 
+  // Expandable dropdowns
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
   // Pay modal state
   const [showPayModal, setShowPayModal] = useState(false);
-  const [pendingTxns, setPendingTxns]   = useState<any[]>([]);
   const [payAmount, setPayAmount]       = useState("");
+  const [payMethod, setPayMethod]       = useState("Cash");
   const [payRemarks, setPayRemarks]     = useState("");
   const [paying, setPaying]             = useState(false);
+  
+  // Receipt
+  const [showReceipt, setShowReceipt]   = useState(false);
+  const [receiptData, setReceiptData]   = useState<any>(null);
 
-  // Fetch data using date range from state to retrieve period metrics
   const fetchData = useCallback(async () => {
     if (!dishId) return;
     try {
@@ -111,33 +117,76 @@ export default function ArtistDetailScreen() {
 
   const totalOutstanding = summary.lifetimePending ?? summary.pendingBonus;
 
+  let walletStatus = "No Bonus";
+  if (totalOutstanding > 0) {
+    walletStatus = summary.lifetimePaid > 0 ? "Partially Paid" : "Pending";
+  } else if (summary.lifetimePaid > 0) {
+    walletStatus = "Paid";
+  }
+  const sc = WALLET_STATUS_COLORS[walletStatus] || WALLET_STATUS_COLORS["No Bonus"];
+
+  // Unified Chronological Timeline Construction
+  const timelineEvents: any[] = [];
+  
+  salesHistory.forEach(s => {
+    timelineEvents.push({
+      type: "sales",
+      date: new Date(s.SaleDate),
+      title: "Recorded Sales",
+      icon: "bar-chart",
+      color: "#2563EB",
+      amount: s.Amount,
+      desc: `Bill ${s.BillNo || "Cashbox"} · ${s.ItemName || "Event sales"}`
+    });
+  });
+
+  bonusHistory.forEach(b => {
+    timelineEvents.push({
+      type: "bonus",
+      date: new Date(b.SalesToDate),
+      title: "Bonus Earned",
+      icon: "trophy",
+      color: "#F97316",
+      amount: b.BonusEarned,
+      desc: `Threshold met during business cycle`
+    });
+  });
+
+  payHistory.forEach(p => {
+    timelineEvents.push({
+      type: "payment",
+      date: new Date(p.PaidDate),
+      title: "Payout Disbursed",
+      icon: "cash",
+      color: "#16A34A",
+      amount: p.PaymentAmount,
+      desc: `Paid by ${p.PaidBy} · Method: ${p.Remarks || "Cash"}`
+    });
+  });
+
+  const sortedTimeline = timelineEvents.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 15);
+
   const openPayModal = () => {
-    // Get all transactions with pending balance
-    const allPendingTxns = bonusHistory.filter(r => (Number(r.BonusEarned) - Number(r.BonusPaid)) > 0);
-    if (allPendingTxns.length === 0) {
-      showToast({ type: "error", message: "No Pending Bonus", subtitle: "No outstanding bonus to settle." });
+    if (totalOutstanding <= 0) {
+      showToast({ type: "error", message: "No Bonus Waiting", subtitle: "Wallet has no pending balances." });
       return;
     }
-    setPendingTxns(allPendingTxns);
     setPayAmount(totalOutstanding.toFixed(2));
     setPayRemarks("");
+    setPayMethod("Cash");
     setShowPayModal(true);
   };
 
   const handlePay = async () => {
-    const amount = parseFloat(payAmount);
-    if (!amount || amount <= 0) {
-      showToast({ type: "error", message: "Validation", subtitle: "Payment amount must be greater than $0." });
-      return;
-    }
-    if (amount > totalOutstanding + 0.01) {
-      showToast({ type: "error", message: "Validation", subtitle: `Amount cannot exceed outstanding ($${totalOutstanding.toFixed(2)}).` });
+    const amt = parseFloat(payAmount);
+    if (!amt || amt <= 0 || amt > totalOutstanding) {
+      showToast({ type: "error", message: "Validation", subtitle: "Please enter a valid payout amount." });
       return;
     }
 
-    // Pay off transactions one by one from oldest first
+    const pendingTxns = bonusHistory.filter(r => (Number(r.BonusEarned) - Number(r.BonusPaid)) > 0);
     const txnsToSettle = [...pendingTxns].reverse(); // oldest first
-    let remaining = amount;
+    let remaining = amt;
 
     try {
       setPaying(true);
@@ -150,7 +199,7 @@ export default function ArtistDetailScreen() {
           {
             transactionId: txn.Id,
             paymentAmount: parseFloat(payForThisTxn.toFixed(2)),
-            remarks: payRemarks || null,
+            remarks: `${payRemarks || "Direct Wallet Payout"} (${payMethod})`,
           },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -159,10 +208,20 @@ export default function ArtistDetailScreen() {
 
       showToast({
         type: "success",
-        message: "Payment Recorded",
-        subtitle: `$${amount.toFixed(2)} paid to ${artist?.name}.`,
+        message: "Payout Confirmed",
+        subtitle: `$${amt.toFixed(2)} wallet payout logged.`,
       });
+
+      setReceiptData({
+        artistName: artist?.name || "Artist",
+        amount: amt,
+        date: new Date().toLocaleString(),
+        method: payMethod,
+        refNo: `WLT-${Date.now().toString().slice(-6)}`,
+      });
+
       setShowPayModal(false);
+      setShowReceipt(true);
       fetchData();
     } catch (err: any) {
       const msg = err?.response?.data?.error || err.message;
@@ -172,11 +231,34 @@ export default function ArtistDetailScreen() {
     }
   };
 
-  const TABS: { key: TabKey; label: string; icon: string }[] = [
-    { key: "bonus",    label: "Bonus History",  icon: "trophy" },
-    { key: "payments", label: "Payments",        icon: "cash" },
-    { key: "sales",    label: "Sales",           icon: "bar-chart" },
-  ];
+  const toggleSection = (sec: string) => {
+    setExpandedSection(expandedSection === sec ? null : sec);
+  };
+
+  const printReceipt = async () => {
+    if (!receiptData) return;
+    const html = `
+      <html>
+      <body style="font-family: monospace; padding: 20px; width: 300px;">
+        <h3 style="text-align: center;">ARTIST BONUS RECEIPT</h3>
+        <hr/>
+        <p><b>Date:</b> ${receiptData.date}</p>
+        <p><b>Ref:</b> ${receiptData.refNo}</p>
+        <p><b>Artist:</b> ${receiptData.artistName}</p>
+        <p><b>Method:</b> ${receiptData.method}</p>
+        <hr/>
+        <h2 style="text-align: center;">TOTAL: $${receiptData.amount.toFixed(2)}</h2>
+        <hr/>
+        <p style="text-align: center; font-size: 10px;">Thank you for your performance!</p>
+      </body>
+      </html>
+    `;
+    try {
+      await Print.printAsync({ html });
+    } catch (_) {
+      showToast({ type: "error", message: "Print Failed", subtitle: "Receipt could not be sent to printer." });
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -187,241 +269,247 @@ export default function ArtistDetailScreen() {
         <TouchableOpacity
           onPress={() => {
             if (router.canGoBack()) router.back();
-            else router.replace("/menu/artist-management" as any);
+            else router.replace("/menu/artist-management");
           }}
           style={styles.backBtn}
         >
           <Ionicons name="chevron-back" size={22} color={Theme.textPrimary} />
         </TouchableOpacity>
-        <View style={styles.artistHeaderInfo}>
-          <View style={[styles.avatarCircle, totalOutstanding > 0 && { backgroundColor: "#FEE2E2" }]}>
-            <Text style={[styles.avatarText, totalOutstanding > 0 && { color: "#DC2626" }]}>
-              {(artist?.name || "?")[0].toUpperCase()}
-            </Text>
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>{artist?.name || "Artist"}</Text>
-            <Text style={styles.headerSub}>
-              {totalOutstanding > 0
-                ? `$${totalOutstanding.toFixed(2)} outstanding`
-                : "All bonuses settled ✓"}
-            </Text>
-          </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle}>{artist?.name || "Artist Wallet"}</Text>
+          <Text style={styles.headerSub}>Wallet Profile Details</Text>
         </View>
-        <TouchableOpacity onPress={() => { setRefreshing(true); fetchData(); }} style={styles.refreshBtn}>
-          <Ionicons name="refresh" size={20} color={Theme.primary} />
-        </TouchableOpacity>
       </View>
 
-      {loading && !refreshing
-        ? <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 60 }} />
-        : (
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} colors={[Theme.primary]} tintColor={Theme.primary} />}
-          >
-            {/* ── BONUS SUMMARY ── */}
-            <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
-              <Text style={styles.sectionTitle}>Bonus Summary</Text>
-            </View>
-            <View style={styles.cardsRow}>
-              {[
-                { label: "Lifetime Earned",  value: `$${(summary.lifetimeEarned ?? summary.bonusEarned ?? 0).toFixed(2)}`, color: Theme.primary, bg: "#FFF7ED" },
-                { label: "Total Paid",       value: `$${(summary.lifetimePaid ?? summary.bonusPaid ?? 0).toFixed(2)}`,   color: "#16A34A",     bg: "#F0FDF4" },
-                { label: "Outstanding",      value: `$${totalOutstanding.toFixed(2)}`,                               color: totalOutstanding > 0 ? "#DC2626" : "#16A34A", bg: totalOutstanding > 0 ? "#FEF2F2" : "#F0FDF4" },
-              ].map(c => (
-                <View key={c.label} style={[styles.card, { backgroundColor: c.bg }]}>
-                  <Text style={[styles.cardValue, { color: c.color }]} numberOfLines={1}>{c.value}</Text>
-                  <Text style={styles.cardLabel}>{c.label}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* ── ACTIVE BONUS RULE ── */}
-            {activeRule && (
-              <View style={styles.ruleSection}>
-                <Text style={styles.sectionTitle}>Bonus Rule</Text>
-                <View style={styles.rulePill}>
-                  <View style={styles.ruleBlock}>
-                    <Text style={styles.ruleBlockLabel}>Every</Text>
-                    <Text style={styles.ruleBlockVal}>${activeRule.ThresholdAmount}</Text>
-                    <Text style={[styles.ruleBlockLabel, { marginTop: 2 }]}>in sales</Text>
-                  </View>
-                  <Ionicons name="arrow-forward" size={22} color={Theme.primary} />
-                  <View style={styles.ruleBlock}>
-                    <Text style={styles.ruleBlockLabel}>Earns</Text>
-                    <Text style={[styles.ruleBlockVal, { color: "#16A34A" }]}>${activeRule.BonusAmount}</Text>
-                    <Text style={[styles.ruleBlockLabel, { marginTop: 2 }]}>{activeRule.IsRepeating ? "repeating" : "one-time"}</Text>
-                  </View>
+      {loading && !refreshing ? (
+        <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 60 }} />
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} colors={[Theme.primary]} tintColor={Theme.primary} />}
+        >
+          {/* ── HERO HEADER ── */}
+          <View style={styles.heroCard}>
+            <View style={styles.heroRow}>
+              <View style={styles.heroAvatar}>
+                <Text style={styles.heroAvatarText}>{(artist?.name || "?")[0].toUpperCase()}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.heroName}>{artist?.name}</Text>
+                <View style={[styles.badge, { backgroundColor: sc.bg, alignSelf: "flex-start", marginTop: 4 }]}>
+                  <Text style={[styles.badgeText, { color: sc.text }]}>{sc.label}</Text>
                 </View>
               </View>
-            )}
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={styles.heroWalletLabel}>Current Wallet</Text>
+                <Text style={[styles.heroWalletValue, { color: totalOutstanding > 0 ? "#DC2626" : "#16A34A" }]}>
+                  ${totalOutstanding.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          </View>
 
-            {/* ── PROGRESS TO NEXT BONUS ── */}
-            {progress && progress.remaining > 0 && (
-              <View style={styles.progressSection}>
-                <Text style={styles.sectionTitle}>Progress to Next Bonus</Text>
-                <View style={styles.progressCard}>
-                  <View style={styles.progressStats}>
-                    <View style={styles.progressStat}>
-                      <Text style={styles.progressStatLabel}>Current Sales</Text>
-                      <Text style={[styles.progressStatVal, { color: "#3B82F6" }]}>
-                        ${progress.currentSales.toFixed(2)}
-                      </Text>
-                    </View>
-                    <View style={styles.progressStat}>
-                      <Text style={styles.progressStatLabel}>Next at</Text>
-                      <Text style={[styles.progressStatVal, { color: Theme.primary }]}>
-                        ${progress.nextMilestone.toFixed(2)}
-                      </Text>
-                    </View>
-                    <View style={styles.progressStat}>
-                      <Text style={styles.progressStatLabel}>Need</Text>
-                      <Text style={[styles.progressStatVal, { color: "#DC2626" }]}>
-                        ${progress.remaining.toFixed(2)}
-                      </Text>
-                    </View>
+          {/* ── WALLET SUMMARY CARDS ── */}
+          <View style={styles.cardsGrid}>
+            {[
+              { label: "Lifetime Sales", value: `$${summary.totalSales.toFixed(0)}`, color: "#2563EB", bg: "#EFF6FF" },
+              { label: "Lifetime Earned", value: `$${summary.lifetimeEarned.toFixed(0)}`, color: "#F97316", bg: "#FFF7ED" },
+              { label: "Lifetime Paid", value: `$${summary.lifetimePaid.toFixed(0)}`, color: "#16A34A", bg: "#F0FDF4" },
+              { label: "Current Wallet", value: `$${totalOutstanding.toFixed(0)}`, color: totalOutstanding > 0 ? "#DC2626" : "#16A34A", bg: totalOutstanding > 0 ? "#FEF2F2" : "#F0FDF4" },
+            ].map(c => (
+              <View key={c.label} style={[styles.card, { backgroundColor: c.bg }]}>
+                <Text style={[styles.cardValue, { color: c.color }]}>{c.value}</Text>
+                <Text style={styles.cardLabel}>{c.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* ── ACTIVE BONUS RULE CARD ── */}
+          {activeRule && (
+            <View style={styles.ruleCard}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <Text style={styles.cardTitle}>⚙️ Bonus Rule</Text>
+                {activeRule.ArtistDishId && (
+                  <View style={styles.customBadge}>
+                    <Text style={styles.customBadgeText}>Custom Rule</Text>
                   </View>
-                  <View style={styles.progressBarTrack}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        { width: `${Math.min(100, progress.progressPct)}%` }
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.progressBarLabel}>
-                    {progress.progressPct.toFixed(1)}% toward next ${progress.nextBonus.toFixed(2)} bonus
-                  </Text>
+                )}
+              </View>
+              <View style={styles.ruleDetails}>
+                <Text style={styles.ruleText}>
+                  Every <Text style={{ fontFamily: Fonts.black }}>${activeRule.ThresholdAmount}</Text> sales ➔ earn <Text style={{ fontFamily: Fonts.black, color: "#16A34A" }}>${activeRule.BonusAmount}</Text> bonus ({activeRule.IsRepeating ? "Repeating" : "One-time"}).
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* ── PROGRESS CARD ── */}
+          {progress && (
+            <View style={styles.progressCard}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
+                <Text style={styles.cardTitle}>📈 Next Bonus Target</Text>
+                <Text style={styles.rewardTag}>+${progress.nextBonus.toFixed(0)} Next Reward</Text>
+              </View>
+              <View style={styles.progressStats}>
+                <View>
+                  <Text style={styles.progLabel}>Current Sales</Text>
+                  <Text style={styles.progVal}>${progress.currentSales.toFixed(0)}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={styles.progLabel}>Need sales</Text>
+                  <Text style={[styles.progVal, { color: "#DC2626" }]}>${progress.remaining.toFixed(0)} Away</Text>
                 </View>
               </View>
-            )}
-
-            {/* ── PAY BONUS BUTTON ── */}
-            <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-              {totalOutstanding > 0 ? (
-                <TouchableOpacity style={styles.payBtn} onPress={openPayModal}>
-                  <Ionicons name="cash-outline" size={20} color="#fff" />
-                  <View>
-                    <Text style={styles.payBtnText}>Settle Outstanding Bonus</Text>
-                    <Text style={[styles.payBtnText, { fontSize: 12, opacity: 0.85 }]}>
-                      ${totalOutstanding.toFixed(2)} across {bonusHistory.filter(r => Number(r.BonusEarned) - Number(r.BonusPaid) > 0).length} period(s)
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color="#fff" />
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.settledBanner}>
-                  <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
-                  <Text style={styles.settledText}>All Bonuses Settled</Text>
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${progress.progressPct}%` }]}>
+                  {progress.progressPct >= 15 && (
+                    <Text style={styles.progressFillText}>{progress.progressPct.toFixed(0)}%</Text>
+                  )}
                 </View>
-              )}
+                {progress.progressPct < 15 && (
+                  <Text style={styles.progressTrackText}>{progress.progressPct.toFixed(0)}%</Text>
+                )}
+              </View>
             </View>
+          )}
 
-            {/* ── TABS ── */}
-            <View style={styles.tabBar}>
-              {TABS.map(tab => (
-                <TouchableOpacity
-                  key={tab.key}
-                  style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-                  onPress={() => setActiveTab(tab.key)}
-                >
-                  <Ionicons
-                    name={tab.icon as any}
-                    size={14}
-                    color={activeTab === tab.key ? Theme.primary : Theme.textMuted}
-                  />
-                  <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
-                    {tab.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+          {/* ── STICKY PAYOUT BUTTON ── */}
+          <View style={{ paddingHorizontal: 16, marginVertical: 14 }}>
+            {totalOutstanding > 0 ? (
+              <TouchableOpacity style={styles.payBtn} onPress={openPayModal}>
+                <Ionicons name="cash" size={20} color="#fff" />
+                <Text style={styles.payBtnText}>Pay Wallet Bonus · ${totalOutstanding.toFixed(2)} waiting</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.disabledPayBtn}>
+                <Ionicons name="checkmark-circle" size={20} color={Theme.textMuted} />
+                <Text style={styles.disabledPayText}>No Bonus Waiting</Text>
+              </View>
+            )}
+          </View>
 
-            {/* ── TAB CONTENT ── */}
-            <View style={styles.tabContent}>
-
-              {/* BONUS HISTORY */}
-              {activeTab === "bonus" && (
-                bonusHistory.length === 0
-                  ? <EmptySection label="No bonus records yet" icon="trophy-outline" />
-                  : bonusHistory.map((row, idx) => {
-                    const sc = STATUS_COLORS[row.status] || STATUS_COLORS.Pending;
-                    const pending = Number(row.BonusEarned) - Number(row.BonusPaid);
-                    return (
-                      <View key={row.Id} style={[styles.histRow, idx % 2 === 1 && styles.histRowAlt]}>
-                        <View style={styles.histRowTop}>
-                          <Text style={styles.histPeriod}>
-                            {fmtDate(row.SalesFromDate)} → {fmtDate(row.SalesToDate)}
-                          </Text>
-                          <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-                            <Text style={[styles.badgeText, { color: sc.text }]}>{row.status}</Text>
-                          </View>
-                        </View>
-                        <View style={styles.histRowMeta}>
-                          <MetaItem label="Sales"   value={`$${Number(row.TotalSales).toFixed(2)}`}  color="#3B82F6" flex={1} />
-                          <MetaItem label="Earned"  value={`$${Number(row.BonusEarned).toFixed(2)}`} color={Theme.primary} flex={1} />
-                          <MetaItem label="Paid"    value={`$${Number(row.BonusPaid).toFixed(2)}`}   color="#16A34A" flex={1} />
-                          <MetaItem label="Pending" value={`$${pending.toFixed(2)}`}                 color={pending > 0 ? "#DC2626" : "#16A34A"} flex={1} />
-                        </View>
-                      </View>
-                    );
-                  })
-              )}
-
-              {/* PAYMENT HISTORY */}
-              {activeTab === "payments" && (
-                payHistory.length === 0
-                  ? <EmptySection label="No payments recorded yet" icon="cash-outline" />
-                  : payHistory.map((row, idx) => (
-                    <View key={row.Id} style={[styles.histRow, idx % 2 === 1 && styles.histRowAlt]}>
-                      <View style={styles.histRowTop}>
-                        <Text style={styles.histPeriod}>{formatToSingaporeDateTime(row.PaidDate)}</Text>
-                        <Text style={[styles.payAmt, { color: "#16A34A" }]}>
-                          +${Number(row.PaymentAmount).toFixed(2)}
-                        </Text>
-                      </View>
-                      <View style={styles.histRowMeta}>
-                        <MetaItem label="By"      value={row.PaidBy || "—"} flex={1} />
-                        <MetaItem label="Remarks" value={row.Remarks || "—"} flex={2.5} />
-                      </View>
+          {/* ── UNIFIED TIMELINE ── */}
+          <Text style={styles.sectionHeader}>🕒 Wallet Event Timeline</Text>
+          <View style={styles.timelineCard}>
+            {sortedTimeline.length === 0 ? (
+              <Text style={styles.emptyTimelineText}>No wallet events recorded.</Text>
+            ) : (
+              sortedTimeline.map((ev, i) => (
+                <View key={i} style={styles.timelineRow}>
+                  <View style={styles.timelineLine} />
+                  <View style={[styles.timelineNode, { backgroundColor: ev.color }]}>
+                    <Ionicons name={ev.icon as any} size={14} color="#fff" />
+                  </View>
+                  <View style={styles.timelineContent}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                      <Text style={styles.timelineTitle}>{ev.title}</Text>
+                      <Text style={[styles.timelineAmt, { color: ev.color }]}>
+                        {ev.type === "payment" ? "-" : "+"}${ev.amount.toFixed(0)}
+                      </Text>
                     </View>
-                  ))
-              )}
+                    <Text style={styles.timelineDesc}>{ev.desc}</Text>
+                    <Text style={styles.timelineTime}>{fmtDate(ev.date.toISOString())}</Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
 
-              {/* SALES HISTORY */}
-              {activeTab === "sales" && (
-                salesHistory.length === 0
-                  ? <EmptySection label="No sales in the last 30 days" icon="bar-chart-outline" />
-                  : salesHistory.map((row, idx) => (
-                    <View key={idx} style={[styles.histRow, idx % 2 === 1 && styles.histRowAlt]}>
-                      <View style={styles.histRowTop}>
-                        <Text style={styles.histPeriod}>{fmtDate(row.SaleDate)}</Text>
-                        <Text style={styles.payAmt}>${Number(row.Amount).toFixed(2)}</Text>
-                      </View>
-                      <View style={styles.histRowMeta}>
-                        <MetaItem label="Bill" value={row.BillNo || "—"} flex={1} />
-                        <MetaItem label="Item" value={row.ItemName || "—"} flex={2} />
-                        <MetaItem label="Qty"  value={String(row.Qty || 1)} flex={0.6} />
-                      </View>
+          {/* ── EXPANDABLE SECTIONS ── */}
+          <Text style={styles.sectionHeader}>📊 Details & Ledgers</Text>
+
+          {/* 1. Grouped Sales Details */}
+          <View style={styles.dropdownCard}>
+            <TouchableOpacity style={styles.dropdownHeader} onPress={() => toggleSection("sales")}>
+              <Text style={styles.dropdownTitle}>📊 Sales Log</Text>
+              <Ionicons name={expandedSection === "sales" ? "chevron-up" : "chevron-down"} size={18} color={Theme.textSecondary} />
+            </TouchableOpacity>
+            {expandedSection === "sales" && (
+              <View style={styles.dropdownBody}>
+                {salesHistory.length === 0 ? <Text style={styles.emptyText}>No sales recorded.</Text> : salesHistory.map((s, idx) => (
+                  <View key={idx} style={styles.logRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.logBillText}>Bill {s.BillNo || "Direct Stage"}</Text>
+                      <Text style={styles.logSubText}>{s.ItemName} · Qty {s.Qty}</Text>
                     </View>
-                  ))
-              )}
-            </View>
+                    <Text style={styles.logAmountText}>+${Number(s.Amount).toFixed(2)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
 
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        )
-      }
+          {/* 2. Payout History */}
+          <View style={styles.dropdownCard}>
+            <TouchableOpacity style={styles.dropdownHeader} onPress={() => toggleSection("payouts")}>
+              <Text style={styles.dropdownTitle}>💵 Payout History (Bank Logs)</Text>
+              <Ionicons name={expandedSection === "payouts" ? "chevron-up" : "chevron-down"} size={18} color={Theme.textSecondary} />
+            </TouchableOpacity>
+            {expandedSection === "payouts" && (
+              <View style={styles.dropdownBody}>
+                {payHistory.length === 0 ? <Text style={styles.emptyText}>No payouts settled.</Text> : payHistory.map((p, idx) => (
+                  <View key={idx} style={styles.logRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.logBillText}>Paid to Artist ({p.Remarks || "Cash"})</Text>
+                      <Text style={styles.logSubText}>{fmtDate(p.PaidDate)} · by {p.PaidBy}</Text>
+                    </View>
+                    <Text style={[styles.logAmountText, { color: "#16A34A" }]}>-${Number(p.PaymentAmount).toFixed(2)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
 
-      {/* ── PAY MODAL ── */}
+          {/* 3. Bonus Ledger */}
+          <View style={styles.dropdownCard}>
+            <TouchableOpacity style={styles.dropdownHeader} onPress={() => toggleSection("ledger")}>
+              <Text style={styles.dropdownTitle}>🏆 Earned Bonus Ledger</Text>
+              <Ionicons name={expandedSection === "ledger" ? "chevron-up" : "chevron-down"} size={18} color={Theme.textSecondary} />
+            </TouchableOpacity>
+            {expandedSection === "ledger" && (
+              <View style={styles.dropdownBody}>
+                {bonusHistory.length === 0 ? <Text style={styles.emptyText}>No bonuses earned.</Text> : bonusHistory.map((b, idx) => (
+                  <View key={idx} style={styles.logRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.logBillText}>Milestone Reached</Text>
+                      <Text style={styles.logSubText}>{fmtDate(b.SalesFromDate)} ➔ {fmtDate(b.SalesToDate)} · Sales: ${b.TotalSales}</Text>
+                    </View>
+                    <Text style={[styles.logAmountText, { color: "#F97316" }]}>+${Number(b.BonusEarned).toFixed(2)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+
+          {/* 4. Statistics */}
+          <View style={styles.dropdownCard}>
+            <TouchableOpacity style={styles.dropdownHeader} onPress={() => toggleSection("stats")}>
+              <Text style={styles.dropdownTitle}>📈 Wallet Statistics & Insights</Text>
+              <Ionicons name={expandedSection === "stats" ? "chevron-up" : "chevron-down"} size={18} color={Theme.textSecondary} />
+            </TouchableOpacity>
+            {expandedSection === "stats" && (
+              <View style={[styles.dropdownBody, { gap: 10 }]}>
+                <StatRow label="Lifetime Sales" value={`$${summary.totalSales.toFixed(2)}`} />
+                <StatRow label="Lifetime Earned" value={`$${summary.lifetimeEarned.toFixed(2)}`} />
+                <StatRow label="Lifetime Paid" value={`$${summary.lifetimePaid.toFixed(2)}`} />
+                <StatRow label="Current Wallet" value={`$${totalOutstanding.toFixed(2)}`} />
+                <StatRow label="Average Daily Sales" value={`$${(summary.totalSales / 30).toFixed(2)}`} />
+                <StatRow label="Last Payment Date" value={payHistory[0] ? fmtDate(payHistory[0].PaidDate) : "Never"} />
+                <StatRow label="Last Paid Cashier" value={payHistory[0] ? payHistory[0].PaidBy : "None"} />
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      )}
+
+      {/* Pay Modal */}
       <Modal visible={showPayModal} transparent animationType="slide" onRequestClose={() => setShowPayModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-            {/* Header */}
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Settle Bonus</Text>
+                <Text style={styles.modalTitle}>Settle Wallet Bonus</Text>
                 <Text style={styles.modalSubtitle}>{artist?.name}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowPayModal(false)} style={styles.closeBtn}>
@@ -429,58 +517,48 @@ export default function ArtistDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Outstanding Summary */}
             <View style={styles.modalSummary}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-                <Text style={styles.summaryRowLabel}>Total Earned</Text>
-                <Text style={[styles.summaryRowValue, { color: Theme.primary }]}>${(summary.lifetimeEarned ?? 0).toFixed(2)}</Text>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginVertical: 4 }}>
+                <Text style={styles.modalSumLabel}>Total Outstanding</Text>
+                <Text style={[styles.modalSumVal, { color: "#DC2626", fontSize: 16 }]}>${totalOutstanding.toFixed(2)}</Text>
               </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 8 }}>
-                <Text style={styles.summaryRowLabel}>Already Paid</Text>
-                <Text style={[styles.summaryRowValue, { color: "#16A34A" }]}>${(summary.lifetimePaid ?? 0).toFixed(2)}</Text>
-              </View>
-              <View style={styles.summaryDivider} />
-              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                <Text style={[styles.summaryRowLabel, { fontFamily: Fonts.bold }]}>Outstanding</Text>
-                <Text style={[styles.summaryRowValue, { color: "#DC2626", fontSize: 18 }]}>${totalOutstanding.toFixed(2)}</Text>
-              </View>
-              {pendingTxns.length > 1 && (
-                <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted, marginTop: 8 }}>
-                  Across {pendingTxns.length} bonus periods — settled oldest first
-                </Text>
-              )}
             </View>
 
-            {/* Amount */}
-            <Text style={styles.fieldLabel}>Amount to Pay ($)</Text>
+            <Text style={styles.fieldLabel}>payout Amount ($)</Text>
             <TextInput
               style={styles.input}
               value={payAmount}
               onChangeText={setPayAmount}
               keyboardType="decimal-pad"
-              placeholder="Enter amount"
-              placeholderTextColor={Theme.textMuted}
             />
             <View style={styles.quickAmtRow}>
-              {[25, 50, 75, 100].map(pct => {
-                const amt = totalOutstanding * pct / 100;
-                return (
-                  <TouchableOpacity key={pct} style={styles.quickAmtBtn} onPress={() => setPayAmount(amt.toFixed(2))}>
-                    <Text style={styles.quickAmtText}>{pct}%</Text>
-                  </TouchableOpacity>
-                );
-              })}
+              <TouchableOpacity style={styles.quickAmtBtn} onPress={() => setPayAmount(totalOutstanding.toFixed(2))}>
+                <Text style={styles.quickAmtText}>Full</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickAmtBtn} onPress={() => setPayAmount((totalOutstanding / 2).toFixed(2))}>
+                <Text style={styles.quickAmtText}>Half</Text>
+              </TouchableOpacity>
             </View>
 
-            {/* Remarks */}
-            <Text style={styles.fieldLabel}>Remarks (optional)</Text>
+            <Text style={styles.fieldLabel}>Payment Mode</Text>
+            <View style={styles.methodRow}>
+              {["Cash", "Card", "Transfer"].map(m => (
+                <TouchableOpacity 
+                  key={m} 
+                  style={[styles.methodBtn, payMethod === m && styles.methodBtnActive]}
+                  onPress={() => setPayMethod(m)}
+                >
+                  <Text style={[styles.methodText, payMethod === m && styles.methodTextActive]}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Remarks</Text>
             <TextInput
-              style={[styles.input, { height: 70, textAlignVertical: "top" }]}
+              style={[styles.input, { height: 60 }]}
               value={payRemarks}
               onChangeText={setPayRemarks}
-              placeholder="e.g. Cash payment, weekly settlement..."
-              placeholderTextColor={Theme.textMuted}
-              multiline
+              placeholder="e.g. Settle wallet payouts"
             />
 
             <View style={styles.modalFooter}>
@@ -488,15 +566,47 @@ export default function ArtistDetailScreen() {
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.confirmBtn, paying && { opacity: 0.6 }]} onPress={handlePay} disabled={paying}>
-                {paying
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <>
-                      <Ionicons name="checkmark" size={18} color="#fff" />
-                      <Text style={styles.confirmBtnText}>Confirm Payment</Text>
-                    </>
-                }
+                {paying ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.confirmBtnText}>Confirm</Text>}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Receipt Modal */}
+      <Modal visible={showReceipt} transparent animationType="fade" onRequestClose={() => setShowReceipt(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.receiptBox}>
+            <View style={styles.receiptHeader}>
+              <Ionicons name="checkmark-circle" size={48} color="#16A34A" />
+              <Text style={styles.receiptTitle}>Wallet Settled</Text>
+              <Text style={styles.receiptAmt}>${receiptData?.amount.toFixed(2)}</Text>
+            </View>
+            <View style={styles.receiptBody}>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Artist</Text>
+                <Text style={styles.receiptVal}>{receiptData?.artistName}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Date</Text>
+                <Text style={styles.receiptVal}>{receiptData?.date}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Method</Text>
+                <Text style={styles.receiptVal}>{receiptData?.method}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Reference</Text>
+                <Text style={styles.receiptVal}>{receiptData?.refNo}</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.printReceiptBtn} onPress={printReceipt}>
+              <Ionicons name="print" size={16} color="#fff" />
+              <Text style={styles.printReceiptText}>Print Receipt</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.receiptDoneBtn} onPress={() => setShowReceipt(false)}>
+              <Text style={styles.receiptDoneText}>Close</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -504,191 +614,124 @@ export default function ArtistDetailScreen() {
   );
 }
 
-function MetaItem({ label, value, color, flex }: { label: string; value: string; color?: string; flex?: number }) {
+function StatRow({ label, value }: { label: string; value: string }) {
   return (
-    <View style={[styles.metaItem, flex !== undefined ? { flex } : {}]}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={[styles.metaValue, color ? { color } : {}]} numberOfLines={1}>{value}</Text>
-    </View>
-  );
-}
-
-function EmptySection({ label, icon }: { label: string; icon: string }) {
-  return (
-    <View style={styles.emptySection}>
-      <Ionicons name={icon as any} size={36} color={Theme.textMuted} />
-      <Text style={styles.emptyText}>{label}</Text>
+    <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: Theme.border }}>
+      <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary }}>{label}</Text>
+      <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: Theme.textPrimary }}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Theme.bgMain },
-  header: {
-    flexDirection: "row", alignItems: "center", paddingHorizontal: 16,
-    paddingVertical: 12, backgroundColor: Theme.bgCard,
-    borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 12,
-    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.06)" } }) as any,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center",
-  },
-  artistHeaderInfo: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
-  avatarCircle: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center",
-  },
-  avatarText: { fontFamily: Fonts.black, fontSize: 16, color: Theme.primary },
-  headerTitle: { fontFamily: Fonts.black, fontSize: 16, color: Theme.textPrimary },
-  headerSub: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 1 },
-  refreshBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center",
-  },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Theme.bgCard, borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 12 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center" },
+  headerTitle: { fontFamily: Fonts.black, fontSize: 17, color: Theme.textPrimary },
+  headerSub: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary },
 
-  cardsRow: {
-    flexDirection: "row", flexWrap: "wrap", gap: 10,
-    paddingHorizontal: 16, paddingTop: 8,
-  },
-  card: {
-    flex: 1, minWidth: "28%", borderRadius: 14,
-    padding: 14, alignItems: "center",
-    borderWidth: 1, borderColor: Theme.border,
-    ...Platform.select({ web: { boxShadow: "0 2px 6px rgba(0,0,0,0.05)" } }) as any,
-  },
-  cardValue: { fontFamily: Fonts.black, fontSize: 17 },
-  cardLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginTop: 4, textAlign: "center" },
-
-  sectionTitle: {
-    fontFamily: Fonts.black, fontSize: 12, color: Theme.textSecondary,
-    textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8,
-  },
-  ruleSection: { paddingHorizontal: 16, paddingTop: 20 },
-  rulePill: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-around",
-    backgroundColor: Theme.primaryLight, borderRadius: 14, padding: 16,
-    borderWidth: 1, borderColor: Theme.primaryBorder,
-  },
-  ruleBlock: { alignItems: "center" },
-  ruleBlockLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, textTransform: "uppercase" },
-  ruleBlockVal: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary, marginTop: 2 },
-
-  progressSection: { paddingHorizontal: 16, paddingTop: 20 },
-  progressCard: {
-    backgroundColor: Theme.bgCard, borderRadius: 14, padding: 14,
-    borderWidth: 1, borderColor: Theme.border,
-  },
-  progressStats: { flexDirection: "row", marginBottom: 14 },
-  progressStat: { flex: 1, alignItems: "center" },
-  progressStatLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginBottom: 4 },
-  progressStatVal: { fontFamily: Fonts.black, fontSize: 15 },
-  progressBarTrack: {
-    height: 14, backgroundColor: Theme.bgMuted, borderRadius: 7, overflow: "hidden", marginBottom: 8,
-    width: "70%", alignSelf: "center",
-  },
-  progressBarFill: { height: "100%", backgroundColor: Theme.primary, borderRadius: 7 },
-  progressBarLabel: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, textAlign: "center" },
-
-  payBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingVertical: 16, paddingHorizontal: 18, borderRadius: 14,
-    backgroundColor: "#16A34A", gap: 12,
-    ...Platform.select({ web: { boxShadow: "0 4px 12px rgba(22,163,74,0.3)" } }) as any,
-  },
-  payBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: "#fff", flex: 1 },
-  settledBanner: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 8, paddingVertical: 14, borderRadius: 12,
-    backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#86EFAC",
-  },
-  settledText: { fontFamily: Fonts.bold, fontSize: 14, color: "#16A34A" },
-
-  tabBar: {
-    flexDirection: "row", backgroundColor: Theme.bgCard,
-    borderTopWidth: 1, borderTopColor: Theme.border,
-    borderBottomWidth: 1, borderBottomColor: Theme.border,
-    marginTop: 20,
-  },
-  tab: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 5, paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: "transparent",
-  },
-  tabActive: { borderBottomColor: Theme.primary },
-  tabText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textMuted, textTransform: "uppercase" },
-  tabTextActive: { color: Theme.primary },
-  tabContent: { paddingHorizontal: 16, paddingTop: 4 },
-
-  histRow: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Theme.border },
-  histRowAlt: { backgroundColor: "#FAFAF9" },
-  histRowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  histPeriod: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary },
-  payAmt: { fontFamily: Fonts.black, fontSize: 15, color: Theme.textPrimary },
-  histRowMeta: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-
-  metaItem: { minWidth: 70 },
-  metaLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, textTransform: "uppercase" },
-  metaValue: { fontFamily: Fonts.semiBold, fontSize: 13, color: Theme.textPrimary, marginTop: 2 },
-
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  // Hero Card
+  heroCard: { backgroundColor: Theme.bgCard, margin: 16, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: Theme.border },
+  heroRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  heroAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center" },
+  heroAvatarText: { fontFamily: Fonts.black, fontSize: 18, color: Theme.primary },
+  heroName: { fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary },
+  heroWalletLabel: { fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, textTransform: "uppercase" },
+  heroWalletValue: { fontFamily: Fonts.black, fontSize: 22, marginTop: 2 },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontFamily: Fonts.bold, fontSize: 10 },
 
-  emptySection: { alignItems: "center", paddingVertical: 48, gap: 12 },
-  emptyText: { fontFamily: Fonts.medium, fontSize: 14, color: Theme.textSecondary },
+  // Cards Grid
+  cardsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 16, marginBottom: 16 },
+  card: { flex: 1, minWidth: "45%", padding: 12, borderRadius: 12, borderWidth: 1, borderColor: Theme.border },
+  cardValue: { fontFamily: Fonts.black, fontSize: 16 },
+  cardLabel: { fontFamily: Fonts.bold, fontSize: 10, color: Theme.textSecondary, marginTop: 4 },
 
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    ...Platform.select({
-      web: { justifyContent: "center", alignItems: "center" },
-      default: { justifyContent: "flex-end" }
-    })
-  },
-  modalBox: {
-    backgroundColor: Theme.bgCard,
-    padding: 24,
-    ...Platform.select({
-      web: { borderRadius: 24, boxShadow: "0 10px 30px rgba(0,0,0,0.15)", width: "90%", maxWidth: 500 },
-      default: { borderTopLeftRadius: 24, borderTopRightRadius: 24 }
-    })
-  },
-  modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 },
-  modalTitle: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary },
-  modalSubtitle: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary, marginTop: 2 },
-  closeBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center",
-  },
-  modalSummary: {
-    backgroundColor: Theme.bgMuted, borderRadius: 14, padding: 14, marginBottom: 16,
-    borderWidth: 1, borderColor: Theme.border,
-  },
-  summaryRowLabel: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary },
-  summaryRowValue: { fontFamily: Fonts.black, fontSize: 15, color: Theme.textPrimary },
-  summaryDivider: { height: 1, backgroundColor: Theme.border, marginVertical: 8 },
+  cardTitle: { fontFamily: Fonts.black, fontSize: 12, color: Theme.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 },
+  ruleCard: { backgroundColor: Theme.bgCard, marginHorizontal: 16, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: Theme.border, marginBottom: 12 },
+  customBadge: { backgroundColor: "#FEE2E2", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  customBadgeText: { fontFamily: Fonts.bold, fontSize: 10, color: "#DC2626" },
+  ruleDetails: { marginTop: 8 },
+  ruleText: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textPrimary },
+
+  progressCard: { backgroundColor: Theme.bgCard, marginHorizontal: 16, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: Theme.border },
+  rewardTag: { fontFamily: Fonts.black, fontSize: 10, color: "#2563EB", backgroundColor: "#EFF6FF", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  progressStats: { flexDirection: "row", justifyContent: "space-between", marginVertical: 8 },
+  progLabel: { fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, textTransform: "uppercase" },
+  progVal: { fontFamily: Fonts.black, fontSize: 14, marginTop: 2 },
+  progressTrack: { height: 16, backgroundColor: Theme.bgMuted, borderRadius: 8, overflow: "hidden", position: "relative", justifyContent: "center" },
+  progressFill: { height: "100%", backgroundColor: "#2563EB", borderRadius: 8, justifyContent: "center", alignItems: "flex-end", paddingRight: 8 },
+  progressFillText: { fontFamily: Fonts.black, fontSize: 9, color: "#fff" },
+  progressTrackText: { fontFamily: Fonts.black, fontSize: 9, color: Theme.textSecondary, position: "absolute", left: 8 },
+
+  payBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", padding: 14, borderRadius: 12 },
+  payBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: "#fff" },
+  disabledPayBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: Theme.bgMuted, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: Theme.border },
+  disabledPayText: { fontFamily: Fonts.bold, fontSize: 14, color: Theme.textMuted },
+
+  sectionHeader: { fontFamily: Fonts.black, fontSize: 12, color: Theme.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, margin: 16, marginBottom: 8 },
+
+  // Timeline
+  timelineCard: { backgroundColor: Theme.bgCard, marginHorizontal: 16, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: Theme.border },
+  emptyTimelineText: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textMuted, fontStyle: "italic", textAlign: "center" },
+  timelineRow: { flexDirection: "row", gap: 12, paddingBottom: 16, position: "relative" },
+  timelineLine: { position: "absolute", left: 14, top: 28, bottom: 0, width: 2, backgroundColor: Theme.border },
+  timelineNode: { width: 30, height: 30, borderRadius: 15, justifyContent: "center", alignItems: "center", zIndex: 10 },
+  timelineContent: { flex: 1, borderBottomWidth: 1, borderBottomColor: Theme.border, paddingBottom: 12 },
+  timelineTitle: { fontFamily: Fonts.black, fontSize: 13, color: Theme.textPrimary },
+  timelineAmt: { fontFamily: Fonts.black, fontSize: 14 },
+  timelineDesc: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 2 },
+  timelineTime: { fontFamily: Fonts.bold, fontSize: 9, color: Theme.textMuted, marginTop: 4 },
+
+  // Dropdowns
+  dropdownCard: { backgroundColor: Theme.bgCard, marginHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: Theme.border, marginBottom: 8, overflow: "hidden" },
+  dropdownHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14 },
+  dropdownTitle: { fontFamily: Fonts.black, fontSize: 13, color: Theme.textPrimary },
+  dropdownBody: { borderTopWidth: 1, borderTopColor: Theme.border, padding: 14, backgroundColor: "#FAFAF9" },
+  emptyText: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textMuted, fontStyle: "italic" },
+  logRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Theme.border },
+  logBillText: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary },
+  logSubText: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 2 },
+  logAmountText: { fontFamily: Fonts.black, fontSize: 14 },
+
+  // Modals
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  modalBox: { backgroundColor: Theme.bgCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
+  modalTitle: { fontFamily: Fonts.black, fontSize: 18 },
+  modalSubtitle: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textSecondary, marginTop: 2 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center" },
+  modalSummary: { backgroundColor: Theme.bgMuted, padding: 12, borderRadius: 12, marginBottom: 16 },
+  modalSumLabel: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary },
+  modalSumVal: { fontFamily: Fonts.bold, fontSize: 13 },
+  sumDivider: { height: 1, backgroundColor: Theme.border, marginVertical: 6 },
   fieldLabel: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary, marginBottom: 8, marginTop: 12 },
-  input: {
-    backgroundColor: Theme.bgInput, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    fontFamily: Fonts.medium, fontSize: 15, color: Theme.textPrimary,
-    borderWidth: 1, borderColor: Theme.border,
-  },
-  quickAmtRow: { flexDirection: "row", gap: 8, marginTop: 8 },
-  quickAmtBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: "center",
-    backgroundColor: Theme.bgMuted, borderWidth: 1, borderColor: Theme.border,
-  },
-  quickAmtText: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary },
-  modalFooter: { flexDirection: "row", gap: 12, marginTop: 20 },
-  cancelBtn: {
-    flex: 1, paddingVertical: 14, borderRadius: 12,
-    backgroundColor: Theme.bgMuted, alignItems: "center",
-  },
-  cancelBtnText: { fontFamily: Fonts.bold, fontSize: 15, color: Theme.textSecondary },
-  confirmBtn: {
-    flex: 2, paddingVertical: 14, borderRadius: 12,
-    backgroundColor: "#16A34A", alignItems: "center",
-    flexDirection: "row", justifyContent: "center", gap: 8,
-  },
-  confirmBtnText: { fontFamily: Fonts.bold, fontSize: 15, color: "#fff" },
+  input: { backgroundColor: Theme.bgInput, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: Theme.border },
+  quickAmtRow: { flexDirection: "row", gap: 8, marginTop: 6 },
+  quickAmtBtn: { flex: 1, backgroundColor: Theme.bgMuted, padding: 8, borderRadius: 8, alignItems: "center", borderWidth: 1, borderColor: Theme.border },
+  quickAmtText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary },
+  methodRow: { flexDirection: "row", gap: 8, marginTop: 6 },
+  methodBtn: { flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: Theme.border, alignItems: "center", backgroundColor: Theme.bgMuted },
+  methodBtnActive: { backgroundColor: "#16A34A", borderColor: "#16A34A" },
+  methodText: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary },
+  methodTextActive: { color: "#fff" },
+  modalFooter: { flexDirection: "row", gap: 12, marginTop: 24 },
+  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: Theme.bgMuted, alignItems: "center" },
+  cancelBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: Theme.textSecondary },
+  confirmBtn: { flex: 2, paddingVertical: 12, borderRadius: 12, backgroundColor: "#16A34A", alignItems: "center" },
+  confirmBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: "#fff" },
+
+  // Receipt
+  receiptBox: { backgroundColor: Theme.bgCard, borderRadius: 20, padding: 24, width: "85%", maxWidth: 360, alignSelf: "center", alignItems: "center" },
+  receiptHeader: { alignItems: "center", marginBottom: 16 },
+  receiptTitle: { fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary, marginTop: 10 },
+  receiptAmt: { fontFamily: Fonts.black, fontSize: 26, color: "#16A34A", marginTop: 4 },
+  receiptBody: { width: "100%", borderTopWidth: 1, borderTopColor: Theme.border, borderBottomWidth: 1, borderBottomColor: Theme.border, paddingVertical: 12, marginVertical: 12, gap: 8 },
+  receiptRow: { flexDirection: "row", justifyContent: "space-between" },
+  receiptLabel: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary },
+  receiptVal: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textPrimary },
+  printReceiptBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: Theme.primary, width: "100%", padding: 12, borderRadius: 10, justifyContent: "center", marginBottom: 8 },
+  printReceiptText: { fontFamily: Fonts.bold, fontSize: 13, color: "#fff" },
+  receiptDoneBtn: { width: "100%", padding: 12, borderRadius: 10, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.bgMuted },
+  receiptDoneText: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textSecondary },
 });

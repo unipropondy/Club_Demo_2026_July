@@ -13,17 +13,17 @@ const dbConfig = {
     encrypt: false,
     trustServerCertificate: true,
     enableArithAbort: true,
-    connectTimeout: 15000, 
-    requestTimeout: 15000,
+    connectTimeout: 20000, 
+    requestTimeout: 30000,
     appName: "POS_System",
     keepAlive: true // Enable TCP keepAlive
   },
-  connectionTimeout: 15000,
-  requestTimeout: 15000,
+  connectionTimeout: 20000,
+  requestTimeout: 30000,
   pool: {
     max: 100,
-    min: 0,
-    idleTimeoutMillis: 15000 // Lowered to 15s to recycle idle connections faster
+    min: 5,
+    idleTimeoutMillis: 30000 // Recycle idle connections in 30s
   }
 };
 

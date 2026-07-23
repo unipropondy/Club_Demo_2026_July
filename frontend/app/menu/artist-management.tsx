@@ -21,9 +21,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const pad = (n: number) => n.toString().padStart(2, "0");
-const formatLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-
 interface ArtistRow {
   dishId: string;
   name: string;
@@ -39,11 +36,12 @@ interface ArtistRow {
   lifetimeOutstanding?: number;
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  Paid:             { bg: "#F0FDF4", text: "#16A34A" },
-  "Partially Paid": { bg: "#FFFBEB", text: "#D97706" },
-  Pending:          { bg: "#FEF2F2", text: "#DC2626" },
-  Accruing:         { bg: "#E0F2FE", text: "#0284C7" },
+const WALLET_STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  Paid:             { bg: "#DCFCE7", text: "#16A34A", label: "🟢 Settled" },
+  "Partially Paid": { bg: "#FFF7ED", text: "#F97316", label: "🟠 Partial" },
+  Pending:          { bg: "#FEE2E2", text: "#DC2626", label: "🔴 Waiting" },
+  Accruing:         { bg: "#EFF6FF", text: "#2563EB", label: "🔵 Live Day" },
+  "No Bonus":      { bg: "#F5F5F4", text: "#78716C", label: "⚪ Empty" },
 };
 
 export default function ArtistManagementScreen() {
@@ -62,6 +60,7 @@ export default function ArtistManagementScreen() {
   const [artists, setArtists]         = useState<ArtistRow[]>([]);
   const [activeRule, setActiveRule]   = useState<any>(null);
   const [pendingArtists, setPendingArtists] = useState<any[]>([]);
+  const [lastPayment, setLastPayment] = useState<{ amount: number; date: string } | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -81,6 +80,18 @@ export default function ArtistManagementScreen() {
       if (pendingRes.data.success) {
         setPendingArtists(pendingRes.data.data || []);
       }
+
+      // Fetch last payment for dashboard summary
+      const payRes = await axios.get(`${API_URL}/api/artist-bonus/payments?limit=1`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (payRes.data.success && payRes.data.data && payRes.data.data.length > 0) {
+        const lp = payRes.data.data[0];
+        setLastPayment({
+          amount: Number(lp.PaymentAmount),
+          date: lp.PaidDate ? lp.PaidDate.split("T")[0] : "Recent",
+        });
+      }
     } catch (err: any) {
       showToast({ type: "error", message: "Load Failed", subtitle: "Could not load artist summary." });
     } finally {
@@ -98,7 +109,7 @@ export default function ArtistManagementScreen() {
 
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
-  // Group pending by artist name
+  // Calculate stats
   const pendingByArtist: Record<string, number> = {};
   pendingArtists.forEach(txn => {
     const name = txn.ArtistName || "Unknown";
@@ -107,11 +118,36 @@ export default function ArtistManagementScreen() {
   const artistsWithPending = Object.keys(pendingByArtist).filter(n => pendingByArtist[n] > 0);
   const totalAllTimePending = Object.values(pendingByArtist).reduce((s, v) => s + v, 0);
 
+  // Business Day State Logic
+  let dayStateLabel = "⚪ Fully Settled";
+  let dayStateColor = "#78716C";
+  let dayStateIcon = "ellipse-outline";
+  let dayStateDesc = "All artist wallets are settled.";
+
+  if (isDayActive) {
+    dayStateLabel = "🟢 Business Day Active";
+    dayStateColor = "#16A34A";
+    dayStateIcon = "play-circle-outline";
+    dayStateDesc = "Sales are accumulating automatically. Live Sales Updating...";
+  } else if (!isDayActive) {
+    if (artists.some(a => a.totalSales > 0 && a.bonusEarned === 0 && activeRule)) {
+      dayStateLabel = "🟡 Awaiting Calculation";
+      dayStateColor = "#CA8A04";
+      dayStateIcon = "time-outline";
+      dayStateDesc = "Business day closed. Settle live calculations.";
+    } else if (totalAllTimePending > 0) {
+      dayStateLabel = "🔵 Bonus Calculated";
+      dayStateColor = "#2563EB";
+      dayStateIcon = "checkbox-outline";
+      dayStateDesc = "Wallets updated. Ready for settlement.";
+    }
+  }
+
   const quickLinks = [
-    { title: "Bonus Payments", subtitle: "Settle unpaid fees", icon: "cash",          color: "#16A34A", bg: "#F0FDF4", route: "/menu/artist-bonus-payments" },
-    { title: "Bonus Master",   subtitle: "Setup rules & limits", icon: "settings",      color: "#F97316", bg: "#FFF7ED", route: "/menu/artist-bonus-master" },
-    { title: "Artist Sales",   subtitle: "Realtime sales metrics", icon: "bar-chart",     color: "#3B82F6", bg: "#EFF6FF", route: "/menu/artist-sales" },
-    { title: "Reports",        subtitle: "Audit & log history", icon: "document-text", color: "#8B5CF6", bg: "#F5F3FF", route: "/menu/artist-reports" },
+    { title: "Live Sales", subtitle: "Watch sales progress", icon: "trending-up", color: "#2563EB", bg: "#EFF6FF", route: "/menu/artist-sales" },
+    { title: "Bonus Wallets", subtitle: "Settle money waiting", icon: "wallet", color: "#DC2626", bg: "#FEF2F2", route: "/menu/artist-bonus-payments" },
+    { title: "Bonus Rules", subtitle: "Setup targets & rewards", icon: "settings", color: "#F97316", bg: "#FFF7ED", route: "/menu/artist-bonus-master" },
+    { title: "Reports", subtitle: "Audit wallets & payments", icon: "document-text", color: "#78716C", bg: "#F5F5F4", route: "/menu/artist-reports" },
   ];
 
   return (
@@ -130,10 +166,10 @@ export default function ArtistManagementScreen() {
           <Ionicons name="chevron-back" size={22} color={Theme.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Artist Management</Text>
+          <Text style={styles.headerTitle}>Artist Bonus Wallet</Text>
           <Text style={styles.headerSub}>
             {activeRule
-              ? `Rule: Every $${activeRule.ThresholdAmount} → $${activeRule.BonusAmount} bonus`
+              ? `Rule: Every $${activeRule.ThresholdAmount} ➔ $${activeRule.BonusAmount} Bonus`
               : "No active bonus rule"}
           </Text>
         </View>
@@ -147,7 +183,30 @@ export default function ArtistManagementScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Theme.primary]} tintColor={Theme.primary} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── PENDING BONUS ALERT ── */}
+        {/* ── 1. BUSINESS DAY STATUS BANNER ── */}
+        <View style={[styles.dayBanner, { borderColor: dayStateColor + "40" }]}>
+          <View style={[styles.dayBannerIconWrap, { backgroundColor: dayStateColor + "15" }]}>
+            <Ionicons name={dayStateIcon as any} size={22} color={dayStateColor} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={[styles.dayBannerTitle, { color: dayStateColor }]}>
+                {dayStateLabel}
+              </Text>
+              {activeDay && (
+                <Text style={styles.dayDateText}>· {activeDay}</Text>
+              )}
+            </View>
+            <Text style={styles.dayBannerSub}>{dayStateDesc}</Text>
+          </View>
+          {isDayActive && (
+            <View style={[styles.dayLiveBadge, { backgroundColor: dayStateColor }]}>
+              <Text style={styles.dayLiveText}>LIVE</Text>
+            </View>
+          )}
+        </View>
+
+        {/* ── 2. ATTENTION BANNER ── */}
         {artistsWithPending.length > 0 && (
           <TouchableOpacity
             style={styles.pendingAlert}
@@ -158,96 +217,73 @@ export default function ArtistManagementScreen() {
               <Ionicons name="alert-circle" size={22} color="#DC2626" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.pendingAlertTitle}>
-                {artistsWithPending.length} Artist{artistsWithPending.length > 1 ? "s" : ""} with Unpaid Bonuses
-              </Text>
+              <Text style={styles.pendingAlertTitle}>💰 Bonus Waiting</Text>
               <Text style={styles.pendingAlertSub}>
-                ${totalAllTimePending.toFixed(2)} total outstanding · Tap to settle →
+                {artistsWithPending.length} Artist{artistsWithPending.length > 1 ? "s" : ""} · ${totalAllTimePending.toFixed(2)} waiting payout
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color="#DC2626" />
+            <View style={styles.settleBtn}>
+              <Text style={styles.settleBtnText}>Settle Now</Text>
+              <Ionicons name="chevron-forward" size={14} color="#fff" />
+            </View>
           </TouchableOpacity>
         )}
 
-        {/* ── DAY STATUS BANNER ── */}
-        <View style={[
-          styles.dayBanner,
-          { backgroundColor: isDayActive ? "#F0FDF4" : "#F8FAFC", borderColor: isDayActive ? "#86EFAC" : Theme.border }
-        ]}>
-          <View style={[styles.dayDot, { backgroundColor: isDayActive ? "#16A34A" : "#94A3B8" }]} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.dayBannerTitle, { color: isDayActive ? "#15803D" : Theme.textSecondary }]}>
-              {isDayActive ? `Business Day Active — ${activeDay}` : "No Active Business Day"}
-            </Text>
-            <Text style={[styles.dayBannerSub, { color: isDayActive ? "#16A34A" : Theme.textMuted }]}>
-              {isDayActive ? "Bonuses accumulate until Day End" : "Bonus payments can still be processed"}
-            </Text>
-          </View>
-          {isDayActive && (
-            <View style={styles.dayLiveBadge}>
-              <Text style={styles.dayLiveText}>LIVE</Text>
-            </View>
-          )}
-        </View>
-
-        {loading && !refreshing && (
-          <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 32 }} />
-        )}
-
-        {/* ── KPI SUMMARY ── */}
+        {/* ── 3. SUMMARY CARDS ── */}
         <View style={styles.cardsGrid}>
           {[
-            { label: "Artist Sales",   value: `$${cards.totalArtistSales.toFixed(2)}`,  icon: "musical-notes",    color: "#3B82F6", bg: "#EFF6FF" },
-            { label: "Bonus Earned",   value: `$${cards.totalBonusEarned.toFixed(2)}`,  icon: "trophy",           color: "#F97316", bg: "#FFF7ED" },
-            { label: "Bonus Paid",     value: `$${cards.totalBonusPaid.toFixed(2)}`,    icon: "checkmark-circle", color: "#16A34A", bg: "#F0FDF4" },
-            { label: "All-time Unpaid",value: `$${totalAllTimePending.toFixed(2)}`,     icon: "time",             color: totalAllTimePending > 0 ? "#DC2626" : "#16A34A", bg: totalAllTimePending > 0 ? "#FEF2F2" : "#F0FDF4" },
+            { label: "Today's Artist Sales", value: `$${cards.totalArtistSales.toFixed(0)}`, icon: "trending-up", color: "#2563EB", bg: "#EFF6FF" },
+            { label: "Today's Bonus Earned", value: `$${cards.totalBonusEarned.toFixed(0)}`, icon: "trophy", color: "#F97316", bg: "#FFF7ED" },
+            { label: "Bonus Waiting", value: `$${totalAllTimePending.toFixed(0)}`, sub: `${artistsWithPending.length} Artists`, icon: "wallet", color: totalAllTimePending > 0 ? "#DC2626" : "#16A34A", bg: totalAllTimePending > 0 ? "#FEF2F2" : "#F0FDF4" },
+            { label: "Last Settlement", value: lastPayment ? `$${lastPayment.amount.toFixed(0)}` : "$0", sub: lastPayment ? lastPayment.date : "None yet", icon: "checkmark-circle", color: "#16A34A", bg: "#F0FDF4" },
           ].map(c => (
             <View key={c.label} style={[styles.card, { backgroundColor: c.bg }, isTablet && { flex: 1 }]}>
               <View style={[styles.cardIconWrap, { backgroundColor: c.color + "22" }]}>
-                <Ionicons name={c.icon as any} size={22} color={c.color} />
+                <Ionicons name={c.icon as any} size={18} color={c.color} />
               </View>
               <Text style={styles.cardValue}>{c.value}</Text>
               <Text style={styles.cardLabel}>{c.label}</Text>
+              {c.sub && <Text style={styles.cardSubText}>{c.sub}</Text>}
             </View>
           ))}
         </View>
 
-        {/* ── QUICK LINKS ── */}
+        {/* ── 4. QUICK ACTIONS ── */}
+        <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.quickLinksRow}>
           {quickLinks.map(link => (
             <TouchableOpacity
               key={link.route}
-              style={[styles.quickLink, { backgroundColor: link.bg, paddingVertical: 12 }]}
+              style={[styles.quickLink, { backgroundColor: link.bg }]}
               onPress={() => router.push(link.route as any)}
               activeOpacity={0.75}
             >
               <View style={[styles.quickLinkIcon, { backgroundColor: link.color + "22" }]}>
                 <Ionicons name={link.icon as any} size={20} color={link.color} />
               </View>
-              <Text style={[styles.quickLinkText, { color: link.color, fontSize: 11, fontFamily: Fonts.bold }]}>{link.title}</Text>
-              <Text style={{ fontSize: 9, color: link.color, opacity: 0.8, fontFamily: Fonts.medium, textAlign: "center", marginTop: 2 }}>{link.subtitle}</Text>
+              <Text style={[styles.quickLinkText, { color: link.color }]}>{link.title}</Text>
+              <Text style={styles.quickLinkSubtitle}>{link.subtitle}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* ── ARTIST LIST ── */}
+        {/* ── 5. ARTIST LIST ── */}
         {artists.length > 0 && (
           <>
-            <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Artists</Text>
-            <View style={styles.artistCard}>
-              {/* Table header */}
-              <View style={styles.tableHeader}>
-                <Text style={[styles.thCell, { flex: 2 }]}>Artist</Text>
-                <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Sales</Text>
-                <Text style={[styles.thCell, { flex: 1.2, textAlign: "right" }]}>Outstanding</Text>
-                <Text style={[styles.thCell, { flex: 0.8, textAlign: "center" }]}>Status</Text>
-              </View>
-
+            <View style={styles.listHeaderRow}>
+              <Text style={styles.sectionTitle}>Artist Bonus Registry</Text>
+              <TouchableOpacity onPress={() => router.push("/menu/artist-sales" as any)}>
+                <Text style={styles.listHeaderLink}>View Live Sales ➔</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.artistListCard}>
               {artists.map((artist, idx) => {
-                const sc = STATUS_COLORS[artist.status] || STATUS_COLORS.Pending;
-                // Get all-time outstanding for this artist
                 const artistLifetimeOwed = pendingByArtist[artist.name] ?? 0;
-                const hasDebt = artistLifetimeOwed > 0;
+                let statusKey = artist.status;
+                if (artistLifetimeOwed > 0 && statusKey === "Paid") {
+                  statusKey = "Partially Paid";
+                }
+                const sc = WALLET_STATUS_COLORS[statusKey] || WALLET_STATUS_COLORS["No Bonus"];
 
                 return (
                   <TouchableOpacity
@@ -256,97 +292,38 @@ export default function ArtistManagementScreen() {
                     onPress={() => router.push(`/menu/artist-detail?dishId=${artist.dishId}` as any)}
                     activeOpacity={0.7}
                   >
-                    {/* Name */}
-                    <View style={[{ flex: 2 }, styles.rowCell]}>
-                      <View style={[styles.avatarCircle, hasDebt && { backgroundColor: "#FEE2E2" }]}>
-                        <Text style={[styles.avatarText, hasDebt && { color: "#DC2626" }]}>
+                    <View style={styles.rowCellLeft}>
+                      <View style={[styles.avatarCircle, artistLifetimeOwed > 0 && { backgroundColor: "#FEE2E2" }]}>
+                        <Text style={[styles.avatarText, artistLifetimeOwed > 0 && { color: "#DC2626" }]}>
                           {(artist.name || "?")[0].toUpperCase()}
                         </Text>
                       </View>
-                      <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
-                    </View>
-
-                    {/* Sales */}
-                    <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right" }]}>
-                      ${artist.totalSales.toFixed(0)}
-                    </Text>
-
-                    {/* All-time outstanding */}
-                    <Text style={[styles.tdCell, { flex: 1.2, textAlign: "right", fontFamily: Fonts.bold, color: hasDebt ? "#DC2626" : "#16A34A" }]}>
-                      {hasDebt ? `$${artistLifetimeOwed.toFixed(0)}` : "—"}
-                    </Text>
-
-                    {/* Status badge */}
-                    <View style={[{ flex: 0.8 }, styles.badgeWrap]}>
-                      <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-                        <Text style={[styles.badgeText, { color: sc.text }]} numberOfLines={1}>
-                          {artist.status === "Accruing" ? "Active" : artist.status}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
+                        <Text style={styles.artistSubText}>
+                          Today's Sales: <Text style={{ fontFamily: Fonts.bold, color: "#2563EB" }}>${artist.totalSales.toFixed(0)}</Text>
                         </Text>
                       </View>
+                    </View>
+
+                    <View style={styles.rowCellRight}>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={styles.walletLabel}>Current Wallet</Text>
+                        <Text style={[styles.walletValue, { color: artistLifetimeOwed > 0 ? "#DC2626" : "#16A34A" }]}>
+                          ${artistLifetimeOwed.toFixed(0)}
+                        </Text>
+                      </View>
+                      <View style={[styles.badge, { backgroundColor: sc.bg }]}>
+                        <Text style={[styles.badgeText, { color: sc.text }]}>{sc.label}</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={Theme.textMuted} />
                     </View>
                   </TouchableOpacity>
                 );
               })}
-
-              <TouchableOpacity
-                style={styles.viewAllBtn}
-                onPress={() => router.push("/menu/artist-sales" as any)}
-              >
-                <Text style={styles.viewAllText}>View Full Sales Report →</Text>
-              </TouchableOpacity>
             </View>
           </>
         )}
-
-        {/* ── STATUS GUIDE ── */}
-        <View style={{
-          backgroundColor: "#F8FAFC",
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: Theme.border,
-          padding: 16,
-          marginTop: 8,
-          gap: 12
-        }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Ionicons name="information-circle-outline" size={18} color={Theme.textSecondary} />
-            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>Understanding Statuses</Text>
-          </View>
-          <View style={{ gap: 8 }}>
-            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-              <View style={{ backgroundColor: "#E0F2FE", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, width: 75, height: 20, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: "#0284C7", fontFamily: Fonts.bold, fontSize: 10 }}>Active</Text>
-              </View>
-              <Text style={{ flex: 1, fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, lineHeight: 16 }}>
-                Artist is currently performing and accumulating live sales for the active business day.
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-              <View style={{ backgroundColor: "#FEF2F2", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, width: 75, height: 20, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: "#DC2626", fontFamily: Fonts.bold, fontSize: 10 }}>Pending</Text>
-              </View>
-              <Text style={{ flex: 1, fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, lineHeight: 16 }}>
-                Artist has reached a bonus threshold in a finalized business day, but the bonus remains unpaid/outstanding.
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-              <View style={{ backgroundColor: "#FFFBEB", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, width: 75, height: 20, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: "#D97706", fontFamily: Fonts.bold, fontSize: 10 }}>Partially Paid</Text>
-              </View>
-              <Text style={{ flex: 1, fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, lineHeight: 16 }}>
-                Artist has received partial payment towards their earned bonus, with some outstanding balance remaining.
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
-              <View style={{ backgroundColor: "#F0FDF4", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, width: 75, height: 20, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: "#16A34A", fontFamily: Fonts.bold, fontSize: 10 }}>Paid</Text>
-              </View>
-              <Text style={{ flex: 1, fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, lineHeight: 16 }}>
-                All bonuses earned by the artist have been fully settled and paid out.
-              </Text>
-            </View>
-          </View>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -366,66 +343,76 @@ const styles = StyleSheet.create({
   refreshBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center" },
   scroll: { padding: 16, paddingBottom: 40 },
 
-  pendingAlert: {
-    flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14,
-    backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FECACA",
-    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
-    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(220,38,38,0.1)" } }) as any,
-  },
-  pendingAlertIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#FEE2E2", justifyContent: "center", alignItems: "center" },
-  pendingAlertTitle: { fontFamily: Fonts.bold, fontSize: 14, color: "#B91C1C" },
-  pendingAlertSub: { fontFamily: Fonts.medium, fontSize: 12, color: "#DC2626", marginTop: 2 },
-
+  // Day Status Banner
   dayBanner: {
-    flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16,
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, borderWidth: 1.5,
+    flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14,
+    paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14, borderWidth: 1.5,
+    backgroundColor: Theme.bgCard,
   },
-  dayDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
-  dayBannerTitle: { fontFamily: Fonts.bold, fontSize: 13 },
-  dayBannerSub: { fontFamily: Fonts.medium, fontSize: 11, marginTop: 1 },
-  dayLiveBadge: { backgroundColor: "#16A34A", borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  dayBannerIconWrap: { width: 36, height: 36, borderRadius: 18, justifyContent: "center", alignItems: "center" },
+  dayBannerTitle: { fontFamily: Fonts.black, fontSize: 13 },
+  dayDateText: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textSecondary },
+  dayBannerSub: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 2 },
+  dayLiveBadge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
   dayLiveText: { fontFamily: Fonts.black, fontSize: 10, color: "#fff", letterSpacing: 1 },
 
-  cardsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
+  // Attention Banner
+  pendingAlert: {
+    flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16,
+    backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FECACA",
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
+    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(220,38,38,0.08)" } }) as any,
+  },
+  pendingAlertIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#FEE2E2", justifyContent: "center", alignItems: "center" },
+  pendingAlertTitle: { fontFamily: Fonts.black, fontSize: 14, color: "#B91C1C" },
+  pendingAlertSub: { fontFamily: Fonts.medium, fontSize: 12, color: "#DC2626", marginTop: 2 },
+  settleBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#DC2626", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  settleBtnText: { fontFamily: Fonts.bold, fontSize: 11, color: "#fff" },
+
+  // Summary Cards
+  cardsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 20 },
   card: {
     width: "47%", borderRadius: 14, padding: 14,
-    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.06)" } }) as any,
+    borderWidth: 1, borderColor: Theme.border,
+    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.04)" } }) as any,
   },
-  cardIconWrap: { width: 40, height: 40, borderRadius: 10, justifyContent: "center", alignItems: "center", marginBottom: 10 },
-  cardValue: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary, marginBottom: 4 },
-  cardLabel: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary },
-
-  quickLinksRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
-  quickLink: {
-    flex: 1, borderRadius: 12, padding: 10, alignItems: "center", gap: 6,
-    borderWidth: 1, borderColor: "transparent",
-  },
-  quickLinkIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center" },
-  quickLinkText: { fontFamily: Fonts.bold, fontSize: 10, textAlign: "center" },
+  cardIconWrap: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center", marginBottom: 10 },
+  cardValue: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary },
+  cardLabel: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary, marginTop: 4 },
+  cardSubText: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textMuted, marginTop: 2 },
 
   sectionTitle: {
     fontFamily: Fonts.black, fontSize: 12, color: Theme.textSecondary,
     textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10,
   },
-  artistCard: {
+
+  // Quick Actions
+  quickLinksRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 20 },
+  quickLink: {
+    width: "48%", borderRadius: 14, padding: 12, gap: 4,
+    borderWidth: 1, borderColor: Theme.border,
+  },
+  quickLinkIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center", marginBottom: 6 },
+  quickLinkText: { fontFamily: Fonts.black, fontSize: 13 },
+  quickLinkSubtitle: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary },
+
+  // Artist List
+  listHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  listHeaderLink: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.primary },
+  artistListCard: {
     backgroundColor: Theme.bgCard, borderRadius: 14, overflow: "hidden",
-    borderWidth: 1, borderColor: Theme.border, marginBottom: 16,
+    borderWidth: 1, borderColor: Theme.border,
   },
-  tableHeader: {
-    flexDirection: "row", paddingHorizontal: 14, paddingVertical: 10,
-    backgroundColor: Theme.bgMuted, borderBottomWidth: 1, borderBottomColor: Theme.border,
-  },
-  thCell: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary, textTransform: "uppercase", letterSpacing: 0.4 },
-  tableRow: { flexDirection: "row", paddingHorizontal: 14, paddingVertical: 12, alignItems: "center", borderBottomWidth: 1, borderBottomColor: Theme.border },
+  tableRow: { flexDirection: "row", paddingHorizontal: 14, paddingVertical: 12, alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: Theme.border },
   tableRowAlt: { backgroundColor: "#FAFAF9" },
-  rowCell: { flexDirection: "row", alignItems: "center", gap: 8 },
-  avatarCircle: { width: 30, height: 30, borderRadius: 15, backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center" },
-  avatarText: { fontFamily: Fonts.black, fontSize: 12, color: Theme.primary },
-  artistName: { fontFamily: Fonts.semiBold, fontSize: 13, color: Theme.textPrimary, flex: 1 },
-  tdCell: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textPrimary },
-  badgeWrap: { alignItems: "center" },
-  badge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
+  rowCellLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1.2 },
+  rowCellRight: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1, justifyContent: "flex-end" },
+  avatarCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center" },
+  avatarText: { fontFamily: Fonts.black, fontSize: 13, color: Theme.primary },
+  artistName: { fontFamily: Fonts.black, fontSize: 13, color: Theme.textPrimary },
+  artistSubText: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 2 },
+  walletLabel: { fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, textTransform: "uppercase" },
+  walletValue: { fontFamily: Fonts.black, fontSize: 14, marginTop: 1 },
+  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
   badgeText: { fontFamily: Fonts.bold, fontSize: 10 },
-  viewAllBtn: { padding: 14, alignItems: "center" },
-  viewAllText: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.primary },
 });

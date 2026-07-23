@@ -33,48 +33,85 @@ const fmtMoney = (v: any) => `$${parseFloat(v || 0).toFixed(2)}`;
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 const firstOfMonthStr = () => { const d = new Date(); d.setDate(1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 
-type ReportTab = "sales" | "bonus-ledger" | "payment-ledger" | "pending" | "performance";
-
-const TABS: { key: ReportTab; label: string; icon: string }[] = [
-  { key: "sales",          label: "Sales",         icon: "bar-chart" },
-  { key: "bonus-ledger",   label: "Bonus Ledger",  icon: "trophy" },
-  { key: "payment-ledger", label: "Payment Ledger",icon: "cash" },
-  { key: "pending",        label: "Pending",       icon: "time" },
-  { key: "performance",    label: "Performance",   icon: "trending-up" },
-];
+type ReportTab = "all" | "sales" | "bonus" | "payments" | "outstanding";
 
 export default function ArtistReportsScreen() {
   const router = useRouter();
   const { token } = useAuthStore();
   const { showToast } = useToast();
   const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
 
-  const [activeTab, setActiveTab] = useState<ReportTab>("sales");
+  const [activeTab, setActiveTab] = useState<ReportTab>("all");
   const [loading, setLoading]     = useState(false);
   const [fromDate, setFromDate]   = useState(firstOfMonthStr());
   const [toDate, setToDate]       = useState(todayStr());
   const [data, setData]           = useState<any[]>([]);
-  const [hasCustomRange, setHasCustomRange] = useState(false);
+  const [search, setSearch]       = useState("");
 
-  const ENDPOINT_MAP: Record<ReportTab, string> = {
-    "sales":          `/api/artist-bonus/reports/sales?fromDate=${fromDate}&toDate=${toDate}`,
-    "bonus-ledger":   `/api/artist-bonus/reports/bonus-ledger?fromDate=${fromDate}&toDate=${toDate}`,
-    "payment-ledger": `/api/artist-bonus/reports/payment-ledger?fromDate=${fromDate}&toDate=${toDate}`,
-    "pending":        `/api/artist-bonus/reports/pending`,
-    "performance":    `/api/artist-bonus/reports/performance?fromDate=${fromDate}&toDate=${toDate}`,
-  };
+  // KPI cards
+  const [summaryStats, setSummaryStats] = useState({
+    avgBonus: 0,
+    largestBonus: 0,
+    mostSales: 0,
+    mostPending: 0,
+    totalSales: 0,
+    totalBonus: 0,
+    totalPaid: 0,
+    totalWaiting: 0,
+    artistCount: 0,
+  });
 
-  const fetchReport = useCallback(async (tab: ReportTab = activeTab) => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      setData([]);
-      const res = await axios.get(`${API_URL}${ENDPOINT_MAP[tab]}`, {
+      // Fetch performance reports for statistics
+      const statsRes = await axios.get(
+        `${API_URL}/api/artist-bonus/reports/performance?fromDate=${fromDate}&toDate=${toDate}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      let endpoint = `/api/artist-bonus/reports/sales?fromDate=${fromDate}&toDate=${toDate}`;
+      if (activeTab === "bonus") {
+        endpoint = `/api/artist-bonus/reports/bonus-ledger?fromDate=${fromDate}&toDate=${toDate}`;
+      } else if (activeTab === "payments") {
+        endpoint = `/api/artist-bonus/reports/payment-ledger?fromDate=${fromDate}&toDate=${toDate}`;
+      } else if (activeTab === "outstanding") {
+        endpoint = `/api/artist-bonus/reports/pending`;
+      } else if (activeTab === "all") {
+        endpoint = `/api/artist-bonus/reports/performance?fromDate=${fromDate}&toDate=${toDate}`;
+      }
+
+      const res = await axios.get(`${API_URL}${endpoint}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       if (res.data.success) {
         setData(res.data.data || []);
-        setHasCustomRange(res.data.hasCustomRange ?? false);
+      }
+
+      if (statsRes.data.success && statsRes.data.data) {
+        const list = statsRes.data.data;
+        const totalSales = list.reduce((s: number, r: any) => s + Number(r.CustomSales || r.DailySales), 0);
+        const totalBonus = list.reduce((s: number, r: any) => s + Number(r.TotalBonusEarned), 0);
+        const totalPaid = list.reduce((s: number, r: any) => s + Number(r.TotalBonusPaid), 0);
+        const totalWaiting = list.reduce((s: number, r: any) => s + Number(r.PendingBonus), 0);
+        
+        const avgBonus = list.length > 0 ? totalBonus / list.length : 0;
+        const largestBonus = Math.max(...list.map((r: any) => Number(r.TotalBonusEarned)), 0);
+        const mostSales = Math.max(...list.map((r: any) => Number(r.CustomSales || r.DailySales)), 0);
+        const mostPending = Math.max(...list.map((r: any) => Number(r.PendingBonus)), 0);
+
+        setSummaryStats({
+          avgBonus,
+          largestBonus,
+          mostSales,
+          mostPending,
+          totalSales,
+          totalBonus,
+          totalPaid,
+          totalWaiting,
+          artistCount: list.length,
+        });
       }
     } catch (err: any) {
       showToast({ type: "error", message: "Load Failed", subtitle: err.message });
@@ -83,14 +120,21 @@ export default function ArtistReportsScreen() {
     }
   }, [activeTab, fromDate, toDate, token]);
 
-  useEffect(() => { fetchReport(activeTab); }, [activeTab]);
+  useEffect(() => { fetchData(); }, [activeTab, fromDate, toDate]);
 
-  // ── Export CSV ────────────────────────────────────────────────────────────
+  const filteredData = data.filter((r: any) => {
+    const term = search.toLowerCase();
+    const name = (r.ArtistName || r.Artist || "").toLowerCase();
+    const bill = (r.BillNo || "").toLowerCase();
+    const status = (r.Status || r.StatusText || "").toLowerCase();
+    return name.includes(term) || bill.includes(term) || status.includes(term);
+  });
+
   const exportCsv = async () => {
-    if (!data.length) return;
-    const keys = Object.keys(data[0]);
+    if (!filteredData.length) return;
+    const keys = Object.keys(filteredData[0]);
     const header = keys.join(",");
-    const rows = data.map(row => keys.map(k => `"${String(row[k] ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const rows = filteredData.map(row => keys.map(k => `"${String(row[k] ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const csv = `${header}\n${rows}`;
 
     if (Platform.OS === "web") {
@@ -98,244 +142,17 @@ export default function ArtistReportsScreen() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `artist_${activeTab}_${fromDate}.csv`;
+      a.download = `artist_report_${activeTab}.csv`;
       a.click();
     } else {
       try {
         const FileSystem = require("expo-file-system");
-        const path = `${FileSystem.cacheDirectory}artist_${activeTab}.csv`;
+        const path = `${FileSystem.cacheDirectory}artist_report_${activeTab}.csv`;
         await FileSystem.writeAsStringAsync(path, csv, { encoding: FileSystem.EncodingType.UTF8 });
         await Sharing.shareAsync(path);
       } catch (e) {
         showToast({ type: "error", message: "Export Failed", subtitle: "Unable to export on this device." });
       }
-    }
-  };
-
-  // ── Print HTML ────────────────────────────────────────────────────────────
-  const printReport = async () => {
-    if (!data.length) return;
-    const tabLabel = TABS.find(t => t.key === activeTab)?.label || "Report";
-
-    // Curated column definitions per tab — mirrors the on-screen table exactly
-    type ColDef = { label: string; render: (r: any) => string };
-    const COL_DEFS: Record<ReportTab, ColDef[]> = {
-      "sales": [
-        { label: "Artist",  render: r => r.ArtistName },
-        { label: "Sales",   render: r => fmtMoney(r.TotalSales) },
-        { label: "Earned",  render: r => fmtMoney(r.BonusEarned) },
-        { label: "Paid",    render: r => fmtMoney(r.BonusPaid) },
-        { label: "Pending", render: r => fmtMoney(r.PendingBonus) },
-      ],
-      "bonus-ledger": [
-        { label: "Artist",  render: r => r.ArtistName },
-        { label: "From",    render: r => fmtDate(r.SalesFromDate) },
-        { label: "To",      render: r => fmtDate(r.SalesToDate) },
-        { label: "Sales",   render: r => fmtMoney(r.TotalSales) },
-        { label: "Earned",  render: r => fmtMoney(r.BonusEarned) },
-        { label: "Paid",    render: r => fmtMoney(r.BonusPaid) },
-        { label: "Pending", render: r => fmtMoney(r.PendingBonus) },
-        { label: "Status",  render: r => r.Status },
-      ],
-      "payment-ledger": [
-        { label: "Artist",       render: r => r.ArtistName },
-        { label: "Paid Date",    render: r => fmtDate(r.PaidDate) },
-        { label: "Amount",       render: r => fmtMoney(r.PaymentAmount) },
-        { label: "Paid By",      render: r => r.PaidBy || "—" },
-        { label: "Remarks",      render: r => r.Remarks || "—" },
-        { label: "Bonus Period", render: r => `${fmtDate(r.SalesFromDate)} to ${fmtDate(r.SalesToDate)}` },
-      ],
-      "pending": [
-        { label: "Artist",  render: r => r.ArtistName },
-        { label: "Earned",  render: r => fmtMoney(r.BonusEarned) },
-        { label: "Paid",    render: r => fmtMoney(r.BonusPaid) },
-        { label: "Pending", render: r => fmtMoney(r.PendingBonus) },
-        { label: "From",    render: r => fmtDate(r.SalesFromDate) },
-        { label: "To",      render: r => fmtDate(r.SalesToDate) },
-        { label: "Status",  render: r => r.Status },
-      ],
-      "performance": [
-        { label: "Artist",  render: r => r.ArtistName },
-        { label: "Daily",   render: r => fmtMoney(r.DailySales) },
-        { label: "Weekly",  render: r => fmtMoney(r.WeeklySales) },
-        { label: "Monthly", render: r => fmtMoney(r.MonthlySales) },
-        { label: "Yearly",  render: r => fmtMoney(r.YearlySales) },
-        { label: "Earned",  render: r => fmtMoney(r.TotalBonusEarned) },
-        { label: "Paid",    render: r => fmtMoney(r.TotalBonusPaid) },
-        { label: "Pending", render: r => fmtMoney(r.PendingBonus) },
-      ],
-    };
-
-    const cols = COL_DEFS[activeTab];
-    const headers = cols.map(c => `<th>${c.label}</th>`).join("");
-    const rows = data.map(row =>
-      `<tr>${cols.map(c => `<td>${c.render(row)}</td>`).join("")}</tr>`
-    ).join("");
-
-    const formattedSgt = new Date().toLocaleString("en-SG", {
-      timeZone: "Asia/Singapore",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: true
-    }) + " SGT";
-
-    const html = `
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: sans-serif; padding: 24px; }
-          h1 { font-size: 20px; color: #F97316; }
-          p { font-size: 12px; color: #6B7280; margin-bottom: 16px; }
-          table { width: 100%; border-collapse: collapse; font-size: 12px; }
-          th { background: #F97316; color: white; padding: 8px; text-align: left; }
-          td { padding: 7px 8px; border-bottom: 1px solid #E5E7EB; }
-          tr:nth-child(even) td { background: #FFF7ED; }
-        </style>
-      </head>
-      <body>
-        <h1>Artist ${tabLabel} Report</h1>
-        <p>Period: ${fromDate} to ${toDate} | Generated: ${formattedSgt}</p>
-        <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>
-      </body>
-      </html>
-    `;
-
-    try {
-      if (Platform.OS === "web") {
-        const blob = new Blob([html], { type: "text/html" });
-        const url = URL.createObjectURL(blob);
-        window.open(url, "_blank");
-      } else {
-        await Print.printAsync({ html });
-      }
-    } catch (e) {
-      showToast({ type: "error", message: "Print Failed", subtitle: "Unable to print." });
-    }
-  };
-
-  // ── Render Table Columns per tab ─────────────────────────────────────────
-  const renderTable = () => {
-    if (!data.length) {
-      return (
-        <View style={styles.emptyState}>
-          <Ionicons name="document-outline" size={40} color={Theme.textMuted} />
-          <Text style={styles.emptyText}>No data for selected period</Text>
-        </View>
-      );
-    }
-
-    switch (activeTab) {
-      case "sales":
-        return (
-          <>
-            <TableRow header cells={["Artist", "Sales", "Earned", "Paid", "Pending"]} />
-            {data.map((r, i) => (
-              <TableRow key={i} alt={i % 2 === 1} cells={[
-                r.ArtistName,
-                fmtMoney(r.TotalSales),
-                fmtMoney(r.BonusEarned),
-                fmtMoney(r.BonusPaid),
-                fmtMoney(r.PendingBonus),
-              ]} />
-            ))}
-            <TotalsRow data={data} keys={["TotalSales","BonusEarned","BonusPaid","PendingBonus"]} />
-          </>
-        );
-
-      case "bonus-ledger":
-        return (
-          <>
-            <TableRow header cells={["Artist", "From", "To", "Sales", "Earned", "Paid", "Pending", "Status"]} />
-            {data.map((r, i) => {
-              const sc = r.Status === "Paid" ? "#16A34A" : r.Status === "Partially Paid" ? "#CA8A04" : "#DC2626";
-              return (
-                <TableRow key={i} alt={i % 2 === 1} cells={[
-                  r.ArtistName,
-                  fmtDate(r.SalesFromDate),
-                  fmtDate(r.SalesToDate),
-                  fmtMoney(r.TotalSales),
-                  fmtMoney(r.BonusEarned),
-                  fmtMoney(r.BonusPaid),
-                  fmtMoney(r.PendingBonus),
-                  r.Status,
-                ]} statusCol={7} statusColor={sc} />
-              );
-            })}
-          </>
-        );
-
-      case "payment-ledger":
-        return (
-          <>
-            <TableRow header cells={["Artist", "Paid Date", "Amount", "Paid By", "Remarks", "Bonus Period"]} />
-            {data.map((r, i) => (
-              <TableRow key={i} alt={i % 2 === 1} cells={[
-                r.ArtistName,
-                fmtDate(r.PaidDate),
-                fmtMoney(r.PaymentAmount),
-                r.PaidBy,
-                r.Remarks || "—",
-                `${fmtDate(r.SalesFromDate)} → ${fmtDate(r.SalesToDate)}`,
-              ]} />
-            ))}
-            <TotalsRow data={data} keys={["PaymentAmount"]} />
-          </>
-        );
-
-      case "pending":
-        return (
-          <>
-            <TableRow header cells={["Artist", "Earned", "Paid", "Pending", "From", "To", "Status"]} />
-            {data.map((r, i) => {
-              const sc = r.Status === "Partially Paid" ? "#CA8A04" : "#DC2626";
-              return (
-                <TableRow key={i} alt={i % 2 === 1} cells={[
-                  r.ArtistName,
-                  fmtMoney(r.BonusEarned),
-                  fmtMoney(r.BonusPaid),
-                  fmtMoney(r.PendingBonus),
-                  fmtDate(r.SalesFromDate),
-                  fmtDate(r.SalesToDate),
-                  r.Status,
-                ]} statusCol={6} statusColor={sc} />
-              );
-            })}
-            <TotalsRow data={data} keys={["BonusEarned","BonusPaid","PendingBonus"]} />
-          </>
-        );
-
-      case "performance":
-        return (
-          <>
-            <TableRow header cells={[
-              "Artist",
-              ...(hasCustomRange ? [`${fromDate} – ${toDate}`] : []),
-              "Daily", "Weekly", "Monthly", "Yearly",
-              "Earned", "Paid", "Pending"
-            ]} />
-            {data.map((r, i) => (
-              <TableRow key={i} alt={i % 2 === 1} cells={[
-                r.ArtistName,
-                ...(hasCustomRange ? [fmtMoney(r.CustomSales)] : []),
-                fmtMoney(r.DailySales),
-                fmtMoney(r.WeeklySales),
-                fmtMoney(r.MonthlySales),
-                fmtMoney(r.YearlySales),
-                fmtMoney(r.TotalBonusEarned),
-                fmtMoney(r.TotalBonusPaid),
-                fmtMoney(r.PendingBonus),
-              ]} />
-            ))}
-          </>
-        );
-
-      default:
-        return null;
     }
   };
 
@@ -350,7 +167,7 @@ export default function ArtistReportsScreen() {
             if (router.canGoBack()) {
               router.back();
             } else {
-              router.replace("/menu/artist-management" as any);
+              router.replace("/menu/artist-management");
             }
           }} 
           style={styles.backBtn}
@@ -358,20 +175,17 @@ export default function ArtistReportsScreen() {
           <Ionicons name="chevron-back" size={22} color={Theme.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Artist Reports</Text>
-          <Text style={styles.headerSub}>{data.length} records</Text>
+          <Text style={styles.headerTitle}>Incentive Ledger Audits</Text>
+          <Text style={styles.headerSub}>{filteredData.length} entries found</Text>
         </View>
         <TouchableOpacity style={styles.exportBtn} onPress={exportCsv}>
           <Ionicons name="download-outline" size={17} color={Theme.primary} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.printBtn} onPress={printReport}>
-          <Ionicons name="print-outline" size={17} color={Theme.primary} />
-        </TouchableOpacity>
       </View>
 
-      {/* Date Filter */}
-      {(activeTab === "sales" || activeTab === "bonus-ledger" || activeTab === "payment-ledger" || activeTab === "performance") && (
-        <View style={styles.filterBar}>
+      {/* Date Filter & Search */}
+      <View style={styles.filterBar}>
+        <View style={styles.dateRow}>
           <View style={styles.dateField}>
             <Text style={styles.dateLabel}>From</Text>
             <TextInput style={styles.dateInput} value={fromDate} onChangeText={setFromDate} placeholder="YYYY-MM-DD" placeholderTextColor={Theme.textMuted} />
@@ -381,199 +195,186 @@ export default function ArtistReportsScreen() {
             <Text style={styles.dateLabel}>To</Text>
             <TextInput style={styles.dateInput} value={toDate} onChangeText={setToDate} placeholder="YYYY-MM-DD" placeholderTextColor={Theme.textMuted} />
           </View>
-          <TouchableOpacity style={styles.applyBtn} onPress={() => fetchReport(activeTab)}>
+          <TouchableOpacity style={styles.applyBtn} onPress={fetchData}>
             <Text style={styles.applyBtnText}>Apply</Text>
           </TouchableOpacity>
         </View>
-      )}
 
-      {/* Tab Bar */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabBar}>
-        {TABS.map(tab => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-            onPress={() => setActiveTab(tab.key)}
-          >
-            <Ionicons name={tab.icon as any} size={15} color={activeTab === tab.key ? Theme.primary : Theme.textMuted} />
-            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>{tab.label}</Text>
-          </TouchableOpacity>
-        ))}
+        {/* Search Everywhere Bar */}
+        <View style={styles.searchBox}>
+          <Ionicons name="search-outline" size={16} color={Theme.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search by Artist, Bill, Status, etc..."
+            placeholderTextColor={Theme.textMuted}
+          />
+        </View>
+      </View>
+
+      <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+        {/* ── KPI EXECUTIVE SUMMARY ── */}
+        <View style={styles.kpiGrid}>
+          {[
+            { label: "Largest Bonus", value: `$${summaryStats.largestBonus.toFixed(0)}`, color: "#F97316" },
+            { label: "Average Bonus", value: `$${summaryStats.avgBonus.toFixed(0)}`, color: "#2563EB" },
+            { label: "Most Sales", value: `$${summaryStats.mostSales.toFixed(0)}`, color: "#16A34A" },
+            { label: "Most Pending", value: `$${summaryStats.mostPending.toFixed(0)}`, color: "#DC2626" },
+          ].map(k => (
+            <View key={k.label} style={styles.kpiCard}>
+              <Text style={[styles.kpiValue, { color: k.color }]}>{k.value}</Text>
+              <Text style={styles.kpiLabel}>{k.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* ── TABS AS QUICK FILTERS ── */}
+        <View style={styles.filterTabs}>
+          {([
+            { key: "all", label: "All Ledgers" },
+            { key: "sales", label: "Sales Log" },
+            { key: "bonus", label: "Bonus Earned" },
+            { key: "payments", label: "Payout Logs" },
+            { key: "outstanding", label: "Waiting" },
+          ] as const).map(tab => (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.filterTab, activeTab === tab.key && styles.filterTabActive]}
+              onPress={() => setActiveTab(tab.key)}
+            >
+              <Text style={[styles.filterTabText, activeTab === tab.key && styles.filterTabTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {loading ? (
+          <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 40 }} />
+        ) : (
+          <View style={styles.reportContainer}>
+            {filteredData.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="document-text-outline" size={40} color={Theme.textMuted} />
+                <Text style={styles.emptyText}>No matching audits found.</Text>
+              </View>
+            ) : (
+              <View style={styles.cardList}>
+                {filteredData.map((row, idx) => (
+                  <View key={idx} style={styles.rowCard}>
+                    <View style={styles.rowTop}>
+                      <Text style={styles.artistNameText}>{row.ArtistName || row.Artist}</Text>
+                      {activeTab === "all" && (
+                        <Text style={styles.metricText}>Sales: {fmtMoney(row.CustomSales || row.DailySales)}</Text>
+                      )}
+                      {activeTab === "sales" && (
+                        <Text style={styles.metricText}>{fmtMoney(row.TotalSales)}</Text>
+                      )}
+                      {activeTab === "bonus" && (
+                        <Text style={[styles.metricText, { color: "#F97316" }]}>+{fmtMoney(row.BonusEarned)}</Text>
+                      )}
+                      {activeTab === "payments" && (
+                        <Text style={[styles.metricText, { color: "#16A34A" }]}>-{fmtMoney(row.PaymentAmount)}</Text>
+                      )}
+                      {activeTab === "outstanding" && (
+                        <Text style={[styles.metricText, { color: "#DC2626" }]}>{fmtMoney(row.PendingBonus)}</Text>
+                      )}
+                    </View>
+
+                    {/* Metadata details */}
+                    <View style={styles.rowMeta}>
+                      {row.CreatedDate && (
+                        <Text style={styles.metaText}>Date: {fmtDate(row.CreatedDate)}</Text>
+                      )}
+                      {row.PaidDate && (
+                        <Text style={styles.metaText}>Paid: {fmtDate(row.PaidDate)} by {row.PaidBy}</Text>
+                      )}
+                      {row.SalesFromDate && (
+                        <Text style={styles.metaText}>Cycle: {fmtDate(row.SalesFromDate)} ➔ {fmtDate(row.SalesToDate)}</Text>
+                      )}
+                      {row.Remarks && (
+                        <Text style={styles.remarksText}>Note: {row.Remarks}</Text>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
       </ScrollView>
 
-      {/* Report Table */}
-      {loading
-        ? <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 60 }} />
-        : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ minWidth: width }}>
-              <View style={styles.tableWrap}>
-                {renderTable()}
-              </View>
-              <View style={{ height: 60 }} />
-            </ScrollView>
-          </ScrollView>
-        )
-      }
+      {/* Bottom Summary Strip */}
+      <View style={styles.bottomStrip}>
+        <View style={styles.stripCell}>
+          <Text style={styles.stripLabel}>Total Sales</Text>
+          <Text style={[styles.stripVal, { color: "#2563EB" }]}>${summaryStats.totalSales.toFixed(0)}</Text>
+        </View>
+        <View style={styles.stripCell}>
+          <Text style={styles.stripLabel}>Total Bonus</Text>
+          <Text style={[styles.stripVal, { color: "#F97316" }]}>${summaryStats.totalBonus.toFixed(0)}</Text>
+        </View>
+        <View style={styles.stripCell}>
+          <Text style={styles.stripLabel}>Total Paid</Text>
+          <Text style={[styles.stripVal, { color: "#16A34A" }]}>${summaryStats.totalPaid.toFixed(0)}</Text>
+        </View>
+        <View style={styles.stripCell}>
+          <Text style={styles.stripLabel}>Waiting</Text>
+          <Text style={[styles.stripVal, { color: "#DC2626" }]}>${summaryStats.totalWaiting.toFixed(0)}</Text>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
 
-// ── Reusable Table Components ─────────────────────────────────────────────
-
-function TableRow({
-  cells,
-  header,
-  alt,
-  statusCol,
-  statusColor,
-}: {
-  cells: string[];
-  header?: boolean;
-  alt?: boolean;
-  statusCol?: number;
-  statusColor?: string;
-}) {
-  return (
-    <View style={[
-      tableStyles.row,
-      header && tableStyles.headerRow,
-      alt && tableStyles.altRow,
-    ]}>
-      {cells.map((cell, i) => {
-        const isStatus = statusCol !== undefined && i === statusCol;
-        return (
-          <View key={i} style={[tableStyles.cell, i === 0 && tableStyles.firstCell]}>
-            {isStatus
-              ? (
-                <View style={[tableStyles.statusBadge, { backgroundColor: (statusColor || Theme.primary) + "20" }]}>
-                  <Text style={[tableStyles.statusText, { color: statusColor }]}>{cell}</Text>
-                </View>
-              )
-              : (
-                <Text
-                  style={[
-                    header ? tableStyles.headerText : tableStyles.cellText,
-                    i > 0 && { textAlign: "right" },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {cell}
-                </Text>
-              )
-            }
-          </View>
-        );
-      })}
-    </View>
-  );
-}
-
-function TotalsRow({ data, keys }: { data: any[]; keys: string[] }) {
-  const totals: Record<string, number> = {};
-  keys.forEach(k => { totals[k] = data.reduce((s, r) => s + parseFloat(r[k] || 0), 0); });
-
-  return (
-    <View style={tableStyles.totalsRow}>
-      <View style={[tableStyles.cell, tableStyles.firstCell]}>
-        <Text style={tableStyles.totalLabel}>TOTAL</Text>
-      </View>
-      {Object.values(totals).map((v, i) => (
-        <View key={i} style={tableStyles.cell}>
-          <Text style={[tableStyles.totalValue, { textAlign: "right" }]}>{`$${v.toFixed(2)}`}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-const tableStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: Theme.border,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    minWidth: 900,
-  },
-  headerRow: { backgroundColor: Theme.bgMuted },
-  altRow: { backgroundColor: "#FAFAF9" },
-  totalsRow: {
-    flexDirection: "row",
-    borderTopWidth: 2,
-    borderTopColor: Theme.primary,
-    backgroundColor: Theme.primaryLight,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-    minWidth: 900,
-  },
-  cell: { flex: 1, paddingHorizontal: 6, justifyContent: "center", minWidth: 90 },
-  firstCell: { minWidth: 120 },
-  headerText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary, textTransform: "uppercase", letterSpacing: 0.4 },
-  cellText: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textPrimary },
-  totalLabel: { fontFamily: Fonts.black, fontSize: 12, color: Theme.primary, textTransform: "uppercase" },
-  totalValue: { fontFamily: Fonts.black, fontSize: 14, color: Theme.primary },
-  statusBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20, alignSelf: "flex-start" },
-  statusText: { fontFamily: Fonts.bold, fontSize: 10 },
-});
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Theme.bgMain },
-  header: {
-    flexDirection: "row", alignItems: "center", paddingHorizontal: 16,
-    paddingVertical: 12, backgroundColor: Theme.bgCard,
-    borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 8,
-    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.06)" } }) as any,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center",
-  },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Theme.bgCard, borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 12 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center" },
   headerTitle: { fontFamily: Fonts.black, fontSize: 17, color: Theme.textPrimary },
-  headerSub: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, marginTop: 1 },
-  exportBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center",
-  },
-  printBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center",
-  },
-  filterBar: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: Theme.bgCard, paddingHorizontal: 16, paddingVertical: 10,
-    borderBottomWidth: 1, borderBottomColor: Theme.border,
-  },
+  headerSub: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary },
+  exportBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center" },
+
+  // Filters
+  filterBar: { backgroundColor: Theme.bgCard, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 10 },
+  dateRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   dateField: { flex: 1 },
-  dateLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginBottom: 3, textTransform: "uppercase" },
-  dateInput: {
-    backgroundColor: Theme.bgInput, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
-    fontFamily: Fonts.medium, fontSize: 13, color: Theme.textPrimary,
-    borderWidth: 1, borderColor: Theme.border,
-  },
-  applyBtn: {
-    paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10,
-    backgroundColor: Theme.primary,
-  },
+  dateLabel: { fontFamily: Fonts.medium, fontSize: 9, color: Theme.textSecondary, marginBottom: 4, textTransform: "uppercase" },
+  dateInput: { backgroundColor: Theme.bgInput, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontFamily: Fonts.medium, fontSize: 13, color: Theme.textPrimary, borderWidth: 1, borderColor: Theme.border },
+  applyBtn: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: Theme.primary, justifyContent: "center", marginTop: 12 },
   applyBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: "#fff" },
-  tabBar: {
-    backgroundColor: Theme.bgCard,
-    borderBottomWidth: 1, borderBottomColor: Theme.border,
-    flexGrow: 0, flexShrink: 0,
-  },
-  tab: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 2, borderBottomColor: "transparent",
-  },
-  tabActive: { borderBottomColor: Theme.primary },
-  tabText: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textMuted, textTransform: "uppercase" },
-  tabTextActive: { color: Theme.primary },
-  tableWrap: {
-    backgroundColor: Theme.bgCard, margin: 8,
-    borderRadius: 14, overflow: "hidden",
-    borderWidth: 1, borderColor: Theme.border,
-  },
-  emptyState: { alignItems: "center", paddingVertical: 60, gap: 12 },
+  searchBox: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: Theme.bgInput, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: Theme.border },
+  searchInput: { flex: 1, fontFamily: Fonts.medium, fontSize: 13, color: Theme.textPrimary },
+
+  // KPI grid
+  kpiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, padding: 16 },
+  kpiCard: { flex: 1, minWidth: "45%", backgroundColor: Theme.bgCard, borderWidth: 1, borderColor: Theme.border, borderRadius: 12, padding: 12, alignItems: "center" },
+  kpiValue: { fontFamily: Fonts.black, fontSize: 18 },
+  kpiLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginTop: 4 },
+
+  // Filter Tabs
+  filterTabs: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 16, marginBottom: 12 },
+  filterTab: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: Theme.bgMuted, borderWidth: 1, borderColor: Theme.border },
+  filterTabActive: { backgroundColor: Theme.primary, borderColor: Theme.primary },
+  filterTabText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary },
+  filterTabTextActive: { color: "#fff" },
+
+  reportContainer: { paddingHorizontal: 16, paddingBottom: 80 },
+  cardList: { gap: 8 },
+  rowCard: { backgroundColor: Theme.bgCard, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Theme.border },
+  rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  artistNameText: { fontFamily: Fonts.black, fontSize: 13, color: Theme.textPrimary },
+  metricText: { fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary },
+  rowMeta: { marginTop: 6, gap: 4 },
+  metaText: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary },
+  remarksText: { fontFamily: Fonts.regular, fontSize: 11, color: Theme.textMuted, fontStyle: "italic", marginTop: 2 },
+
+  bottomStrip: { flexDirection: "row", backgroundColor: Theme.bgCard, borderTopWidth: 2, borderTopColor: Theme.primary, paddingVertical: 12, paddingHorizontal: 8 },
+  stripCell: { flex: 1, alignItems: "center" },
+  stripLabel: { fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, textTransform: "uppercase" },
+  stripVal: { fontFamily: Fonts.black, fontSize: 15, marginTop: 2 },
+
+  emptyState: { alignItems: "center", paddingVertical: 60, gap: 8 },
   emptyText: { fontFamily: Fonts.medium, fontSize: 14, color: Theme.textSecondary },
 });

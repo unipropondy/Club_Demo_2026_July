@@ -121,12 +121,12 @@ export default function ArtistBonusMasterScreen() {
         await axios.put(`${API_URL}/api/artist-bonus/master/${editingId}`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        showToast({ type: "success", message: "Rule Updated", subtitle: "Bonus rule saved successfully." });
+        showToast({ type: "success", message: "Rule Saved", subtitle: "Bonus rule saved successfully." });
       } else {
         await axios.post(`${API_URL}/api/artist-bonus/master`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        showToast({ type: "success", message: "Rule Created", subtitle: "New bonus rule is now active." });
+        showToast({ type: "success", message: "Rule Created", subtitle: "New bonus rule created successfully." });
       }
 
       setShowModal(false);
@@ -189,15 +189,12 @@ export default function ArtistBonusMasterScreen() {
     }
   };
 
-  // Live preview of bonus milestones
-  const previewRows = () => {
-    const threshold = parseFloat(form.ThresholdAmount);
-    const bonus = parseFloat(form.BonusAmount);
+  const previewRows = (threshold: number, bonus: number, isRepeating: boolean) => {
     if (!threshold || !bonus || threshold <= 0 || bonus <= 0) return [];
     const rows = [];
-    for (let tier = 1; tier <= 5; tier++) {
+    for (let tier = 1; tier <= 4; tier++) {
       const sales = threshold * tier;
-      const earned = form.IsRepeating ? bonus * tier : bonus;
+      const earned = isRepeating ? bonus * tier : bonus;
       rows.push({ sales, earned });
     }
     return rows;
@@ -216,7 +213,7 @@ export default function ArtistBonusMasterScreen() {
             if (router.canGoBack()) {
               router.back();
             } else {
-              router.replace("/menu/artist-management" as any);
+              router.replace("/menu/artist-management");
             }
           }} 
           style={styles.backBtn}
@@ -224,122 +221,112 @@ export default function ArtistBonusMasterScreen() {
           <Ionicons name="chevron-back" size={22} color={Theme.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Bonus Master</Text>
-          <Text style={styles.headerSub}>Configure artist bonus rules</Text>
+          <Text style={styles.headerTitle}>Bonus Rule Master</Text>
+          <Text style={styles.headerSub}>Setup rules & milestones</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={openCreate}>
-          <Ionicons name="add" size={20} color="#fff" />
+          <Ionicons name="add" size={18} color="#fff" />
           <Text style={styles.addBtnText}>New Rule</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {loading && <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 20 }} />}
 
-        {/* Active Rule Banner */}
-        {globalActive && (
-          <View style={styles.activeBanner}>
-            <View style={styles.activeBannerIcon}>
-              <Ionicons name="checkmark-circle" size={22} color="#16A34A" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.activeBannerTitle}>Active Global Rule</Text>
-              <Text style={styles.activeBannerSub}>
-                Every ${globalActive.ThresholdAmount} → ${globalActive.BonusAmount} bonus
-                {globalActive.IsRepeating ? " (Repeating)" : " (One-time)"}
-              </Text>
-            </View>
-          </View>
-        )}
+        {rules.map((rule) => {
+          const previews = previewRows(rule.ThresholdAmount, rule.BonusAmount, rule.IsRepeating);
+          return (
+            <View key={rule.Id} style={[styles.ruleCard, !rule.IsActive && styles.ruleCardInactive]}>
+              <View style={styles.ruleCardHeader}>
+                <View style={styles.ruleTypeTag}>
+                  <Text style={styles.ruleTypeText}>
+                    {rule.ArtistDishId ? `Custom Override: ${rule.ArtistDishName}` : "Global Rule"}
+                  </Text>
+                </View>
+                <View style={[styles.ruleStatusBadge, rule.IsActive ? styles.activeTag : styles.inactiveTag]}>
+                  <Text style={[styles.ruleStatusText, rule.IsActive ? styles.activeTagText : styles.inactiveTagText]}>
+                    {rule.IsActive ? "Active" : "Inactive"}
+                  </Text>
+                </View>
+              </View>
 
-        {!globalActive && !loading && (
-          <View style={styles.noRuleWarn}>
-            <Ionicons name="warning" size={20} color="#D97706" />
-            <Text style={styles.noRuleText}>No active global bonus rule. Create one to start tracking artist bonuses.</Text>
-          </View>
-        )}
-
-        {loading && <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 32 }} />}
-
-        {/* Rules List */}
-        {rules.map((rule) => (
-          <View key={rule.Id} style={[styles.ruleCard, !rule.IsActive && styles.ruleCardInactive]}>
-            {/* Rule Header */}
-            <View style={styles.ruleCardHeader}>
-              <View style={styles.ruleTypeTag}>
-                <Text style={styles.ruleTypeText}>
-                  {rule.ArtistDishId ? `Artist: ${rule.ArtistDishName}` : "Global Rule"}
+              {/* Arrow-based visual logic flow */}
+              <View style={styles.ruleFlowCard}>
+                <Text style={styles.flowHeading}>Bonus Rule</Text>
+                <View style={styles.flowBody}>
+                  <View style={styles.flowItem}>
+                    <Text style={styles.flowLabel}>Every</Text>
+                    <Text style={styles.flowVal}>${rule.ThresholdAmount}</Text>
+                    <Text style={styles.flowSub}>Sales</Text>
+                  </View>
+                  <Ionicons name="arrow-down" size={20} color="#2563EB" style={styles.flowArrow} />
+                  <View style={styles.flowItem}>
+                    <Text style={styles.flowLabel}>Earn</Text>
+                    <Text style={[styles.flowVal, { color: "#16A34A" }]}>${rule.BonusAmount}</Text>
+                    <Text style={styles.flowSub}>Bonus</Text>
+                  </View>
+                </View>
+                <Text style={styles.flowRepeatText}>
+                  {rule.IsRepeating ? "⚙️ Repeats Every Time" : "⚙️ One-time Payout"}
                 </Text>
               </View>
-              <View style={[styles.ruleStatusBadge, rule.IsActive ? styles.activeTag : styles.inactiveTag]}>
-                <Text style={[styles.ruleStatusText, rule.IsActive ? styles.activeTagText : styles.inactiveTagText]}>
-                  {rule.IsActive ? "Active" : "Inactive"}
-                </Text>
+
+              {/* Milestone list */}
+              {previews.length > 0 && (
+                <View style={styles.previewBox}>
+                  <Text style={styles.previewTitle}>Milestone Matrix</Text>
+                  {previews.map((row, i) => (
+                    <View key={i} style={styles.previewRow}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={styles.milestoneIcon}>📈</Text>
+                        <Text style={styles.previewVal}>Sales: <Text style={{ fontFamily: Fonts.bold }}>${row.sales}</Text></Text>
+                      </View>
+                      <Text style={styles.previewEarned}>➔ Earned: <Text style={{ color: "#16A34A", fontFamily: Fonts.black }}>+${row.earned}</Text></Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Actions */}
+              <View style={styles.ruleActions}>
+                <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(rule)}>
+                  <Ionicons name="pencil" size={15} color="#3B82F6" />
+                  <Text style={styles.editBtnText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deactivateBtn, !rule.IsActive && styles.activateBtn]}
+                  onPress={() => handleDeactivate(rule)}
+                >
+                  <Ionicons
+                    name={rule.IsActive ? "close-circle" : "checkmark-circle"}
+                    size={15}
+                    color={rule.IsActive ? "#DC2626" : "#16A34A"}
+                  />
+                  <Text style={[styles.deactivateBtnText, !rule.IsActive && styles.activateBtnText]}>
+                    {rule.IsActive ? "Deactivate" : "Activate"}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
-
-            {/* Rule Values */}
-            <View style={styles.ruleValues}>
-              <View style={styles.ruleValueBox}>
-                <Text style={styles.ruleValueLabel}>Threshold</Text>
-                <Text style={styles.ruleValueNum}>${rule.ThresholdAmount}</Text>
-              </View>
-              <Ionicons name="arrow-forward" size={18} color={Theme.textMuted} />
-              <View style={styles.ruleValueBox}>
-                <Text style={styles.ruleValueLabel}>Bonus</Text>
-                <Text style={[styles.ruleValueNum, { color: Theme.primary }]}>${rule.BonusAmount}</Text>
-              </View>
-              <View style={styles.ruleValueBox}>
-                <Text style={styles.ruleValueLabel}>Type</Text>
-                <Text style={styles.ruleValueNum}>{rule.IsRepeating ? "Repeating" : "One-time"}</Text>
-              </View>
-            </View>
-
-            {/* Rule description */}
-            <Text style={styles.ruleDesc}>
-              {rule.IsRepeating
-                ? `For every $${rule.ThresholdAmount} in sales, artist earns $${rule.BonusAmount} bonus.`
-                : `When sales reach $${rule.ThresholdAmount}, artist earns a one-time $${rule.BonusAmount} bonus.`}
-            </Text>
-
-            {/* Actions */}
-            <View style={styles.ruleActions}>
-              <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(rule)}>
-                <Ionicons name="pencil" size={15} color="#3B82F6" />
-                <Text style={styles.editBtnText}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.deactivateBtn, !rule.IsActive && styles.activateBtn]}
-                onPress={() => handleDeactivate(rule)}
-              >
-                <Ionicons
-                  name={rule.IsActive ? "close-circle" : "checkmark-circle"}
-                  size={15}
-                  color={rule.IsActive ? "#DC2626" : "#16A34A"}
-                />
-                <Text style={[styles.deactivateBtnText, !rule.IsActive && styles.activateBtnText]}>
-                  {rule.IsActive ? "Deactivate" : "Activate"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
+          );
+        })}
 
         {rules.length === 0 && !loading && (
           <View style={styles.emptyState}>
             <Ionicons name="settings-outline" size={48} color={Theme.textMuted} />
-            <Text style={styles.emptyTitle}>No Rules Yet</Text>
-            <Text style={styles.emptySubtitle}>Create your first bonus rule to get started</Text>
+            <Text style={styles.emptyTitle}>No Rules Setup</Text>
+            <Text style={styles.emptySubtitle}>Configure rules to track payouts.</Text>
             <TouchableOpacity style={styles.createFirstBtn} onPress={openCreate}>
-              <Text style={styles.createFirstBtnText}>Create Bonus Rule</Text>
+              <Text style={styles.createFirstBtnText}>Create Rule</Text>
             </TouchableOpacity>
           </View>
         )}
       </ScrollView>
 
-      {/* Create/Edit Modal */}
+      {/* Modal */}
       <Modal visible={showModal} transparent animationType="slide" onRequestClose={() => setShowModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalBox, isTablet && { maxWidth: 560 }]}>
+          <View style={[styles.modalBox, isTablet && { maxWidth: 500 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{editingId ? "Edit Bonus Rule" : "Create Bonus Rule"}</Text>
               <TouchableOpacity onPress={() => setShowModal(false)} style={styles.closeBtn}>
@@ -348,7 +335,6 @@ export default function ArtistBonusMasterScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Threshold */}
               <Text style={styles.fieldLabel}>Threshold Amount ($)</Text>
               <TextInput
                 style={styles.input}
@@ -359,7 +345,6 @@ export default function ArtistBonusMasterScreen() {
                 placeholderTextColor={Theme.textMuted}
               />
 
-              {/* Bonus */}
               <Text style={styles.fieldLabel}>Bonus Amount ($)</Text>
               <TextInput
                 style={styles.input}
@@ -370,14 +355,11 @@ export default function ArtistBonusMasterScreen() {
                 placeholderTextColor={Theme.textMuted}
               />
 
-              {/* Repeating Toggle */}
               <View style={styles.toggleRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.fieldLabel}>Repeating Bonus</Text>
+                  <Text style={styles.fieldLabel}>Repeating Milestone</Text>
                   <Text style={styles.fieldHint}>
-                    {form.IsRepeating
-                      ? "Bonus repeats every time sales hit the threshold again"
-                      : "One-time bonus when sales first reach the threshold"}
+                    {form.IsRepeating ? "Repeats every time threshold is crossed" : "One-time payout limit"}
                   </Text>
                 </View>
                 <Switch
@@ -387,37 +369,14 @@ export default function ArtistBonusMasterScreen() {
                   thumbColor={form.IsRepeating ? Theme.primary : "#f4f3f4"}
                 />
               </View>
-
-              {/* Preview table */}
-              {previewRows().length > 0 && (
-                <View style={styles.previewBox}>
-                  <Text style={styles.previewTitle}>Bonus Preview</Text>
-                  <View style={styles.previewHeader}>
-                    <Text style={[styles.previewCell, { flex: 1.5 }]}>At Sales</Text>
-                    <Text style={[styles.previewCell, { flex: 1, textAlign: "right" }]}>Bonus Earned</Text>
-                  </View>
-                  {previewRows().map((row, i) => (
-                    <View key={i} style={[styles.previewRow, i % 2 === 1 && { backgroundColor: Theme.bgMuted }]}>
-                      <Text style={[styles.previewVal, { flex: 1.5 }]}>${row.sales.toFixed(2)}</Text>
-                      <Text style={[styles.previewVal, { flex: 1, textAlign: "right", color: "#16A34A", fontFamily: Fonts.bold }]}>
-                        ${row.earned.toFixed(2)}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
             </ScrollView>
 
-            {/* Footer */}
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowModal(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
-                {saving
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={styles.saveBtnText}>{editingId ? "Save Changes" : "Create Rule"}</Text>
-                }
+                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>Save Rule</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -433,52 +392,23 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", paddingHorizontal: 16,
     paddingVertical: 12, backgroundColor: Theme.bgCard,
     borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 12,
-    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.06)" } }) as any,
   },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center",
-  },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center" },
   headerTitle: { fontFamily: Fonts.black, fontSize: 17, color: Theme.textPrimary },
   headerSub: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, marginTop: 1 },
-  addBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: Theme.primary, paddingHorizontal: 14, paddingVertical: 9,
-    borderRadius: 10,
-  },
-  addBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: "#fff" },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: Theme.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  addBtnText: { fontFamily: Fonts.bold, fontSize: 12, color: "#fff" },
   scroll: { padding: 16, paddingBottom: 40 },
-
-  activeBanner: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: "#F0FDF4", borderWidth: 1, borderColor: "#BBF7D0",
-    borderRadius: 14, padding: 14, marginBottom: 16,
-  },
-  activeBannerIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    backgroundColor: "#DCFCE7", justifyContent: "center", alignItems: "center",
-  },
-  activeBannerTitle: { fontFamily: Fonts.bold, fontSize: 13, color: "#166534" },
-  activeBannerSub: { fontFamily: Fonts.medium, fontSize: 12, color: "#16A34A", marginTop: 2 },
-
-  noRuleWarn: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "#FFFBEB", borderWidth: 1, borderColor: "#FDE68A",
-    borderRadius: 14, padding: 14, marginBottom: 16,
-  },
-  noRuleText: { fontFamily: Fonts.medium, fontSize: 13, color: "#92400E", flex: 1 },
 
   ruleCard: {
     backgroundColor: Theme.bgCard, borderRadius: 16, padding: 16,
-    marginBottom: 12, borderWidth: 1, borderColor: Theme.border,
-    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.06)" } }) as any,
+    marginBottom: 16, borderWidth: 1, borderColor: Theme.border,
+    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.05)" } }) as any,
   },
-  ruleCardInactive: { opacity: 0.65 },
+  ruleCardInactive: { opacity: 0.6 },
   ruleCardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  ruleTypeTag: {
-    backgroundColor: Theme.bgMuted, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
-  },
-  ruleTypeText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary },
+  ruleTypeTag: { backgroundColor: Theme.bgMuted, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  ruleTypeText: { fontFamily: Fonts.black, fontSize: 10, color: Theme.textSecondary },
   ruleStatusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   activeTag: { backgroundColor: "#DCFCE7" },
   inactiveTag: { backgroundColor: "#F5F5F5" },
@@ -486,82 +416,52 @@ const styles = StyleSheet.create({
   activeTagText: { color: "#16A34A" },
   inactiveTagText: { color: "#9CA3AF" },
 
-  ruleValues: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: Theme.bgMuted, borderRadius: 12, padding: 14, marginBottom: 10,
-  },
-  ruleValueBox: { flex: 1, alignItems: "center" },
-  ruleValueLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginBottom: 4, textTransform: "uppercase" },
-  ruleValueNum: { fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary },
+  // Flow Card
+  ruleFlowCard: { backgroundColor: "#EFF6FF", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#BFDBFE", alignItems: "center", marginBottom: 12 },
+  flowHeading: { fontFamily: Fonts.black, fontSize: 11, color: "#2563EB", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  flowBody: { alignItems: "center", gap: 6, width: "100%" },
+  flowItem: { alignItems: "center", minWidth: 100 },
+  flowLabel: { fontFamily: Fonts.medium, fontSize: 9, color: Theme.textSecondary, textTransform: "uppercase" },
+  flowVal: { fontFamily: Fonts.black, fontSize: 22, color: Theme.textPrimary, marginVertical: 2 },
+  flowSub: { fontFamily: Fonts.bold, fontSize: 10, color: Theme.textMuted },
+  flowArrow: { marginVertical: 4 },
+  flowRepeatText: { fontFamily: Fonts.bold, fontSize: 11, color: "#2563EB", marginTop: 10 },
 
-  ruleDesc: { fontFamily: Fonts.regular, fontSize: 13, color: Theme.textSecondary, marginBottom: 14, lineHeight: 19 },
+  // Preview Box
+  previewBox: { backgroundColor: Theme.bgMuted, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Theme.border, marginBottom: 14 },
+  previewTitle: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  previewRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Theme.border },
+  milestoneIcon: { marginRight: 4 },
+  previewVal: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textPrimary },
+  previewEarned: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textPrimary },
 
   ruleActions: { flexDirection: "row", gap: 10 },
-  editBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 9, borderRadius: 10,
-    backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE",
-  },
+  editBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE" },
   editBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: "#3B82F6" },
-  deactivateBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 9, borderRadius: 10,
-    backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA",
-  },
+  deactivateBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
   deactivateBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: "#DC2626" },
   activateBtn: { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
   activateBtnText: { color: "#16A34A" },
 
   emptyState: { alignItems: "center", paddingVertical: 60 },
-  emptyTitle: { fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary, marginTop: 16 },
-  emptySubtitle: { fontFamily: Fonts.medium, fontSize: 14, color: Theme.textSecondary, marginTop: 8, textAlign: "center" },
-  createFirstBtn: {
-    marginTop: 20, backgroundColor: Theme.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12,
-  },
-  createFirstBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: "#fff" },
+  emptyTitle: { fontFamily: Fonts.black, fontSize: 16, color: Theme.textPrimary },
+  emptySubtitle: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary, marginTop: 4, textAlign: "center" },
+  createFirstBtn: { marginTop: 16, backgroundColor: Theme.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
+  createFirstBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: "#fff" },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  modalBox: {
-    backgroundColor: Theme.bgCard, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, maxHeight: "92%",
-    ...Platform.select({ web: { boxShadow: "0 -4px 20px rgba(0,0,0,0.1)" } }) as any,
-  },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  modalBox: { backgroundColor: Theme.bgCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: "90%" },
   modalHeader: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
   modalTitle: { fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary, flex: 1 },
-  closeBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center",
-  },
-  fieldLabel: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary, marginBottom: 6, marginTop: 16 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center" },
+  fieldLabel: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary, marginBottom: 6, marginTop: 12 },
   fieldHint: { fontFamily: Fonts.regular, fontSize: 12, color: Theme.textSecondary, marginTop: 2 },
-  input: {
-    backgroundColor: Theme.bgInput, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    fontFamily: Fonts.medium, fontSize: 15, color: Theme.textPrimary,
-    borderWidth: 1, borderColor: Theme.border,
-  },
-  toggleRow: {
-    flexDirection: "row", alignItems: "center", gap: 12,
-    backgroundColor: Theme.bgMuted, borderRadius: 12, padding: 14, marginTop: 16,
-  },
-  previewBox: {
-    marginTop: 20, backgroundColor: Theme.bgMuted, borderRadius: 12,
-    overflow: "hidden", borderWidth: 1, borderColor: Theme.border,
-  },
-  previewTitle: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary, padding: 10, letterSpacing: 0.5, textTransform: "uppercase" },
-  previewHeader: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Theme.bgCard },
-  previewCell: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary, textTransform: "uppercase" },
-  previewRow: { flexDirection: "row", paddingHorizontal: 12, paddingVertical: 8 },
-  previewVal: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textPrimary },
+  input: { backgroundColor: Theme.bgInput, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontFamily: Fonts.medium, fontSize: 15, color: Theme.textPrimary, borderWidth: 1, borderColor: Theme.border },
+  toggleRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: Theme.bgMuted, borderRadius: 12, padding: 14, marginTop: 16 },
   modalFooter: { flexDirection: "row", gap: 12, marginTop: 24 },
-  cancelBtn: {
-    flex: 1, paddingVertical: 14, borderRadius: 12,
-    backgroundColor: Theme.bgMuted, alignItems: "center",
-  },
+  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: Theme.bgMuted, alignItems: "center" },
   cancelBtnText: { fontFamily: Fonts.bold, fontSize: 15, color: Theme.textSecondary },
-  saveBtn: {
-    flex: 2, paddingVertical: 14, borderRadius: 12,
-    backgroundColor: Theme.primary, alignItems: "center",
-  },
+  saveBtn: { flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: Theme.primary, alignItems: "center" },
   saveBtnText: { fontFamily: Fonts.bold, fontSize: 15, color: "#fff" },
 });

@@ -9,7 +9,6 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Platform,
   ScrollView,
@@ -23,13 +22,14 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import * as Print from "expo-print";
+
 const pad = (n: number) => n.toString().padStart(2, "0");
 const fmtDate = (raw: string | null) => {
   if (!raw) return "—";
   const d = new Date(raw);
   return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
 };
-const fmtPeriod = (from: string, to: string) => `${fmtDate(from)} → ${fmtDate(to)}`;
 
 interface Transaction {
   Id: string;
@@ -45,30 +45,29 @@ interface Transaction {
   CreatedDate: string;
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  Paid:             { bg: "#DCFCE7", text: "#16A34A" },
-  "Partially Paid": { bg: "#FEF9C3", text: "#CA8A04" },
-  Pending:          { bg: "#FEE2E2", text: "#DC2626" },
-};
-
 export default function ArtistBonusPaymentsScreen() {
   const router = useRouter();
-  const { token, user } = useAuthStore();
+  const { token } = useAuthStore();
   const { showToast } = useToast();
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
 
   const [loading, setLoading]       = useState(false);
   const [transactions, setTxns]     = useState<Transaction[]>([]);
-  const [expanded, setExpanded]     = useState<string | null>(null);
-  const [payments, setPayments]     = useState<Record<string, any[]>>({});
+  const [selectedTxns, setSelectedTxns] = useState<Record<string, boolean>>({});
+  const [settledToday, setSettledToday] = useState<any[]>([]);
 
-  // Pay modal state
+  // Payout modals
   const [showPayModal, setShowPayModal] = useState(false);
-  const [selectedTxn, setSelectedTxn]   = useState<Transaction | null>(null);
+  const [singleTxn, setSingleTxn]       = useState<Transaction | null>(null);
   const [payAmount, setPayAmount]       = useState("");
+  const [payMethod, setPayMethod]       = useState("Cash");
   const [payRemarks, setPayRemarks]     = useState("");
   const [paying, setPaying]             = useState(false);
+
+  // Receipt Modal
+  const [showReceipt, setShowReceipt]   = useState(false);
+  const [receiptData, setReceiptData]   = useState<any>(null);
 
   const fetchPending = useCallback(async () => {
     try {
@@ -76,7 +75,11 @@ export default function ArtistBonusPaymentsScreen() {
       const res = await axios.get(`${API_URL}/api/artist-bonus/pending`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.data.success) setTxns(res.data.data);
+      if (res.data.success) {
+        setTxns(res.data.data);
+        // Clear selections
+        setSelectedTxns({});
+      }
     } catch (err: any) {
       showToast({ type: "error", message: "Load Failed", subtitle: err.message });
     } finally {
@@ -86,42 +89,94 @@ export default function ArtistBonusPaymentsScreen() {
 
   useEffect(() => { fetchPending(); }, [fetchPending]);
 
-  const loadPayments = async (txnId: string) => {
-    try {
-      const res = await axios.get(`${API_URL}/api/artist-bonus/payments?transactionId=${txnId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.data.success) {
-        setPayments(prev => ({ ...prev, [txnId]: res.data.data }));
-      }
-    } catch (_) {}
+  const toggleSelect = (id: string) => {
+    setSelectedTxns(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const toggleExpand = (txnId: string) => {
-    if (expanded === txnId) {
-      setExpanded(null);
-    } else {
-      setExpanded(txnId);
-      if (!payments[txnId]) loadPayments(txnId);
+  const toggleSelectAll = () => {
+    const activeWaiting = transactions.filter(t => t.status === "Pending" || t.status === "Partially Paid");
+    const allSelected = activeWaiting.every(t => selectedTxns[t.Id]);
+    
+    const next: Record<string, boolean> = {};
+    if (!allSelected) {
+      activeWaiting.forEach(t => { next[t.Id] = true; });
     }
+    setSelectedTxns(next);
   };
 
-  const openPayModal = (txn: Transaction) => {
-    setSelectedTxn(txn);
-    setPayAmount(txn.pendingBonus.toFixed(2)); // Default to full pending
+  const getSelectedCount = () => Object.values(selectedTxns).filter(Boolean).length;
+  const getSelectedTotal = () => {
+    return transactions
+      .filter(t => selectedTxns[t.Id])
+      .reduce((s, t) => s + Number(t.pendingBonus), 0);
+  };
+
+  const openSettleModal = (txn: Transaction) => {
+    setSingleTxn(txn);
+    setPayAmount(txn.pendingBonus.toFixed(2));
+    setPayMethod("Cash");
     setPayRemarks("");
     setShowPayModal(true);
   };
 
-  const handlePay = async () => {
-    if (!selectedTxn) return;
-    const amount = parseFloat(payAmount);
-    if (!amount || amount <= 0) {
-      showToast({ type: "error", message: "Validation", subtitle: "Payment amount must be greater than $0." });
-      return;
+  const handleBatchPay = async () => {
+    const activeList = transactions.filter(t => selectedTxns[t.Id]);
+    if (activeList.length === 0) return;
+
+    try {
+      setPaying(true);
+      let batchTotal = 0;
+      const settledNames: string[] = [];
+
+      for (const t of activeList) {
+        await axios.post(
+          `${API_URL}/api/artist-bonus/pay`,
+          {
+            transactionId: t.Id,
+            paymentAmount: Number(t.pendingBonus.toFixed(2)),
+            remarks: `Batch Settle via Payments Portal (${payMethod})`,
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        batchTotal += t.pendingBonus;
+        settledNames.push(t.ArtistName);
+        
+        // Track local settled session history
+        setSettledToday(prev => [
+          { artistName: t.ArtistName, amount: t.pendingBonus, date: new Date().toLocaleTimeString(), method: payMethod },
+          ...prev
+        ]);
+      }
+
+      showToast({
+        type: "success",
+        message: "Batch Settled",
+        subtitle: `Paid $${batchTotal.toFixed(2)} to ${activeList.length} artists.`,
+      });
+
+      // Show final receipt summary
+      setReceiptData({
+        artistName: settledNames.join(", "),
+        amount: batchTotal,
+        date: new Date().toLocaleString(),
+        method: payMethod,
+        refNo: `BATCH-${Date.now().toString().slice(-6)}`,
+      });
+      setShowReceipt(true);
+      fetchPending();
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err.message;
+      showToast({ type: "error", message: "Batch Payment Failed", subtitle: msg });
+    } finally {
+      setPaying(false);
     }
-    if (amount > selectedTxn.pendingBonus) {
-      showToast({ type: "error", message: "Validation", subtitle: `Amount cannot exceed pending bonus ($${selectedTxn.pendingBonus.toFixed(2)}).` });
+  };
+
+  const handleSinglePay = async () => {
+    if (!singleTxn) return;
+    const amt = parseFloat(payAmount);
+    if (!amt || amt <= 0 || amt > singleTxn.pendingBonus) {
+      showToast({ type: "error", message: "Validation", subtitle: "Please enter a valid payout amount." });
       return;
     }
 
@@ -130,8 +185,8 @@ export default function ArtistBonusPaymentsScreen() {
       const res = await axios.post(
         `${API_URL}/api/artist-bonus/pay`,
         {
-          transactionId: selectedTxn.Id,
-          paymentAmount: amount,
+          transactionId: singleTxn.Id,
+          paymentAmount: amt,
           remarks: payRemarks || null,
         },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -141,11 +196,24 @@ export default function ArtistBonusPaymentsScreen() {
         showToast({
           type: "success",
           message: "Payment Recorded",
-          subtitle: `$${amount.toFixed(2)} paid to ${selectedTxn.ArtistName}. Pending: $${res.data.pendingBonus.toFixed(2)}`,
+          subtitle: `$${amt.toFixed(2)} paid to ${singleTxn.ArtistName}.`,
         });
+
+        setSettledToday(prev => [
+          { artistName: singleTxn.ArtistName, amount: amt, date: new Date().toLocaleTimeString(), method: payMethod },
+          ...prev
+        ]);
+
+        setReceiptData({
+          artistName: singleTxn.ArtistName,
+          amount: amt,
+          date: new Date().toLocaleString(),
+          method: payMethod,
+          refNo: res.data.paymentId ? res.data.paymentId.slice(-8).toUpperCase() : `TX-${Date.now().toString().slice(-6)}`,
+        });
+        
         setShowPayModal(false);
-        // Clear cached payments for this txn so it refreshes
-        setPayments(prev => { const copy = { ...prev }; delete copy[selectedTxn.Id]; return copy; });
+        setShowReceipt(true);
         fetchPending();
       }
     } catch (err: any) {
@@ -155,6 +223,39 @@ export default function ArtistBonusPaymentsScreen() {
       setPaying(false);
     }
   };
+
+  const printReceipt = async () => {
+    if (!receiptData) return;
+    const html = `
+      <html>
+      <body style="font-family: monospace; padding: 20px; width: 300px;">
+        <h3 style="text-align: center;">ARTIST BONUS RECEIPT</h3>
+        <hr/>
+        <p><b>Date:</b> ${receiptData.date}</p>
+        <p><b>Ref:</b> ${receiptData.refNo}</p>
+        <p><b>Artist:</b> ${receiptData.artistName}</p>
+        <p><b>Method:</b> ${receiptData.method}</p>
+        <hr/>
+        <h2 style="text-align: center;">TOTAL: $${receiptData.amount.toFixed(2)}</h2>
+        <hr/>
+        <p style="text-align: center; font-size: 10px;">Thank you for your performance!</p>
+      </body>
+      </html>
+    `;
+    try {
+      await Print.printAsync({ html });
+    } catch (_) {
+      showToast({ type: "error", message: "Print Failed", subtitle: "Receipt could not be sent to printer." });
+    }
+  };
+
+  // Groups
+  const waitingList = transactions.filter(t => t.status === "Pending");
+  const partialList = transactions.filter(t => t.status === "Partially Paid");
+  const totalWaitingAmount = transactions.reduce((s, t) => s + Number(t.pendingBonus), 0);
+
+  const selectedCount = getSelectedCount();
+  const selectedTotal = getSelectedTotal();
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -167,7 +268,7 @@ export default function ArtistBonusPaymentsScreen() {
             if (router.canGoBack()) {
               router.back();
             } else {
-              router.replace("/menu/artist-management" as any);
+              router.replace("/menu/artist-management");
             }
           }} 
           style={styles.backBtn}
@@ -175,211 +276,250 @@ export default function ArtistBonusPaymentsScreen() {
           <Ionicons name="chevron-back" size={22} color={Theme.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Bonus Payments</Text>
-          <Text style={styles.headerSub}>{transactions.length} pending / partial bonuses</Text>
+          <Text style={styles.headerTitle}>Bonus Wallets</Text>
+          <Text style={styles.headerSub}>{transactions.length} outstanding periods</Text>
         </View>
-        <TouchableOpacity onPress={fetchPending} style={styles.refreshBtn}>
-          <Ionicons name="refresh" size={20} color={Theme.primary} />
-        </TouchableOpacity>
       </View>
 
-      {loading
-        ? <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 60 }} />
-        : (
-          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      {/* Summary Card */}
+      <View style={styles.summaryBar}>
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryMeta}>
+            <View style={styles.sumBadge}>
+              <Ionicons name="wallet" size={20} color="#DC2626" />
+            </View>
+            <View>
+              <Text style={styles.sumLabel}>Total Wallet Dues</Text>
+              <Text style={styles.sumValue}>${totalWaitingAmount.toFixed(2)}</Text>
+            </View>
+          </View>
+          {transactions.length > 0 && (
+            <TouchableOpacity style={styles.payAllBtn} onPress={toggleSelectAll}>
+              <Text style={styles.payAllText}>
+                {selectedCount === transactions.length ? "Deselect All" : "Select All"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
-            {transactions.length === 0 && (
-              <View style={styles.emptyState}>
-                <Ionicons name="checkmark-circle" size={56} color="#16A34A" />
-                <Text style={styles.emptyTitle}>All Caught Up!</Text>
-                <Text style={styles.emptySubtitle}>No pending or partially paid bonuses.</Text>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {loading && <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 20 }} />}
+
+        {/* ── BATCH ACTION FOOTER ── */}
+        {selectedCount > 0 && (
+          <View style={styles.batchCard}>
+            <View>
+              <Text style={styles.batchTitle}>{selectedCount} Wallets Selected</Text>
+              <Text style={styles.batchSub}>Total: <Text style={{ fontFamily: Fonts.black }}>${selectedTotal.toFixed(2)}</Text></Text>
+            </View>
+            <TouchableOpacity style={styles.batchPayBtn} onPress={handleBatchPay}>
+              <Ionicons name="cash" size={16} color="#fff" />
+              <Text style={styles.batchPayText}>Pay Selected</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* ── WAITING LIST ── */}
+        {waitingList.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>🔴 Waiting Payment ({waitingList.length})</Text>
+            {waitingList.map((t) => (
+              <View key={t.Id} style={styles.walletCard}>
+                <TouchableOpacity style={styles.checkWrap} onPress={() => toggleSelect(t.Id)}>
+                  <Ionicons 
+                    name={selectedTxns[t.Id] ? "checkbox" : "square-outline"} 
+                    size={22} 
+                    color={selectedTxns[t.Id] ? "#DC2626" : Theme.textMuted} 
+                  />
+                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.artistNameText}>{t.ArtistName}</Text>
+                  <Text style={styles.periodText}>{fmtDate(t.SalesFromDate)} ➔ {fmtDate(t.SalesToDate)}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end", marginRight: 8 }}>
+                  <Text style={styles.dueLabel}>Bonus Due</Text>
+                  <Text style={styles.dueAmount}>${t.pendingBonus.toFixed(0)}</Text>
+                </View>
+                <TouchableOpacity style={styles.payBtn} onPress={() => openSettleModal(t)}>
+                  <Text style={styles.payBtnText}>Pay</Text>
+                </TouchableOpacity>
               </View>
-            )}
+            ))}
+          </View>
+        )}
 
-            {/* Group transactions by artist */}
-            {(() => {
-              // Group by ArtistName
-              const groups: Record<string, typeof transactions> = {};
-              const groupDishId: Record<string, string> = {};
-              transactions.forEach(txn => {
-                const name = txn.ArtistName || "Unknown";
-                if (!groups[name]) groups[name] = [];
-                groups[name].push(txn);
-                groupDishId[name] = txn.ArtistDishId;
-              });
+        {/* ── PARTIAL LIST ── */}
+        {partialList.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>🟠 Partial Payment ({partialList.length})</Text>
+            {partialList.map((t) => (
+              <View key={t.Id} style={styles.walletCard}>
+                <TouchableOpacity style={styles.checkWrap} onPress={() => toggleSelect(t.Id)}>
+                  <Ionicons 
+                    name={selectedTxns[t.Id] ? "checkbox" : "square-outline"} 
+                    size={22} 
+                    color={selectedTxns[t.Id] ? "#DC2626" : Theme.textMuted} 
+                  />
+                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.artistNameText}>{t.ArtistName}</Text>
+                  <Text style={styles.periodText}>Earned: ${t.BonusEarned.toFixed(0)} · Paid: ${t.BonusPaid.toFixed(0)}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end", marginRight: 8 }}>
+                  <Text style={styles.dueLabel}>Bonus Due</Text>
+                  <Text style={[styles.dueAmount, { color: "#F97316" }]}>${t.pendingBonus.toFixed(0)}</Text>
+                </View>
+                <TouchableOpacity style={[styles.payBtn, { backgroundColor: "#F97316" }]} onPress={() => openSettleModal(t)}>
+                  <Text style={styles.payBtnText}>Pay</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
 
-              return Object.entries(groups).map(([artistName, artistTxns]) => {
-                const totalOwed = artistTxns.reduce((s, t) => s + Number(t.pendingBonus), 0);
-                const dishId = groupDishId[artistName];
-                return (
-                  <View key={artistName} style={styles.artistGroup}>
-                    {/* Artist group header */}
-                    <View style={styles.artistGroupHeader}>
-                      <View style={styles.artistInfo}>
-                        <View style={styles.avatarCircle}>
-                          <Text style={styles.avatarText}>{(artistName || "?")[0].toUpperCase()}</Text>
-                        </View>
-                        <View>
-                          <Text style={styles.artistName}>{artistName}</Text>
-                          <Text style={styles.periodText}>
-                            {artistTxns.length} period{artistTxns.length > 1 ? "s" : ""} · ${totalOwed.toFixed(2)} outstanding
-                          </Text>
-                        </View>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.settleAllBtn}
-                        onPress={() => router.push(`/menu/artist-detail?dishId=${dishId}` as any)}
-                      >
-                        <Ionicons name="cash" size={14} color="#fff" />
-                        <Text style={styles.settleAllText}>Settle All</Text>
-                      </TouchableOpacity>
-                    </View>
+        {/* ── SETTLED TODAY ── */}
+        {settledToday.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>🟢 Settled Today ({settledToday.length})</Text>
+            {settledToday.map((t, idx) => (
+              <View key={idx} style={[styles.walletCard, { opacity: 0.8 }]}>
+                <Ionicons name="checkmark-circle" size={22} color="#16A34A" style={{ marginRight: 8 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.artistNameText}>{t.artistName}</Text>
+                  <Text style={styles.periodText}>Settled at {t.date} · via {t.method}</Text>
+                </View>
+                <Text style={[styles.dueAmount, { color: "#16A34A" }]}>${t.amount.toFixed(0)}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
-                    {/* Individual period transactions */}
-                    {artistTxns.map((txn) => {
-                      const sc = STATUS_COLORS[txn.status] || STATUS_COLORS.Pending;
-                      const isOpen = expanded === txn.Id;
-                      const txnPayments = payments[txn.Id] || [];
+        {transactions.length === 0 && !loading && (
+          <View style={styles.emptyState}>
+            <Ionicons name="checkmark-circle" size={56} color="#16A34A" />
+            <Text style={styles.emptyTitle}>All Caught Up!</Text>
+            <Text style={styles.emptySubtitle}>No artists are waiting for payments. Everyone has been settled.</Text>
+          </View>
+        )}
+      </ScrollView>
 
-                      return (
-                        <View key={txn.Id} style={styles.txnCard}>
-                          {/* Period + status */}
-                          <View style={styles.txnHeader}>
-                            <Text style={styles.periodText}>{fmtPeriod(txn.SalesFromDate, txn.SalesToDate)}</Text>
-                            <View style={[styles.badge, { backgroundColor: sc.bg }]}>
-                              <Text style={[styles.badgeText, { color: sc.text }]}>{txn.status}</Text>
-                            </View>
-                          </View>
-
-                          {/* Amounts */}
-                          <View style={styles.amountsRow}>
-                            <AmountCell label="Sales"   value={`$${Number(txn.TotalSales).toFixed(2)}`}    color="#3B82F6" />
-                            <AmountCell label="Earned"  value={`$${Number(txn.BonusEarned).toFixed(2)}`}  color={Theme.primary} />
-                            <AmountCell label="Paid"    value={`$${Number(txn.BonusPaid).toFixed(2)}`}    color="#16A34A" />
-                            <AmountCell label="Pending" value={`$${Number(txn.pendingBonus).toFixed(2)}`} color="#DC2626" />
-                          </View>
-
-                          {/* Actions */}
-                          <View style={styles.txnActions}>
-                            <TouchableOpacity style={styles.expandBtn} onPress={() => toggleExpand(txn.Id)}>
-                              <Ionicons name={isOpen ? "chevron-up" : "chevron-down"} size={15} color={Theme.textSecondary} />
-                              <Text style={styles.expandBtnText}>{isOpen ? "Hide" : "View"} History</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.payBtn} onPress={() => openPayModal(txn)}>
-                              <Ionicons name="cash" size={15} color="#fff" />
-                              <Text style={styles.payBtnText}>Pay Period</Text>
-                            </TouchableOpacity>
-                          </View>
-
-                          {/* Expanded Payment History */}
-                          {isOpen && (
-                            <View style={styles.payHistSection}>
-                              <Text style={styles.payHistTitle}>Payment Records</Text>
-                              {txnPayments.length === 0
-                                ? <Text style={styles.payHistEmpty}>No payments yet for this period.</Text>
-                                : txnPayments.map((pay, pi) => (
-                                  <View key={pay.Id} style={[styles.payRow, pi % 2 === 1 && { backgroundColor: "#FAFAF9" }]}>
-                                    <View style={{ flex: 1 }}>
-                                      <Text style={styles.payRowDate}>{fmtDate(pay.PaidDate)}</Text>
-                                      <Text style={styles.payRowBy}>by {pay.PaidBy}</Text>
-                                      {pay.Remarks ? <Text style={styles.payRowRemarks}>{pay.Remarks}</Text> : null}
-                                    </View>
-                                    <Text style={styles.payRowAmt}>+${Number(pay.PaymentAmount).toFixed(2)}</Text>
-                                  </View>
-                                ))
-                              }
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
-                );
-              });
-            })()}
-          </ScrollView>
-        )
-      }
-
-      {/* Pay Bonus Modal */}
+      {/* Pay Modal */}
       <Modal visible={showPayModal} transparent animationType="slide" onRequestClose={() => setShowPayModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
-
-            {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Record Payment</Text>
-                <Text style={styles.modalSubtitle}>{selectedTxn?.ArtistName}</Text>
+                <Text style={styles.modalTitle}>Settle Wallet Payout</Text>
+                <Text style={styles.modalSubtitle}>{singleTxn?.ArtistName}</Text>
               </View>
               <TouchableOpacity onPress={() => setShowPayModal(false)} style={styles.closeBtn}>
                 <Ionicons name="close" size={18} color={Theme.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            {/* Bonus Summary (read-only) */}
-            {selectedTxn && (
+            {singleTxn && (
               <View style={styles.modalSummary}>
-                <SummaryRow label="Bonus Earned" value={`$${Number(selectedTxn.BonusEarned).toFixed(2)}`} color={Theme.primary} />
-                <SummaryRow label="Already Paid" value={`$${Number(selectedTxn.BonusPaid).toFixed(2)}`} color="#16A34A" />
-                <View style={styles.summaryDivider} />
-                <SummaryRow label="Pending Bonus" value={`$${Number(selectedTxn.pendingBonus).toFixed(2)}`} color="#DC2626" bold />
+                <View style={styles.modalSumRow}>
+                  <Text style={styles.modalSumLabel}>Earned Period</Text>
+                  <Text style={styles.modalSumVal}>${singleTxn.BonusEarned}</Text>
+                </View>
+                <View style={styles.modalSumRow}>
+                  <Text style={styles.modalSumLabel}>Already Paid</Text>
+                  <Text style={styles.modalSumVal}>${singleTxn.BonusPaid}</Text>
+                </View>
+                <View style={styles.sumDivider} />
+                <View style={styles.modalSumRow}>
+                  <Text style={[styles.modalSumLabel, { fontFamily: Fonts.black }]}>Remaining Balance</Text>
+                  <Text style={[styles.modalSumVal, { color: "#DC2626", fontSize: 16 }]}>${singleTxn.pendingBonus}</Text>
+                </View>
               </View>
             )}
 
-            {/* Payment Amount */}
-            <Text style={styles.fieldLabel}>Payment Amount ($)</Text>
+            <Text style={styles.fieldLabel}>Choose Payout Amount</Text>
             <TextInput
               style={styles.input}
               value={payAmount}
               onChangeText={setPayAmount}
               keyboardType="decimal-pad"
-              placeholder="Enter amount to pay"
-              placeholderTextColor={Theme.textMuted}
+              placeholder="Enter amount"
             />
-            {selectedTxn && (
-              <View style={styles.quickAmtRow}>
-                {[25, 50, 75, 100].map(pct => {
-                  const amt = (Number(selectedTxn.pendingBonus) * pct / 100);
-                  return (
-                    <TouchableOpacity
-                      key={pct}
-                      style={styles.quickAmtBtn}
-                      onPress={() => setPayAmount(amt.toFixed(2))}
-                    >
-                      <Text style={styles.quickAmtText}>{pct}% (${amt.toFixed(2)})</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
+            <View style={styles.quickAmtRow}>
+              <TouchableOpacity style={styles.quickAmtBtn} onPress={() => setPayAmount(String(singleTxn?.pendingBonus || 0))}>
+                <Text style={styles.quickAmtText}>Full Payout</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.quickAmtBtn} onPress={() => setPayAmount(String((singleTxn?.pendingBonus || 0) / 2))}>
+                <Text style={styles.quickAmtText}>Half Payout</Text>
+              </TouchableOpacity>
+            </View>
 
-            {/* Remarks */}
-            <Text style={styles.fieldLabel}>Remarks (optional)</Text>
+            <Text style={styles.fieldLabel}>Payment Method</Text>
+            <View style={styles.methodRow}>
+              {["Cash", "Card", "Transfer"].map(m => (
+                <TouchableOpacity 
+                  key={m} 
+                  style={[styles.methodBtn, payMethod === m && styles.methodBtnActive]}
+                  onPress={() => setPayMethod(m)}
+                >
+                  <Text style={[styles.methodText, payMethod === m && styles.methodTextActive]}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Remarks</Text>
             <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: "top" }]}
+              style={[styles.input, { height: 60 }]}
               value={payRemarks}
               onChangeText={setPayRemarks}
-              placeholder="e.g. Cash payment, weekly settlement..."
-              placeholderTextColor={Theme.textMuted}
-              multiline
+              placeholder="e.g. Settle shift bonus"
             />
 
-            {/* Footer */}
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowPayModal(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.confirmBtn, paying && { opacity: 0.6 }]} onPress={handlePay} disabled={paying}>
-                {paying
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <>
-                      <Ionicons name="checkmark" size={18} color="#fff" />
-                      <Text style={styles.confirmBtnText}>Confirm Payment</Text>
-                    </>
-                }
+              <TouchableOpacity style={[styles.confirmBtn, paying && { opacity: 0.6 }]} onPress={handleSinglePay} disabled={paying}>
+                {paying ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.confirmBtnText}>Confirm</Text>}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Receipt Modal */}
+      <Modal visible={showReceipt} transparent animationType="fade" onRequestClose={() => setShowReceipt(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.receiptBox}>
+            <View style={styles.receiptHeader}>
+              <Ionicons name="checkmark-circle" size={48} color="#16A34A" />
+              <Text style={styles.receiptTitle}>Bonus Paid</Text>
+              <Text style={styles.receiptAmt}>${receiptData?.amount.toFixed(2)}</Text>
+            </View>
+            <View style={styles.receiptBody}>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Artist</Text>
+                <Text style={styles.receiptVal}>{receiptData?.artistName}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Method</Text>
+                <Text style={styles.receiptVal}>{receiptData?.method}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Date</Text>
+                <Text style={styles.receiptVal}>{receiptData?.date}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Reference No</Text>
+                <Text style={styles.receiptVal}>{receiptData?.refNo}</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={styles.printReceiptBtn} onPress={printReceipt}>
+              <Ionicons name="print" size={16} color="#fff" />
+              <Text style={styles.printReceiptText}>Print Receipt</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.receiptDoneBtn} onPress={() => setShowReceipt(false)}>
+              <Text style={styles.receiptDoneText}>Done</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -387,171 +527,86 @@ export default function ArtistBonusPaymentsScreen() {
   );
 }
 
-function AmountCell({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <View style={{ flex: 1, alignItems: "center" }}>
-      <Text style={[{ fontFamily: Fonts.black, fontSize: 14, color: color || Theme.textPrimary }]}>{value}</Text>
-      <Text style={{ fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, marginTop: 2, textTransform: "uppercase" }}>{label}</Text>
-    </View>
-  );
-}
-
-function SummaryRow({ label, value, color, bold }: { label: string; value: string; color?: string; bold?: boolean }) {
-  return (
-    <View style={styles.summaryRow}>
-      <Text style={styles.summaryRowLabel}>{label}</Text>
-      <Text style={[styles.summaryRowValue, color ? { color } : {}, bold ? { fontSize: 18 } : {}]}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Theme.bgMain },
-  header: {
-    flexDirection: "row", alignItems: "center", paddingHorizontal: 16,
-    paddingVertical: 12, backgroundColor: Theme.bgCard,
-    borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 12,
-    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.06)" } }) as any,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center",
-  },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Theme.bgCard, borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 12 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center" },
   headerTitle: { fontFamily: Fonts.black, fontSize: 17, color: Theme.textPrimary },
-  headerSub: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, marginTop: 1 },
-  refreshBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center",
-  },
-  scroll: { padding: 16, gap: 12, paddingBottom: 40 },
+  headerSub: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary },
 
-  artistGroup: { marginBottom: 8 },
-  artistGroupHeader: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: 4, paddingVertical: 10,
-  },
-  settleAllBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8,
-    backgroundColor: "#16A34A",
-  },
-  settleAllText: { fontFamily: Fonts.bold, fontSize: 12, color: "#fff" },
+  // Summary Bar
+  summaryBar: { padding: 16, backgroundColor: Theme.bgCard, borderBottomWidth: 1, borderBottomColor: Theme.border },
+  summaryCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  summaryMeta: { flexDirection: "row", gap: 10, alignItems: "center" },
+  sumBadge: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#FEE2E2", justifyContent: "center", alignItems: "center" },
+  sumLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, textTransform: "uppercase" },
+  sumValue: { fontFamily: Fonts.black, fontSize: 18, color: "#DC2626", marginTop: 2 },
+  payAllBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.bgMuted },
+  payAllText: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary },
 
-  txnCard: {
-    backgroundColor: Theme.bgCard, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: Theme.border,
-    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.06)" } }) as any,
-  },
-  txnHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 },
-  artistInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
-  avatarCircle: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center",
-  },
-  avatarText: { fontFamily: Fonts.black, fontSize: 14, color: Theme.primary },
-  artistName: { fontFamily: Fonts.bold, fontSize: 14, color: Theme.textPrimary },
-  periodText: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 1 },
-  badge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 20 },
-  badgeText: { fontFamily: Fonts.bold, fontSize: 11 },
+  scroll: { padding: 16, paddingBottom: 60 },
 
-  amountsRow: {
-    flexDirection: "row", backgroundColor: Theme.bgMuted, borderRadius: 12,
-    padding: 12, marginBottom: 14,
-  },
-  txnActions: { flexDirection: "row", gap: 10 },
-  expandBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 9, borderRadius: 10,
-    backgroundColor: Theme.bgMuted, borderWidth: 1, borderColor: Theme.border,
-  },
-  expandBtnText: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary },
-  payBtn: {
-    flex: 1.4, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, paddingVertical: 9, borderRadius: 10,
-    backgroundColor: "#16A34A",
-  },
-  payBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: "#fff" },
+  // Batch Card
+  batchCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FECACA", padding: 12, borderRadius: 12, marginBottom: 16 },
+  batchTitle: { fontFamily: Fonts.black, fontSize: 13, color: "#DC2626" },
+  batchSub: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 2 },
+  batchPayBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#DC2626", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  batchPayText: { fontFamily: Fonts.bold, fontSize: 13, color: "#fff" },
 
-  payHistSection: {
-    marginTop: 14, borderTopWidth: 1, borderTopColor: Theme.border, paddingTop: 12,
-  },
-  payHistTitle: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary, marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 },
-  payHistEmpty: { fontFamily: Fonts.regular, fontSize: 13, color: Theme.textMuted, fontStyle: "italic" },
-  payRow: {
-    flexDirection: "row", alignItems: "center", paddingVertical: 8,
-    paddingHorizontal: 10, borderRadius: 8,
-  },
-  payRowDate: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary },
-  payRowBy: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 1 },
-  payRowRemarks: { fontFamily: Fonts.regular, fontSize: 11, color: Theme.textMuted, marginTop: 2, fontStyle: "italic" },
-  payRowAmt: { fontFamily: Fonts.black, fontSize: 16, color: "#16A34A" },
+  section: { marginBottom: 20 },
+  sectionHeader: { fontFamily: Fonts.black, fontSize: 12, color: Theme.textSecondary, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.5 },
+  walletCard: { flexDirection: "row", alignItems: "center", backgroundColor: Theme.bgCard, borderRadius: 14, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: Theme.border },
+  checkWrap: { marginRight: 10 },
+  artistNameText: { fontFamily: Fonts.black, fontSize: 13, color: Theme.textPrimary },
+  periodText: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 2 },
+  dueLabel: { fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, textTransform: "uppercase" },
+  dueAmount: { fontFamily: Fonts.black, fontSize: 15, color: "#DC2626", marginTop: 2 },
+  payBtn: { backgroundColor: "#DC2626", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
+  payBtnText: { fontFamily: Fonts.bold, fontSize: 12, color: "#fff" },
 
-  emptyState: { alignItems: "center", paddingVertical: 80, gap: 12 },
-  emptyTitle: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary },
-  emptySubtitle: { fontFamily: Fonts.medium, fontSize: 14, color: Theme.textSecondary, textAlign: "center" },
+  emptyState: { alignItems: "center", paddingVertical: 80, gap: 10 },
+  emptyTitle: { fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary },
+  emptySubtitle: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary, textAlign: "center" },
 
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    ...Platform.select({
-      web: { justifyContent: "center", alignItems: "center" },
-      default: { justifyContent: "flex-end" }
-    })
-  },
-  modalBox: {
-    backgroundColor: Theme.bgCard,
-    padding: 24,
-    ...Platform.select({
-      web: {
-        borderRadius: 24,
-        boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
-        width: "90%",
-        maxWidth: 500,
-      },
-      default: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-      }
-    })
-  },
-  modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 },
-  modalTitle: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary },
-  modalSubtitle: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary, marginTop: 2 },
-  closeBtn: {
-    width: 32, height: 32, borderRadius: 16,
-    backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center",
-  },
-  modalSummary: {
-    backgroundColor: Theme.bgMuted, borderRadius: 14, padding: 14, marginBottom: 16,
-    borderWidth: 1, borderColor: Theme.border,
-  },
-  summaryRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6 },
-  summaryRowLabel: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary },
-  summaryRowValue: { fontFamily: Fonts.black, fontSize: 15, color: Theme.textPrimary },
-  summaryDivider: { height: 1, backgroundColor: Theme.border, marginVertical: 6 },
+  // Modals
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  modalBox: { backgroundColor: Theme.bgCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
+  modalTitle: { fontFamily: Fonts.black, fontSize: 18 },
+  modalSubtitle: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textSecondary, marginTop: 2 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center" },
+  modalSummary: { backgroundColor: Theme.bgMuted, padding: 12, borderRadius: 12, marginBottom: 16 },
+  modalSumRow: { flexDirection: "row", justifyContent: "space-between", marginVertical: 4 },
+  modalSumLabel: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary },
+  modalSumVal: { fontFamily: Fonts.bold, fontSize: 13 },
+  sumDivider: { height: 1, backgroundColor: Theme.border, marginVertical: 6 },
   fieldLabel: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary, marginBottom: 8, marginTop: 12 },
-  input: {
-    backgroundColor: Theme.bgInput, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    fontFamily: Fonts.medium, fontSize: 15, color: Theme.textPrimary,
-    borderWidth: 1, borderColor: Theme.border,
-  },
-  quickAmtRow: { flexDirection: "row", gap: 8, marginTop: 8, flexWrap: "wrap" },
-  quickAmtBtn: {
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
-    backgroundColor: Theme.bgMuted, borderWidth: 1, borderColor: Theme.border,
-  },
+  input: { backgroundColor: Theme.bgInput, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: Theme.border },
+  quickAmtRow: { flexDirection: "row", gap: 8, marginTop: 6 },
+  quickAmtBtn: { flex: 1, backgroundColor: Theme.bgMuted, padding: 8, borderRadius: 8, alignItems: "center", borderWidth: 1, borderColor: Theme.border },
   quickAmtText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary },
+  methodRow: { flexDirection: "row", gap: 8, marginTop: 6 },
+  methodBtn: { flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: Theme.border, alignItems: "center", backgroundColor: Theme.bgMuted },
+  methodBtnActive: { backgroundColor: "#DC2626", borderColor: "#DC2626" },
+  methodText: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary },
+  methodTextActive: { color: "#fff" },
   modalFooter: { flexDirection: "row", gap: 12, marginTop: 24 },
-  cancelBtn: {
-    flex: 1, paddingVertical: 14, borderRadius: 12,
-    backgroundColor: Theme.bgMuted, alignItems: "center",
-  },
-  cancelBtnText: { fontFamily: Fonts.bold, fontSize: 15, color: Theme.textSecondary },
-  confirmBtn: {
-    flex: 2, paddingVertical: 14, borderRadius: 12,
-    backgroundColor: "#16A34A", alignItems: "center",
-    flexDirection: "row", justifyContent: "center", gap: 8,
-  },
-  confirmBtnText: { fontFamily: Fonts.bold, fontSize: 15, color: "#fff" },
+  cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: Theme.bgMuted, alignItems: "center" },
+  cancelBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: Theme.textSecondary },
+  confirmBtn: { flex: 2, paddingVertical: 12, borderRadius: 12, backgroundColor: "#16A34A", alignItems: "center" },
+  confirmBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: "#fff" },
+
+  // Receipt
+  receiptBox: { backgroundColor: Theme.bgCard, borderRadius: 20, padding: 24, width: "85%", maxWidth: 360, alignSelf: "center", alignItems: "center" },
+  receiptHeader: { alignItems: "center", marginBottom: 16 },
+  receiptTitle: { fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary, marginTop: 10 },
+  receiptAmt: { fontFamily: Fonts.black, fontSize: 26, color: "#16A34A", marginTop: 4 },
+  receiptBody: { width: "100%", borderTopWidth: 1, borderTopColor: Theme.border, borderBottomWidth: 1, borderBottomColor: Theme.border, paddingVertical: 12, marginVertical: 12, gap: 8 },
+  receiptRow: { flexDirection: "row", justifyContent: "space-between" },
+  receiptLabel: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary },
+  receiptVal: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textPrimary },
+  printReceiptBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: Theme.primary, width: "100%", padding: 12, borderRadius: 10, justifyContent: "center", marginBottom: 8 },
+  printReceiptText: { fontFamily: Fonts.bold, fontSize: 13, color: "#fff" },
+  receiptDoneBtn: { width: "100%", padding: 12, borderRadius: 10, justifyContent: "center", alignItems: "center", borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.bgMuted },
+  receiptDoneText: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textSecondary },
 });
