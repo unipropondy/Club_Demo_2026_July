@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import { API_URL } from "../constants/Config";
 
 export interface GeneralSettings {
@@ -96,14 +96,20 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
         try {
           console.log("🌐 [GeneralSettingsStore] Saving settings to:", `${API_URL}/api/settings/update`);
           
-          // Fetch existing payment settings so we don't overwrite them with null in the API call
-          const getRes = await fetch(`${API_URL}/api/settings`);
-          const currentData = await getRes.json();
-          
+          let currentData: any = {};
+          try {
+            const getRes = await fetch(`${API_URL}/api/settings`);
+            if (getRes.ok) {
+              currentData = await getRes.json();
+            }
+          } catch (e) {
+            console.warn("⚠️ [GeneralSettingsStore] Failed to fetch current settings:", e);
+          }
+
           const payload = {
-            upiId: currentData.UPI_ID,
-            shopName: currentData.ShopName,
-            qrCodeUrl: currentData.PayNow_QR_Url,
+            upiId: currentData?.UPI_ID || null,
+            shopName: currentData?.ShopName || "My Restaurant",
+            qrCodeUrl: currentData?.PayNow_QR_Url || null,
             enableKOT: updatedSettings.enableKOT,
             enableKDS: updatedSettings.enableKDS,
             enableCheckoutBill: updatedSettings.enableCheckoutBill,
@@ -116,9 +122,9 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
             enableKDSPrint: updatedSettings.enableKDSPrint,
             enableCombo: updatedSettings.enableCombo,
             showBillTime: updatedSettings.showBillTime,
-            showLoyalty: String(updatedSettings.showLoyalty) === "true" || updatedSettings.showLoyalty === true,
-            showRewardPoints: String(updatedSettings.showRewardPoints) === "true" || updatedSettings.showRewardPoints === true,
-            showPromoCode: String(updatedSettings.showPromoCode) === "true" || updatedSettings.showPromoCode === true,
+            showLoyalty: updatedSettings.showLoyalty !== undefined ? (String(updatedSettings.showLoyalty) === "true" || updatedSettings.showLoyalty === true) : true,
+            showRewardPoints: updatedSettings.showRewardPoints !== undefined ? (String(updatedSettings.showRewardPoints) === "true" || updatedSettings.showRewardPoints === true) : true,
+            showPromoCode: updatedSettings.showPromoCode !== undefined ? (String(updatedSettings.showPromoCode) === "true" || updatedSettings.showPromoCode === true) : true,
           };
 
           console.log("📦 [GeneralSettingsStore] Payload:", JSON.stringify(payload));
@@ -138,7 +144,11 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
           return true;
         } catch (error: any) {
           console.error("❌ [GeneralSettingsStore] Update Error:", error);
-          Alert.alert("Error", `Failed to save settings: ${error.message}`);
+          if (Platform.OS === "web") {
+            window.alert(`Failed to save settings: ${error.message}`);
+          } else {
+            Alert.alert("Error", `Failed to save settings: ${error.message}`);
+          }
           // Revert on failure
           set({ settings: previousSettings, loading: false });
           return false;

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -87,13 +87,13 @@ export default function GeneralSettingsScreen() {
   const { settings, loading, fetchSettings, updateSettings } = useGeneralSettingsStore();
 
   // Local setting states
-  const [enableKOT, setEnableKOT] = useState(settings.enableKOT);
-  const [enableKDS, setEnableKDS] = useState(settings.enableKDS);
-  const [enableCheckoutBill, setEnableCheckoutBill] = useState(settings.enableCheckoutBill);
-  const [enableCheckoutFlow, setEnableCheckoutFlow] = useState(settings.enableCheckoutFlow);
-  const [enableDirectProcessToPay, setEnableDirectProcessToPay] = useState(settings.enableDirectProcessToPay);
-  const [customerSideDisplay, setCustomerSideDisplay] = useState(settings.customerSideDisplay);
-  const [enableGuestDetailsPopup, setEnableGuestDetailsPopup] = useState(settings.enableGuestDetailsPopup);
+  const [enableKOT, setEnableKOT] = useState(settings.enableKOT !== undefined ? settings.enableKOT : true);
+  const [enableKDS, setEnableKDS] = useState(settings.enableKDS !== undefined ? settings.enableKDS : true);
+  const [enableCheckoutBill, setEnableCheckoutBill] = useState(settings.enableCheckoutBill !== undefined ? settings.enableCheckoutBill : true);
+  const [enableCheckoutFlow, setEnableCheckoutFlow] = useState(settings.enableCheckoutFlow !== undefined ? settings.enableCheckoutFlow : true);
+  const [enableDirectProcessToPay, setEnableDirectProcessToPay] = useState(settings.enableDirectProcessToPay !== undefined ? settings.enableDirectProcessToPay : false);
+  const [customerSideDisplay, setCustomerSideDisplay] = useState(settings.customerSideDisplay !== undefined ? settings.customerSideDisplay : true);
+  const [enableGuestDetailsPopup, setEnableGuestDetailsPopup] = useState(settings.enableGuestDetailsPopup !== undefined ? settings.enableGuestDetailsPopup : true);
   const [enableCashDrawer, setEnableCashDrawer] = useState(settings.enableCashDrawer !== undefined ? settings.enableCashDrawer : true);
   const [SVCIdentification, setSVCIdentification] = useState(settings.SVCIdentification !== undefined ? settings.SVCIdentification : true);
   const [enableKDSPrint, setEnableKDSPrint] = useState(settings.enableKDSPrint !== undefined ? settings.enableKDSPrint : true);
@@ -164,10 +164,18 @@ export default function GeneralSettingsScreen() {
         setShowPasswordModal(false);
         showToast({ type: "success", message: "Access Unlocked" });
       } else {
-        Alert.alert("Access Denied", "Incorrect admin password");
+        if (Platform.OS === "web") {
+          window.alert("Incorrect admin password");
+        } else {
+          Alert.alert("Access Denied", "Incorrect admin password");
+        }
       }
     } catch (err) {
-      Alert.alert("Error", "Could not verify password. Check connection.");
+      if (Platform.OS === "web") {
+        window.alert("Could not verify password. Check connection.");
+      } else {
+        Alert.alert("Error", "Could not verify password. Check connection.");
+      }
     } finally {
       setVerifyingPassword(false);
     }
@@ -194,14 +202,23 @@ export default function GeneralSettingsScreen() {
   };
 
   const handleSave = () => {
-    Alert.alert(
-      "Confirm Changes",
-      "Are you sure you want to update settings? These changes will apply globally to all users.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Save", onPress: performSave }
-      ]
-    );
+    if (Platform.OS === "web") {
+      const confirmSave = window.confirm(
+        "Are you sure you want to update settings? These changes will apply globally to all users."
+      );
+      if (confirmSave) {
+        performSave();
+      }
+    } else {
+      Alert.alert(
+        "Confirm Changes",
+        "Are you sure you want to update settings? These changes will apply globally to all users.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Save", onPress: performSave }
+        ]
+      );
+    }
   };
 
   const performSave = async () => {
