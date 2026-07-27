@@ -3968,20 +3968,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusSuccess: {
-    backgroundColor: '#dcfce7',
-    borderColor: '#22c55e',
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    borderColor: '#10B981',
   },
   statusCancelled: {
-    backgroundColor: '#fef3c7',
-    borderColor: '#f59e0b',
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderColor: '#F59E0B',
   },
   statusFailed: {
-    backgroundColor: '#fee2e2',
-    borderColor: '#ef4444',
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderColor: '#EF4444',
   },
   statusProcessing: {
-    backgroundColor: '#dbeafe',
-    borderColor: '#3b82f6',
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderColor: '#3B82F6',
   },
   statusMessage: {
     fontSize: 14,
@@ -4029,7 +4029,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 8,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     justifyContent: "center",
     alignItems: "center",
     flexShrink: 0,
@@ -4046,21 +4046,21 @@ const styles = StyleSheet.create({
   },
   activeMethodLabel: { color: "#fff" },
   yeahpayMethodCard: {
-    borderColor: '#059669',
+    borderColor: '#10B981',
     borderWidth: 2,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: 'rgba(16,185,129,0.12)',
   },
   yeahpayIconBox: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: 'rgba(16,185,129,0.18)',
   },
   yeahpayLabel: {
-    color: '#065F46',
+    color: '#10B981',
     fontFamily: Fonts.black,
   },
   yeahpayBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#D1FAE5',
+    backgroundColor: 'rgba(16,185,129,0.18)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 10,
@@ -4070,7 +4070,7 @@ const styles = StyleSheet.create({
   yeahpayBadgeText: {
     fontSize: 8,
     fontFamily: Fonts.black,
-    color: '#059669',
+    color: '#10B981',
   },
   cashSection: { marginTop: 5 },
   sectionHeader: { marginBottom: 8 },
@@ -4113,7 +4113,7 @@ const styles = StyleSheet.create({
   quickCashBtn: {
     minWidth: 54,
     height: 38,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgMuted,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Theme.border,
@@ -4128,7 +4128,7 @@ const styles = StyleSheet.create({
   quickCashText: {
     fontSize: 13,
     fontFamily: Fonts.black,
-    color: Theme.textPrimary,
+    color: Theme.textSecondary,
   },
   activeQuickCashText: { color: Theme.primary },
   changeBox: {
@@ -4242,9 +4242,9 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: 12,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgMuted,
     borderWidth: 2,
-    borderColor: Theme.primaryBorder,
+    borderColor: Theme.border,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
@@ -4257,7 +4257,7 @@ const styles = StyleSheet.create({
   roundingToggleText: {
     fontSize: 14,
     fontFamily: Fonts.bold,
-    color: Theme.primary,
+    color: Theme.textPrimary,
   },
   activeRoundingText: { color: "#fff" },
   moreAdjustBtn: {
@@ -4355,9 +4355,11 @@ const styles = StyleSheet.create({
   adjustModalContent: {
     width: "100%",
     maxWidth: 380,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 24,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
     ...Theme.shadowLg,
   },
   adjustModalHeader: {
@@ -4523,9 +4525,11 @@ const styles = StyleSheet.create({
     width: "90%",
     maxWidth: 550,
     maxHeight: "85%",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 20,
     padding: 20,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
     ...Theme.shadowLg,
   },
   searchBarBox: {

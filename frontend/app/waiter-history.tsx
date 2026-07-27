@@ -168,7 +168,7 @@ export default function WaiterHistoryScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
-      <LinearGradient colors={["#FAF7F2", "#F5F0E8"]} style={{ flex: 1 }}>
+      <LinearGradient colors={[Theme.bgMain, Theme.bgNav]} style={{ flex: 1 }}>
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           {/* Header */}
           <View style={styles.headerBar}>
@@ -354,14 +354,14 @@ export default function WaiterHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FAF7F2" },
+  container: { flex: 1, backgroundColor: Theme.bgMain },
   headerBar: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 20, gap: 15 },
-  circularBack: { width: 48, height: 48, borderRadius: 16, backgroundColor: "#fff", justifyContent: "center", alignItems: "center", ...Theme.shadowSm, borderWidth: 1, borderColor: Theme.border },
+  circularBack: { width: 48, height: 48, borderRadius: 16, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center", ...Theme.shadowSm, borderWidth: 1, borderColor: Theme.border },
   screenTitle: { color: Theme.textPrimary, fontSize: 24, fontFamily: Fonts.black, lineHeight: 28 },
   screenSubtitle: { color: Theme.textMuted, fontSize: 13, fontFamily: Fonts.medium, marginTop: -2 },
   refreshBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: Theme.primary + "15", justifyContent: "center", alignItems: "center" },
   
-  filterSection: { marginHorizontal: 20, marginBottom: 15, padding: 16, backgroundColor: "#fff", borderRadius: 24, gap: 12, ...Theme.shadowMd, borderWidth: 1, borderColor: Theme.border },
+  filterSection: { marginHorizontal: 20, marginBottom: 15, padding: 16, backgroundColor: Theme.bgCard, borderRadius: 24, gap: 12, ...Theme.shadowMd, borderWidth: 1, borderColor: Theme.border },
   filterRow: { width: '100%' },
   searchInputWrapper: { 
     flexDirection: 'row', 
@@ -422,8 +422,8 @@ const styles = StyleSheet.create({
   countBadgeText: { color: '#fff', fontSize: 10, fontFamily: Fonts.black },
 
   listContent: { paddingHorizontal: 20, paddingBottom: 40, gap: 12 },
-  recordCard: { backgroundColor: "#fff", borderRadius: 24, padding: 16, borderWidth: 1, borderColor: Theme.border, ...Theme.shadowSm, flex: 1 },
-  expandedCard: { borderColor: Theme.primary + "60", backgroundColor: "#fff", ...Theme.shadowMd },
+  recordCard: { backgroundColor: Theme.bgCard, borderRadius: 24, padding: 16, borderWidth: 1, borderColor: Theme.border, ...Theme.shadowSm, flex: 1 },
+  expandedCard: { borderColor: Theme.primary + "60", backgroundColor: Theme.bgCard, ...Theme.shadowMd },
   cardMainRow: { flexDirection: 'row', alignItems: 'center' },
   avatarCircle: { width: 44, height: 44, borderRadius: 14, justifyContent: "center", alignItems: "center" },
   avatarLetter: { color: "#fff", fontSize: 18, fontFamily: Fonts.black },
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
   viewDetailText: { color: '#fff', fontSize: 13, fontFamily: Fonts.bold },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' },
-  detailsSheet: { backgroundColor: '#fff', borderRadius: 32, height: '85%', width: '95%', alignSelf: 'center', padding: 24, ...Theme.shadowLg },
+  detailsSheet: { backgroundColor: Theme.bgCard, borderRadius: 32, height: '85%', width: '95%', alignSelf: 'center', padding: 24, borderWidth: 1, borderColor: Theme.primaryBorder, ...Theme.shadowLg },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   sheetTitle: { fontSize: 22, fontFamily: Fonts.black, color: Theme.textPrimary },
   sheetSubtitle: { fontSize: 14, fontFamily: Fonts.medium, color: Theme.textMuted },

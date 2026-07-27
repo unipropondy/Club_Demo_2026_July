@@ -133,7 +133,7 @@ export default function CashDrawerReportScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="light-content" />
       
       {/* Header */}
       <View style={styles.header}>
@@ -281,7 +281,7 @@ export default function CashDrawerReportScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF9F6',
+    backgroundColor: Theme.bgMain,
   },
   header: {
     flexDirection: 'row',
@@ -289,9 +289,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgNav,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: Theme.border,
   },
   backButton: {
     padding: 4,
@@ -312,11 +312,11 @@ const styles = StyleSheet.create({
   },
   kpiCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgCard,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Theme.border,
     alignItems: 'center',
   },
   kpiLabel: {
@@ -338,11 +338,11 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   filterBar: {
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgCard,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: Theme.border,
     gap: 10,
   },
   dropdownWrapper: {
@@ -361,21 +361,21 @@ const styles = StyleSheet.create({
   filterChip: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Theme.bgMuted,
     borderRadius: 8,
   },
   filterChipActive: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: Theme.primaryLight,
     borderWidth: 1,
-    borderColor: '#FED7AA',
+    borderColor: Theme.primaryBorder,
   },
   filterChipText: {
     fontSize: 11,
     fontFamily: Fonts.bold,
-    color: '#4B5563',
+    color: Theme.textSecondary,
   },
   filterChipTextActive: {
-    color: '#F97316',
+    color: Theme.primary,
   },
   loadingContainer: {
     flex: 1,
@@ -398,11 +398,11 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
   },
   rowCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgCard,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Theme.border,
   },
   rowHeader: {
     flexDirection: 'row',
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   rowBody: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Theme.bgMuted,
     borderRadius: 10,
     padding: 10,
     marginBottom: 10,
@@ -457,24 +457,24 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.black,
   },
   remarksBlock: {
-    backgroundColor: '#FFFBEB',
+    backgroundColor: Theme.warningBg,
     padding: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#FEF3C7',
+    borderColor: Theme.warningBorder,
     marginBottom: 10,
     gap: 2,
   },
   remarkText: {
     fontSize: 11,
     fontFamily: Fonts.medium,
-    color: '#D97706',
+    color: Theme.warning,
   },
   rowFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Theme.border,
     paddingTop: 8,
   },
   footerUser: {

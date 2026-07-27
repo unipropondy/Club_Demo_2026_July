@@ -1,12 +1,14 @@
+import CalendarPicker from "@/components/CalendarPicker";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useRenderProfiler } from "../../utils/Profiler";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
@@ -20,17 +22,18 @@ import {
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
-  ActivityIndicator,
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import CalendarPicker from "@/components/CalendarPicker";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { useToast } from "../../components/Toast";
-import { formatToSingaporeTime, getSingaporeDateString, parseDatabaseDate } from "../../utils/timezoneHelper";
+import {
+  formatToSingaporeTime,
+  getSingaporeDateString,
+  parseDatabaseDate,
+} from "../../utils/timezoneHelper";
 
 import StoreSettingsModal from "@/components/payment/StoreSettingsModal";
 import GeneralSettingsModal from "@/components/settings/GeneralSettingsModal";
@@ -72,18 +75,42 @@ const getStatusUI = (status: number) => {
   const s = Number(status);
   switch (s) {
     case 1:
-      return { text: "DINING", color: "#22c55e", lightBg: "#F0FDF4" };
+      return {
+        text: "ACTIVE",
+        color: "#10B981",
+        lightBg: "rgba(16,185,129,0.14)",
+      };
     case 2:
-      return { text: "CHECKOUT", color: "#fd7e14", lightBg: "#FFF7ED" };
+      return {
+        text: "BILLING",
+        color: "#F59E0B",
+        lightBg: "rgba(245,158,11,0.14)",
+      };
     case 3:
-      return { text: "HOLD", color: "#3b82f6", lightBg: "#F0F9FF" };
+      return {
+        text: "ON HOLD",
+        color: "#3B82F6",
+        lightBg: "rgba(59,130,246,0.14)",
+      };
     case 4:
-      return { text: "OVERTIME", color: "#8b5cf6", lightBg: "#F5F3FF" };
+      return {
+        text: "OVERTIME",
+        color: "#A855F7",
+        lightBg: "rgba(168,85,247,0.14)",
+      };
     case 5:
-      return { text: "RESERVED", color: "#ef4444", lightBg: "#FEF2F2" };
+      return {
+        text: "RESERVED",
+        color: "#EF4444",
+        lightBg: "rgba(239,68,68,0.14)",
+      };
     case 0:
     default:
-      return { text: "AVAILABLE", color: "#94A3B8", lightBg: "transparent" }; // Gray
+      return {
+        text: "OPEN",
+        color: "#5A5A80",
+        lightBg: "rgba(255,255,255,0.03)",
+      };
   }
 };
 
@@ -149,16 +176,18 @@ const TableItemComponent = React.memo(
     }
 
     // 🌹 QR PAID: entryStatus='q' + paymentStatus=1 → Rose card + "Paid" label
-    const rawEntryStatus = tableData?.entryStatus !== undefined
-      ? tableData.entryStatus
-      : item.entryStatus;
-    const rawPaymentStatus = (tableData as any)?.paymentStatus !== undefined
-      ? (tableData as any).paymentStatus
-      : item.paymentStatus;
-    const isPaid = rawEntryStatus === 'q' && Number(rawPaymentStatus) === 1;
+    const rawEntryStatus =
+      tableData?.entryStatus !== undefined
+        ? tableData.entryStatus
+        : item.entryStatus;
+    const rawPaymentStatus =
+      (tableData as any)?.paymentStatus !== undefined
+        ? (tableData as any).paymentStatus
+        : item.paymentStatus;
+    const isPaid = rawEntryStatus === "q" && Number(rawPaymentStatus) === 1;
 
     if (isPaid) {
-      ui = { text: 'PAID', color: '#f43f5e', lightBg: '#fff1f2' };
+      ui = { text: "PAID", color: "#f43f5e", lightBg: "#fff1f2" };
     }
 
     const borderColor = status === 0 ? Theme.border : ui.color;
@@ -387,12 +416,11 @@ const SECTION_SHORT: Record<string, string> = {
 };
 
 const SECTION_ICONS: Record<string, string> = {
-  SECTION_1: "restaurant-outline",
-  SECTION_2: "restaurant-outline",
-  SECTION_3: "restaurant-outline",
-  TAKEAWAY: "bag-handle-outline",
+  SECTION_1: "wine-outline",
+  SECTION_2: "star-outline",
+  SECTION_3: "leaf-outline",
+  TAKEAWAY: "beer-outline",
 };
-
 
 // Track the last table that was opened with guest details.
 // If the user exits the menu without sending items, we clean this guest data.
@@ -444,10 +472,14 @@ export default function Category() {
   const [guestNameInput, setGuestNameInput] = useState("");
   const [guestPaxInput, setGuestPaxInput] = useState("");
   const [isSavingGuest, setIsSavingGuest] = useState(false);
-  const [selectedBusinessDate, setSelectedBusinessDate] = useState<string | null>(null);
+  const [selectedBusinessDate, setSelectedBusinessDate] = useState<
+    string | null
+  >(null);
   const [showBusinessCalendar, setShowBusinessCalendar] = useState(false);
   const [isDayStarted, setIsDayStarted] = useState(false);
-  const [activeBusinessDay, setActiveBusinessDay] = useState<string | null>(null);
+  const [activeBusinessDay, setActiveBusinessDay] = useState<string | null>(
+    null,
+  );
   const [isStartingDay, setIsStartingDay] = useState(false);
 
   const checkActiveBusinessDay = async () => {
@@ -482,7 +514,7 @@ export default function Category() {
       });
       return;
     }
-    
+
     setIsStartingDay(true);
     try {
       const res = await fetch(`${API_URL}/api/settlement/day-start`, {
@@ -490,12 +522,15 @@ export default function Category() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           startDate: selectedBusinessDate,
-          username: user?.userName || user?.username || "admin"
-        })
+          username: user?.userName || user?.username || "admin",
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        await AsyncStorage.setItem("selected_business_date", selectedBusinessDate);
+        await AsyncStorage.setItem(
+          "selected_business_date",
+          selectedBusinessDate,
+        );
         setIsDayStarted(true);
         setActiveBusinessDay(selectedBusinessDate);
         showToast({
@@ -536,11 +571,16 @@ export default function Category() {
 
   const getTableRealAmount = (t: TableItem) => {
     const tableData = useTableStatusStore.getState().tableMap[t.id];
-    return tableData?.totalAmount !== undefined ? tableData.totalAmount : Number(t.totalAmount) || 0;
+    return tableData?.totalAmount !== undefined
+      ? tableData.totalAmount
+      : Number(t.totalAmount) || 0;
   };
 
   // ──── Move Table handler ──────────────────────────────────────────────────
-  const handleMoveTable = async (srcOverride?: TableItem, dstOverride?: TableItem) => {
+  const handleMoveTable = async (
+    srcOverride?: TableItem,
+    dstOverride?: TableItem,
+  ) => {
     const src = srcOverride || moveSourceTable;
     const dst = dstOverride || moveDestTable;
     if (!src || !dst) return;
@@ -559,12 +599,8 @@ export default function Category() {
       const data = await res.json();
       if (res.ok && data.success) {
         // Optimistic: clear source cart context in store
-        const srcSection = getSectionFromDiningSection(
-          src.DiningSection,
-        );
-        const dstSection = getSectionFromDiningSection(
-          dst.DiningSection,
-        );
+        const srcSection = getSectionFromDiningSection(src.DiningSection);
+        const dstSection = getSectionFromDiningSection(dst.DiningSection);
 
         // Update local state (allTables) optimistically
         setAllTables((prev: TableItem[]) =>
@@ -583,8 +619,7 @@ export default function Category() {
               return {
                 ...t,
                 Status: src.Status,
-                totalAmount:
-                  data.totalAmount || src.totalAmount || 0,
+                totalAmount: data.totalAmount || src.totalAmount || 0,
                 currentOrderId: data.orderId || src.currentOrderId,
                 customerName: src.customerName,
                 pax: src.pax,
@@ -736,7 +771,9 @@ export default function Category() {
   const logout = useAuthStore((s: any) => s.logout);
   const canAccessSalesReport = useAuthStore((s: any) => s.canAccessSalesReport);
   const canAccessMembers = useAuthStore((s: any) => s.canAccessMembers);
-  const canAccessStaffAttendance = useAuthStore((s: any) => s.canAccessStaffAttendance);
+  const canAccessStaffAttendance = useAuthStore(
+    (s: any) => s.canAccessStaffAttendance,
+  );
   const canAccessLockTables = useAuthStore((s: any) => s.canAccessLockTables);
   const canAccessKDS = useAuthStore((s: any) => s.canAccessKDS);
   const canAccessDayEnd = useAuthStore((s: any) => s.canAccessDayEnd);
@@ -761,19 +798,22 @@ export default function Category() {
 
     activeOrders.forEach((order) => {
       const { context } = order;
-      const groupKey = context.orderType === "DINE_IN" 
-        ? `TABLE_${context.section}_${context.tableNo}`
-        : `TAKEAWAY_${context.takeawayNo}`;
+      const groupKey =
+        context.orderType === "DINE_IN"
+          ? `TABLE_${context.section}_${context.tableNo}`
+          : `TAKEAWAY_${context.takeawayNo}`;
 
       if (!tableGroups[groupKey]) {
         tableGroups[groupKey] = {
-          items: []
+          items: [],
         };
       }
 
       order.items.forEach((i: any) => {
         if (i.status === "READY") {
-          const exists = tableGroups[groupKey].items.find((ei: any) => ei.lineItemId === i.lineItemId);
+          const exists = tableGroups[groupKey].items.find(
+            (ei: any) => ei.lineItemId === i.lineItemId,
+          );
           if (!exists) {
             tableGroups[groupKey].items.push(i);
             count++;
@@ -1294,17 +1334,20 @@ export default function Category() {
       }
 
       // 🌹 PAID QR TABLE: Block entry — table is paid and waiting for kitchen to serve
-      const tablePaymentStatus = (tableData as any)?.paymentStatus !== undefined
-        ? Number((tableData as any).paymentStatus)
-        : Number(item.paymentStatus) || 0;
-      const tableEntryStatus = tableData?.entryStatus !== undefined
-        ? tableData.entryStatus
-        : item.entryStatus;
-      if (tableEntryStatus === 'q' && tablePaymentStatus === 1) {
+      const tablePaymentStatus =
+        (tableData as any)?.paymentStatus !== undefined
+          ? Number((tableData as any).paymentStatus)
+          : Number(item.paymentStatus) || 0;
+      const tableEntryStatus =
+        tableData?.entryStatus !== undefined
+          ? tableData.entryStatus
+          : item.entryStatus;
+      if (tableEntryStatus === "q" && tablePaymentStatus === 1) {
         showToast({
-          type: 'info',
-          message: 'Order Paid',
-          subtitle: 'This QR order is already paid. Waiting for kitchen to serve.',
+          type: "info",
+          message: "Order Paid",
+          subtitle:
+            "This QR order is already paid. Waiting for kitchen to serve.",
         });
         return;
       }
@@ -1396,7 +1439,14 @@ export default function Category() {
 
       await proceedWithTable(item, tableData);
     },
-    [activeTab, router, isWaiter, enableGuestDetailsPopup, selectedBusinessDate, isDayStarted],
+    [
+      activeTab,
+      router,
+      isWaiter,
+      enableGuestDetailsPopup,
+      selectedBusinessDate,
+      isDayStarted,
+    ],
   );
 
   const proceedWithTable = async (item: TableItem, tableData: any) => {
@@ -1559,7 +1609,7 @@ export default function Category() {
   // Trigger modal updates when the global store changes
   useEffect(() => {
     if (isMoveTableVisible) {
-      setDummyMoveState(prev => prev + 1);
+      setDummyMoveState((prev) => prev + 1);
     }
   }, [tableMapGlobal, isMoveTableVisible]);
 
@@ -1601,9 +1651,24 @@ export default function Category() {
       {/* 〰〰〰〰〰〰〰〰〰〰〰 TOP NAV BAR 〰〰〰〰〰〰〰〰〰〰〰 */}
       {!isTablet ? (
         // --- MOBILE HEADER (TWO ROWS) ---
-        <View style={{ backgroundColor: Theme.bgNav, borderBottomWidth: 1, borderBottomColor: Theme.border, paddingBottom: 6 }}>
+        <View
+          style={{
+            backgroundColor: Theme.bgNav,
+            borderBottomWidth: 1,
+            borderBottomColor: Theme.border,
+            paddingBottom: 6,
+          }}
+        >
           {/* Row 1: Section Tabs & Menu Button */}
-          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 6, gap: 8 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 12,
+              paddingVertical: 6,
+              gap: 8,
+            }}
+          >
             <ScrollView
               ref={sectionScrollRef}
               horizontal
@@ -1633,7 +1698,7 @@ export default function Category() {
                       style={[
                         styles.tabBtn,
                         isActive && styles.activeTabBtn,
-                        { paddingVertical: 6, paddingHorizontal: 12 }
+                        { paddingVertical: 6, paddingHorizontal: 12 },
                       ]}
                     >
                       <Ionicons
@@ -1659,14 +1724,14 @@ export default function Category() {
                           style={[
                             styles.tabBadge,
                             isActive && styles.activeTabBadge,
-                            { marginLeft: 4, height: 16, minWidth: 16 }
+                            { marginLeft: 4, height: 16, minWidth: 16 },
                           ]}
                         >
                           <Text
                             style={[
                               styles.tabBadgeText,
                               isActive && styles.activeTabBadgeText,
-                              { fontSize: 9 }
+                              { fontSize: 9 },
                             ]}
                           >
                             {occupied}
@@ -1698,9 +1763,19 @@ export default function Category() {
           </View>
 
           {/* Row 2: Date Picker, Day Start, and Status Buttons */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 12, paddingTop: 4 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 12,
+              paddingTop: 4,
+            }}
+          >
             {/* Date & Day Start */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
               <TouchableOpacity
                 style={{
                   flexDirection: "row",
@@ -1717,15 +1792,25 @@ export default function Category() {
                 disabled={isDayStarted}
                 onPress={() => setShowBusinessCalendar(true)}
               >
-                <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: "#1c2d42" }}>
-                  {selectedBusinessDate ? formatDateToDMY(selectedBusinessDate) : "dd-mm-yyyy"}
+                <Text
+                  style={{
+                    fontFamily: Fonts.bold,
+                    fontSize: 12,
+                    color: "#1c2d42",
+                  }}
+                >
+                  {selectedBusinessDate
+                    ? formatDateToDMY(selectedBusinessDate)
+                    : "dd-mm-yyyy"}
                 </Text>
                 <Ionicons name="calendar-outline" size={14} color="#556e8a" />
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={{
-                  backgroundColor: isDayStarted ? "#22c55e" : (Theme.primary || "#fd7e14"),
+                  backgroundColor: isDayStarted
+                    ? "#22c55e"
+                    : Theme.primary || "#fd7e14",
                   borderRadius: 16,
                   paddingHorizontal: 10,
                   paddingVertical: 5,
@@ -1736,17 +1821,32 @@ export default function Category() {
                 disabled={isDayStarted || isStartingDay}
                 onPress={handleStartDay}
               >
-                <Text style={{ fontFamily: Fonts.bold, fontSize: 11, color: "#fff" }}>
+                <Text
+                  style={{
+                    fontFamily: Fonts.bold,
+                    fontSize: 11,
+                    color: "#fff",
+                  }}
+                >
                   {isDayStarted ? "Day Started" : "Start Day"}
                 </Text>
               </TouchableOpacity>
             </View>
 
             {/* Right side status icons */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
               {enableKDS && (
                 <TouchableOpacity
-                  style={[styles.headerActionBtn, { paddingHorizontal: 10, paddingVertical: 6, position: "relative" }]}
+                  style={[
+                    styles.headerActionBtn,
+                    {
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      position: "relative",
+                    },
+                  ]}
                   onPress={() => router.push("/kitchen-status")}
                   activeOpacity={0.75}
                 >
@@ -1790,7 +1890,10 @@ export default function Category() {
 
               {canAccessKDS() && enableKDS && (
                 <TouchableOpacity
-                  style={[styles.headerActionBtn, { paddingHorizontal: 10, paddingVertical: 6 }]}
+                  style={[
+                    styles.headerActionBtn,
+                    { paddingHorizontal: 10, paddingVertical: 6 },
+                  ]}
                   onPress={() => router.push("/kds" as any)}
                   activeOpacity={0.75}
                 >
@@ -1891,7 +1994,14 @@ export default function Category() {
           </ScrollView>
 
           {/* DATE PICKER & DAY START BUTTON */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 8 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              marginHorizontal: 8,
+            }}
+          >
             <TouchableOpacity
               style={{
                 flexDirection: "row",
@@ -1908,15 +2018,25 @@ export default function Category() {
               disabled={isDayStarted}
               onPress={() => setShowBusinessCalendar(true)}
             >
-              <Text style={{ fontFamily: Fonts.bold, fontSize: 15, color: "#1c2d42" }}>
-                {selectedBusinessDate ? formatDateToDMY(selectedBusinessDate) : "dd-mm-yyyy"}
+              <Text
+                style={{
+                  fontFamily: Fonts.bold,
+                  fontSize: 15,
+                  color: "#1c2d42",
+                }}
+              >
+                {selectedBusinessDate
+                  ? formatDateToDMY(selectedBusinessDate)
+                  : "dd-mm-yyyy"}
               </Text>
               <Ionicons name="calendar-outline" size={18} color="#556e8a" />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={{
-                backgroundColor: isDayStarted ? "#22c55e" : (Theme.primary || "#fd7e14"),
+                backgroundColor: isDayStarted
+                  ? "#22c55e"
+                  : Theme.primary || "#fd7e14",
                 borderRadius: 20,
                 paddingHorizontal: 14,
                 paddingVertical: 7,
@@ -1927,7 +2047,9 @@ export default function Category() {
               disabled={isDayStarted || isStartingDay}
               onPress={handleStartDay}
             >
-              <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: "#fff" }}>
+              <Text
+                style={{ fontFamily: Fonts.bold, fontSize: 14, color: "#fff" }}
+              >
                 {isDayStarted ? "Day Started" : "Start Day"}
               </Text>
             </TouchableOpacity>
@@ -2001,7 +2123,9 @@ export default function Category() {
               >
                 <Ionicons name="tv-outline" size={20} color={Theme.info} />
                 {isTablet && isLandscape && (
-                  <Text style={[styles.headerActionText, { color: Theme.info }]}>
+                  <Text
+                    style={[styles.headerActionText, { color: Theme.info }]}
+                  >
                     KDS
                   </Text>
                 )}
@@ -2022,7 +2146,9 @@ export default function Category() {
             >
               <Ionicons name="menu-outline" size={24} color={Theme.primary} />
               {isTablet && (
-                <Text style={[styles.headerActionText, { color: Theme.primary }]}>
+                <Text
+                  style={[styles.headerActionText, { color: Theme.primary }]}
+                >
                   Menu
                 </Text>
               )}
@@ -2043,8 +2169,19 @@ export default function Category() {
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF9F6" }}>
           {/* Header */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#EAE8E4", backgroundColor: "#FFF" }}>
-            <TouchableOpacity 
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: "#EAE8E4",
+              backgroundColor: "#FFF",
+            }}
+          >
+            <TouchableOpacity
               onPress={() => {
                 if (moveStep === "dest") {
                   setMoveStep("source");
@@ -2053,28 +2190,58 @@ export default function Category() {
                   setIsMoveTableVisible(false);
                 }
               }}
-              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#F5F3EF", justifyContent: "center", alignItems: "center" }}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: "#F5F3EF",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
             >
               <Ionicons name="arrow-back" size={20} color={Theme.textPrimary} />
             </TouchableOpacity>
-            
+
             <View style={{ alignItems: "center" }}>
-              <Text style={{ fontSize: 18, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
-                {moveStep === "source" ? "Select Source Table" : "Select Destination"}
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontFamily: Fonts.bold,
+                  color: Theme.textPrimary,
+                }}
+              >
+                {moveStep === "source"
+                  ? "Select Source Table"
+                  : "Select Destination"}
               </Text>
-              <Text style={{ fontSize: 12, fontFamily: Fonts.medium, color: Theme.textMuted }}>
-                {moveStep === "source" ? "Which table are you moving FROM?" : "Which table are you moving TO?"}
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontFamily: Fonts.medium,
+                  color: Theme.textMuted,
+                }}
+              >
+                {moveStep === "source"
+                  ? "Which table are you moving FROM?"
+                  : "Which table are you moving TO?"}
               </Text>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 setIsMoveTableVisible(false);
                 setMoveSourceTable(null);
                 setMoveDestTable(null);
                 setMoveStep("source");
               }}
-              style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#F5F3EF", justifyContent: "center", alignItems: "center" }}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: "#F5F3EF",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
             >
               <Ionicons name="close" size={20} color={Theme.textPrimary} />
             </TouchableOpacity>
@@ -2082,25 +2249,66 @@ export default function Category() {
 
           {/* Selected Source Display (Orange Banner) */}
           {moveStep === "dest" && moveSourceTable && (
-            <View style={{ paddingHorizontal: 16, paddingTop: 12, flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
-              <TouchableOpacity 
+            <View
+              style={{
+                paddingHorizontal: 16,
+                paddingTop: 12,
+                flexDirection: "row",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <TouchableOpacity
                 onPress={() => {
                   setMoveStep("source");
                   setMoveDestTable(null);
                 }}
-                style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fd7e14", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, gap: 6 }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#fd7e14",
+                  borderRadius: 20,
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  gap: 6,
+                }}
               >
                 <Ionicons name="swap-horizontal" size={14} color="#FFF" />
-                <Text style={{ color: "#FFF", fontFamily: Fonts.bold, fontSize: 13 }}>
-                  FROM Table {moveSourceTable.label} ${getTableRealAmount(moveSourceTable).toFixed(2)}
+                <Text
+                  style={{
+                    color: "#FFF",
+                    fontFamily: Fonts.bold,
+                    fontSize: 13,
+                  }}
+                >
+                  FROM Table {moveSourceTable.label} $
+                  {getTableRealAmount(moveSourceTable).toFixed(2)}
                 </Text>
                 <Ionicons name="chevron-down" size={14} color="#FFF" />
               </TouchableOpacity>
 
               {moveDestTable && (
-                <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FFF", borderWidth: 1.5, borderColor: "#fd7e14", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, gap: 6 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: "#FFF",
+                    borderWidth: 1.5,
+                    borderColor: "#fd7e14",
+                    borderRadius: 20,
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    gap: 6,
+                  }}
+                >
                   <Ionicons name="arrow-forward" size={14} color="#fd7e14" />
-                  <Text style={{ color: "#fd7e14", fontFamily: Fonts.bold, fontSize: 13 }}>
+                  <Text
+                    style={{
+                      color: "#fd7e14",
+                      fontFamily: Fonts.bold,
+                      fontSize: 13,
+                    }}
+                  >
                     TO Table {moveDestTable.label}
                   </Text>
                 </View>
@@ -2110,18 +2318,48 @@ export default function Category() {
 
           {/* Search bar */}
           <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-            <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FFF", borderWidth: 1, borderColor: "#EAE8E4", borderRadius: 12, paddingHorizontal: 12, height: 46 }}>
-              <Ionicons name="search" size={18} color={Theme.textMuted} style={{ marginRight: 8 }} />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: "#FFF",
+                borderWidth: 1,
+                borderColor: "#EAE8E4",
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                height: 46,
+              }}
+            >
+              <Ionicons
+                name="search"
+                size={18}
+                color={Theme.textMuted}
+                style={{ marginRight: 8 }}
+              />
               <TextInput
-                style={{ flex: 1, height: "100%", fontSize: 15, fontFamily: Fonts.medium, color: Theme.textPrimary }}
-                placeholder={moveStep === "source" ? "Search occupied table..." : "Search available table..."}
+                style={{
+                  flex: 1,
+                  height: "100%",
+                  fontSize: 15,
+                  fontFamily: Fonts.medium,
+                  color: Theme.textPrimary,
+                }}
+                placeholder={
+                  moveStep === "source"
+                    ? "Search occupied table..."
+                    : "Search available table..."
+                }
                 placeholderTextColor={Theme.textMuted}
                 value={moveSearchQuery}
                 onChangeText={setMoveSearchQuery}
               />
               {moveSearchQuery !== "" && (
                 <TouchableOpacity onPress={() => setMoveSearchQuery("")}>
-                  <Ionicons name="close-circle" size={18} color={Theme.textMuted} />
+                  <Ionicons
+                    name="close-circle"
+                    size={18}
+                    color={Theme.textMuted}
+                  />
                 </TouchableOpacity>
               )}
             </View>
@@ -2129,11 +2367,21 @@ export default function Category() {
 
           {/* Section tabs */}
           {moveStep === "dest" && (
-            <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 16, paddingVertical: 12 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 8,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+              }}
+            >
               {SECTIONS.map((sec) => {
                 const isActive = moveActiveSection === sec;
                 const shortName = SECTION_SHORT[sec];
-                const iconName = sec === "TAKEAWAY" ? "bag-handle-outline" : "restaurant-outline";
+                const iconName =
+                  sec === "TAKEAWAY"
+                    ? "bag-handle-outline"
+                    : "restaurant-outline";
                 return (
                   <TouchableOpacity
                     key={sec}
@@ -2148,8 +2396,18 @@ export default function Category() {
                       gap: 6,
                     }}
                   >
-                    <Ionicons name={iconName as any} size={14} color={isActive ? "#FFF" : Theme.textSecondary} />
-                    <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: isActive ? "#FFF" : Theme.textSecondary }}>
+                    <Ionicons
+                      name={iconName as any}
+                      size={14}
+                      color={isActive ? "#FFF" : Theme.textSecondary}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontFamily: Fonts.bold,
+                        color: isActive ? "#FFF" : Theme.textSecondary,
+                      }}
+                    >
                       {shortName}
                     </Text>
                   </TouchableOpacity>
@@ -2159,102 +2417,226 @@ export default function Category() {
           )}
 
           {/* Main Grid */}
-          <ScrollView contentContainerStyle={{ padding: 16, flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={{ padding: 16, flexGrow: 1 }}
+            showsVerticalScrollIndicator={false}
+          >
             {moveStep === "source" ? (
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-                {allTables.filter(t => [1, 2, 3].includes(getTableRealStatus(t)) && (moveSearchQuery === "" || t.label.toLowerCase().includes(moveSearchQuery.toLowerCase()))).length === 0 ? (
-                  <Text style={{ fontSize: 14, fontFamily: Fonts.medium, color: Theme.textMuted, padding: 12 }}>
+                {allTables.filter(
+                  (t) =>
+                    [1, 2, 3].includes(getTableRealStatus(t)) &&
+                    (moveSearchQuery === "" ||
+                      t.label
+                        .toLowerCase()
+                        .includes(moveSearchQuery.toLowerCase())),
+                ).length === 0 ? (
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontFamily: Fonts.medium,
+                      color: Theme.textMuted,
+                      padding: 12,
+                    }}
+                  >
                     No active occupied tables.
                   </Text>
                 ) : (
-                  allTables.filter(t => [1, 2, 3].includes(getTableRealStatus(t)) && (moveSearchQuery === "" || t.label.toLowerCase().includes(moveSearchQuery.toLowerCase()))).map((t) => {
-                    const realStatus = getTableRealStatus(t);
-                    const ui = getStatusUI(realStatus);
-                    const cardBorderColor = ui.color;
-                    const cardBgColor = ui.lightBg;
-                    const sectionName = t.DiningSection === 1 ? "S1" : t.DiningSection === 2 ? "S2" : t.DiningSection === 3 ? "S3" : "TW";
-                    return (
-                      <TouchableOpacity
-                        key={t.id}
-                        onPress={() => {
-                          setMoveSourceTable(t);
-                          setMoveStep("dest");
-                          setMoveSearchQuery("");
-                          setMoveActiveSection(getSectionFromDiningSection(t.DiningSection));
-                        }}
-                        style={{
-                          width: isTablet ? "32%" : "48%",
-                          backgroundColor: cardBgColor,
-                          borderWidth: 2,
-                          borderColor: cardBorderColor,
-                          borderRadius: 14,
-                          paddingVertical: 12,
-                          paddingHorizontal: 10,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 2,
-                          minHeight: 80,
-                        }}
-                      >
-                        <Text style={{ fontSize: 22, fontFamily: Fonts.bold, color: cardBorderColor }}>
-                          {t.label}
-                        </Text>
-                        <View style={{ borderColor: cardBorderColor, borderWidth: 1, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, backgroundColor: "#FFF" }}>
-                          <Text style={{ fontSize: 8, fontFamily: Fonts.bold, color: cardBorderColor }}>
-                            {ui.text}
+                  allTables
+                    .filter(
+                      (t) =>
+                        [1, 2, 3].includes(getTableRealStatus(t)) &&
+                        (moveSearchQuery === "" ||
+                          t.label
+                            .toLowerCase()
+                            .includes(moveSearchQuery.toLowerCase())),
+                    )
+                    .map((t) => {
+                      const realStatus = getTableRealStatus(t);
+                      const ui = getStatusUI(realStatus);
+                      const cardBorderColor = ui.color;
+                      const cardBgColor = ui.lightBg;
+                      const sectionName =
+                        t.DiningSection === 1
+                          ? "S1"
+                          : t.DiningSection === 2
+                            ? "S2"
+                            : t.DiningSection === 3
+                              ? "S3"
+                              : "TW";
+                      return (
+                        <TouchableOpacity
+                          key={t.id}
+                          onPress={() => {
+                            setMoveSourceTable(t);
+                            setMoveStep("dest");
+                            setMoveSearchQuery("");
+                            setMoveActiveSection(
+                              getSectionFromDiningSection(t.DiningSection),
+                            );
+                          }}
+                          style={{
+                            width: isTablet ? "32%" : "48%",
+                            backgroundColor: cardBgColor,
+                            borderWidth: 2,
+                            borderColor: cardBorderColor,
+                            borderRadius: 14,
+                            paddingVertical: 12,
+                            paddingHorizontal: 10,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 2,
+                            minHeight: 80,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 22,
+                              fontFamily: Fonts.bold,
+                              color: cardBorderColor,
+                            }}
+                          >
+                            {t.label}
                           </Text>
-                        </View>
-                        <Text style={{ fontSize: 14, fontFamily: Fonts.black, color: cardBorderColor }}>
-                          ${getTableRealAmount(t).toFixed(2)}
-                        </Text>
-                        <Text style={{ fontSize: 9, fontFamily: Fonts.medium, color: Theme.textMuted }}>
-                          {sectionName}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })
+                          <View
+                            style={{
+                              borderColor: cardBorderColor,
+                              borderWidth: 1,
+                              borderRadius: 8,
+                              paddingHorizontal: 6,
+                              paddingVertical: 1,
+                              backgroundColor: "#FFF",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 8,
+                                fontFamily: Fonts.bold,
+                                color: cardBorderColor,
+                              }}
+                            >
+                              {ui.text}
+                            </Text>
+                          </View>
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              fontFamily: Fonts.black,
+                              color: cardBorderColor,
+                            }}
+                          >
+                            ${getTableRealAmount(t).toFixed(2)}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 9,
+                              fontFamily: Fonts.medium,
+                              color: Theme.textMuted,
+                            }}
+                          >
+                            {sectionName}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })
                 )}
               </View>
             ) : (
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {allTables.filter(t => getTableRealStatus(t) === 0 && getSectionFromDiningSection(t.DiningSection) === moveActiveSection && (moveSearchQuery === "" || t.label.toLowerCase().includes(moveSearchQuery.toLowerCase()))).length === 0 ? (
-                  <Text style={{ fontSize: 14, fontFamily: Fonts.medium, color: Theme.textMuted, padding: 12 }}>
+                {allTables.filter(
+                  (t) =>
+                    getTableRealStatus(t) === 0 &&
+                    getSectionFromDiningSection(t.DiningSection) ===
+                      moveActiveSection &&
+                    (moveSearchQuery === "" ||
+                      t.label
+                        .toLowerCase()
+                        .includes(moveSearchQuery.toLowerCase())),
+                ).length === 0 ? (
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontFamily: Fonts.medium,
+                      color: Theme.textMuted,
+                      padding: 12,
+                    }}
+                  >
                     No available tables in this section.
                   </Text>
                 ) : (
-                  allTables.filter(t => getTableRealStatus(t) === 0 && getSectionFromDiningSection(t.DiningSection) === moveActiveSection && (moveSearchQuery === "" || t.label.toLowerCase().includes(moveSearchQuery.toLowerCase()))).map((t) => {
-                    const isSelected = moveDestTable?.id === t.id;
-                    return (
-                      <TouchableOpacity
-                        key={t.id}
-                        onPress={() => setMoveDestTable(t)}
-                        style={{
-                          width: isTablet ? "9.1%" : "18.2%",
-                          backgroundColor: isSelected ? "#FFF7ED" : "#FFF",
-                          borderWidth: 1.5,
-                          borderColor: isSelected ? "#fd7e14" : "#E5E7EB",
-                          borderRadius: 10,
-                          paddingVertical: 10,
-                          paddingHorizontal: 2,
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 3,
-                          aspectRatio: 1,
-                          position: "relative",
-                        }}
-                      >
-                        <Text style={{ fontSize: isSelected ? 16 : 14, fontFamily: Fonts.bold, color: isSelected ? "#fd7e14" : Theme.textPrimary }}>
-                          {t.label}
-                        </Text>
-                        <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: "#22c55e" }} />
-                        {isSelected && (
-                          <View style={{ position: "absolute", top: 3, right: 3, backgroundColor: "#fd7e14", borderRadius: 7, width: 14, height: 14, justifyContent: "center", alignItems: "center" }}>
-                            <Ionicons name="checkmark" size={9} color="#FFF" />
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })
+                  allTables
+                    .filter(
+                      (t) =>
+                        getTableRealStatus(t) === 0 &&
+                        getSectionFromDiningSection(t.DiningSection) ===
+                          moveActiveSection &&
+                        (moveSearchQuery === "" ||
+                          t.label
+                            .toLowerCase()
+                            .includes(moveSearchQuery.toLowerCase())),
+                    )
+                    .map((t) => {
+                      const isSelected = moveDestTable?.id === t.id;
+                      return (
+                        <TouchableOpacity
+                          key={t.id}
+                          onPress={() => setMoveDestTable(t)}
+                          style={{
+                            width: isTablet ? "9.1%" : "18.2%",
+                            backgroundColor: isSelected ? "#FFF7ED" : "#FFF",
+                            borderWidth: 1.5,
+                            borderColor: isSelected ? "#fd7e14" : "#E5E7EB",
+                            borderRadius: 10,
+                            paddingVertical: 10,
+                            paddingHorizontal: 2,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 3,
+                            aspectRatio: 1,
+                            position: "relative",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: isSelected ? 16 : 14,
+                              fontFamily: Fonts.bold,
+                              color: isSelected ? "#fd7e14" : Theme.textPrimary,
+                            }}
+                          >
+                            {t.label}
+                          </Text>
+                          <View
+                            style={{
+                              width: 5,
+                              height: 5,
+                              borderRadius: 2.5,
+                              backgroundColor: "#22c55e",
+                            }}
+                          />
+                          {isSelected && (
+                            <View
+                              style={{
+                                position: "absolute",
+                                top: 3,
+                                right: 3,
+                                backgroundColor: "#fd7e14",
+                                borderRadius: 7,
+                                width: 14,
+                                height: 14,
+                                justifyContent: "center",
+                                alignItems: "center",
+                              }}
+                            >
+                              <Ionicons
+                                name="checkmark"
+                                size={9}
+                                color="#FFF"
+                              />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })
                 )}
               </View>
             )}
@@ -2262,36 +2644,114 @@ export default function Category() {
 
           {/* Sticky Bottom Transfer Bar */}
           {moveStep === "dest" && moveSourceTable && moveDestTable && (
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, backgroundColor: "#FFF", borderTopWidth: 1, borderTopColor: "#EAE8E4", elevation: 10, shadowColor: "#000", shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.05, shadowRadius: 3 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <Text style={{ fontSize: 11, fontFamily: Fonts.black, color: Theme.textMuted, letterSpacing: 0.8 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingHorizontal: 20,
+                paddingVertical: 14,
+                backgroundColor: "#FFF",
+                borderTopWidth: 1,
+                borderTopColor: "#EAE8E4",
+                elevation: 10,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: -3 },
+                shadowOpacity: 0.05,
+                shadowRadius: 3,
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontFamily: Fonts.black,
+                    color: Theme.textMuted,
+                    letterSpacing: 0.8,
+                  }}
+                >
                   TRANSFER
                 </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#F5F3EF", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "#EAE8E4" }}>
-                  <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: "#F5F3EF",
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: "#EAE8E4",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: Fonts.bold,
+                      color: Theme.textPrimary,
+                    }}
+                  >
                     Table {moveSourceTable.label}
                   </Text>
                 </View>
-                <Ionicons name="arrow-forward" size={16} color={Theme.textMuted} />
-                <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#FFF7ED", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: "#fd7e14" }}>
-                  <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: "#fd7e14" }}>
+                <Ionicons
+                  name="arrow-forward"
+                  size={16}
+                  color={Theme.textMuted}
+                />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: "#FFF7ED",
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: "#fd7e14",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: Fonts.bold,
+                      color: "#fd7e14",
+                    }}
+                  >
                     Table {moveDestTable.label}
                   </Text>
                 </View>
               </View>
-              
+
               <TouchableOpacity
                 onPress={async () => {
                   await handleMoveTable();
                 }}
                 disabled={isMovingTable}
-                style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#fd7e14", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, gap: 8, opacity: isMovingTable ? 0.6 : 1 }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#fd7e14",
+                  paddingHorizontal: 24,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  gap: 8,
+                  opacity: isMovingTable ? 0.6 : 1,
+                }}
               >
                 {isMovingTable ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <>
-                    <Text style={{ color: "#FFF", fontFamily: Fonts.bold, fontSize: 15 }}>
+                    <Text
+                      style={{
+                        color: "#FFF",
+                        fontFamily: Fonts.bold,
+                        fontSize: 15,
+                      }}
+                    >
                       Transfer Now
                     </Text>
                     <Ionicons name="arrow-forward" size={16} color="#FFF" />
@@ -2422,8 +2882,17 @@ export default function Category() {
                 style={styles.menuItem}
                 onPress={() => setIsTablesExpanded(!isTablesExpanded)}
               >
-                <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                  <Ionicons name="grid-outline" size={18} color={Theme.primary} />
+                <View
+                  style={[
+                    styles.menuIconContainer,
+                    { backgroundColor: Theme.primary + "10" },
+                  ]}
+                >
+                  <Ionicons
+                    name="grid-outline"
+                    size={18}
+                    color={Theme.primary}
+                  />
                 </View>
                 <Text style={[styles.menuItemText, { flex: 1 }]}>Tables</Text>
                 <Ionicons
@@ -2442,8 +2911,17 @@ export default function Category() {
                         router.push("/locked-tables");
                       }}
                     >
-                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.warning + "10" }]}>
-                        <Ionicons name="lock-closed-outline" size={18} color={Theme.warning} />
+                      <View
+                        style={[
+                          styles.menuIconContainer,
+                          { backgroundColor: Theme.warning + "10" },
+                        ]}
+                      >
+                        <Ionicons
+                          name="lock-closed-outline"
+                          size={18}
+                          color={Theme.warning}
+                        />
                       </View>
                       <Text style={styles.subMenuItemText}>Locked Tables</Text>
                     </TouchableOpacity>
@@ -2460,8 +2938,17 @@ export default function Category() {
                       setMoveSearchQuery("");
                     }}
                   >
-                    <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                      <Ionicons name="swap-horizontal-outline" size={18} color={Theme.primary} />
+                    <View
+                      style={[
+                        styles.menuIconContainer,
+                        { backgroundColor: Theme.primary + "10" },
+                      ]}
+                    >
+                      <Ionicons
+                        name="swap-horizontal-outline"
+                        size={18}
+                        color={Theme.primary}
+                      />
                     </View>
                     <Text style={styles.subMenuItemText}>Transfer Table</Text>
                   </TouchableOpacity>
@@ -2473,8 +2960,17 @@ export default function Category() {
                 style={styles.menuItem}
                 onPress={() => setIsStaffExpanded(!isStaffExpanded)}
               >
-                <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                  <Ionicons name="people-outline" size={18} color={Theme.primary} />
+                <View
+                  style={[
+                    styles.menuIconContainer,
+                    { backgroundColor: Theme.primary + "10" },
+                  ]}
+                >
+                  <Ionicons
+                    name="people-outline"
+                    size={18}
+                    color={Theme.primary}
+                  />
                 </View>
                 <Text style={[styles.menuItemText, { flex: 1 }]}>Staff</Text>
                 <Ionicons
@@ -2492,10 +2988,19 @@ export default function Category() {
                       router.push("/waiters");
                     }}
                   >
-                    <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                      <MaterialCommunityIcons name="account-group" size={18} color={Theme.primary} />
+                    <View
+                      style={[
+                        styles.menuIconContainer,
+                        { backgroundColor: Theme.primary + "18" },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name="account-group"
+                        size={18}
+                        color={Theme.primary}
+                      />
                     </View>
-                    <Text style={styles.subMenuItemText}>Waiters</Text>
+                    <Text style={styles.subMenuItemText}>Hosts & Servers</Text>
                   </TouchableOpacity>
 
                   {canAccessStaffAttendance() && (
@@ -2506,10 +3011,19 @@ export default function Category() {
                         router.push("/StaffAttendance");
                       }}
                     >
-                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                        <MaterialCommunityIcons name="calendar-clock" size={18} color={Theme.primary} />
+                      <View
+                        style={[
+                          styles.menuIconContainer,
+                          { backgroundColor: Theme.primary + "18" },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name="calendar-clock"
+                          size={18}
+                          color={Theme.primary}
+                        />
                       </View>
-                      <Text style={styles.subMenuItemText}>Staff Attendance</Text>
+                      <Text style={styles.subMenuItemText}>Staff Clock-In</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -2520,8 +3034,17 @@ export default function Category() {
                 style={styles.menuItem}
                 onPress={() => setIsCustomerExpanded(!isCustomerExpanded)}
               >
-                <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                  <Ionicons name="person-circle-outline" size={18} color={Theme.primary} />
+                <View
+                  style={[
+                    styles.menuIconContainer,
+                    { backgroundColor: Theme.primary + "10" },
+                  ]}
+                >
+                  <Ionicons
+                    name="person-circle-outline"
+                    size={18}
+                    color={Theme.primary}
+                  />
                 </View>
                 <Text style={[styles.menuItemText, { flex: 1 }]}>Customer</Text>
                 <Ionicons
@@ -2539,8 +3062,17 @@ export default function Category() {
                       router.push("/loyalty");
                     }}
                   >
-                    <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                      <MaterialCommunityIcons name="card-outline" size={18} color={Theme.primary} />
+                    <View
+                      style={[
+                        styles.menuIconContainer,
+                        { backgroundColor: Theme.primary + "10" },
+                      ]}
+                    >
+                      <MaterialCommunityIcons
+                        name="card-outline"
+                        size={18}
+                        color={Theme.primary}
+                      />
                     </View>
                     <Text style={styles.subMenuItemText}>Loyalty</Text>
                   </TouchableOpacity>
@@ -2553,8 +3085,17 @@ export default function Category() {
                         router.push("/members");
                       }}
                     >
-                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.info + "10" }]}>
-                        <Ionicons name="people-outline" size={18} color={Theme.info} />
+                      <View
+                        style={[
+                          styles.menuIconContainer,
+                          { backgroundColor: Theme.info + "18" },
+                        ]}
+                      >
+                        <Ionicons
+                          name="person-circle-outline"
+                          size={18}
+                          color={Theme.info}
+                        />
                       </View>
                       <Text style={styles.subMenuItemText}>Members</Text>
                     </TouchableOpacity>
@@ -2568,8 +3109,17 @@ export default function Category() {
                         router.push("/receivables");
                       }}
                     >
-                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                        <Ionicons name="wallet-outline" size={18} color={Theme.primary} />
+                      <View
+                        style={[
+                          styles.menuIconContainer,
+                          { backgroundColor: Theme.primary + "10" },
+                        ]}
+                      >
+                        <Ionicons
+                          name="wallet-outline"
+                          size={18}
+                          color={Theme.primary}
+                        />
                       </View>
                       <Text style={styles.subMenuItemText}>Receivables</Text>
                     </TouchableOpacity>
@@ -2582,10 +3132,21 @@ export default function Category() {
                 style={styles.menuItem}
                 onPress={() => setIsArtistExpanded(!isArtistExpanded)}
               >
-                <View style={[styles.menuIconContainer, { backgroundColor: "#F9731615" }]}>
-                  <Ionicons name="musical-notes-outline" size={18} color="#F97316" />
+                <View
+                  style={[
+                    styles.menuIconContainer,
+                    { backgroundColor: Theme.primary + "18" },
+                  ]}
+                >
+                  <Ionicons
+                    name="musical-notes-outline"
+                    size={18}
+                    color={Theme.primary}
+                  />
                 </View>
-                <Text style={[styles.menuItemText, { flex: 1 }]}>Artist</Text>
+                <Text style={[styles.menuItemText, { flex: 1 }]}>
+                  Artist Hub
+                </Text>
                 <Ionicons
                   name={isArtistExpanded ? "chevron-down" : "chevron-forward"}
                   size={16}
@@ -2601,10 +3162,21 @@ export default function Category() {
                       router.push("/menu/artist-management");
                     }}
                   >
-                    <View style={[styles.menuIconContainer, { backgroundColor: "#F9731615" }]}>
-                      <Ionicons name="settings-outline" size={18} color="#F97316" />
+                    <View
+                      style={[
+                        styles.menuIconContainer,
+                        { backgroundColor: Theme.primary + "18" },
+                      ]}
+                    >
+                      <Ionicons
+                        name="mic-outline"
+                        size={18}
+                        color={Theme.primary}
+                      />
                     </View>
-                    <Text style={styles.subMenuItemText}>Artist Management</Text>
+                    <Text style={styles.subMenuItemText}>
+                      Artist Management
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -2618,8 +3190,17 @@ export default function Category() {
                     router.push("/menu/settlement");
                   }}
                 >
-                  <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                    <Ionicons name="calculator-outline" size={18} color={Theme.primary} />
+                  <View
+                    style={[
+                      styles.menuIconContainer,
+                      { backgroundColor: Theme.primary + "10" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="calculator-outline"
+                      size={18}
+                      color={Theme.primary}
+                    />
                   </View>
                   <Text style={styles.menuItemText}>Settlement</Text>
                 </TouchableOpacity>
@@ -2630,8 +3211,17 @@ export default function Category() {
                 style={styles.menuItem}
                 onPress={() => setIsReportsExpanded(!isReportsExpanded)}
               >
-                <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                  <Ionicons name="document-text-outline" size={18} color={Theme.primary} />
+                <View
+                  style={[
+                    styles.menuIconContainer,
+                    { backgroundColor: Theme.primary + "10" },
+                  ]}
+                >
+                  <Ionicons
+                    name="document-text-outline"
+                    size={18}
+                    color={Theme.primary}
+                  />
                 </View>
                 <Text style={[styles.menuItemText, { flex: 1 }]}>Reports</Text>
                 <Ionicons
@@ -2650,8 +3240,17 @@ export default function Category() {
                         router.push("/sales-report");
                       }}
                     >
-                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                        <Ionicons name="bar-chart-outline" size={18} color={Theme.primary} />
+                      <View
+                        style={[
+                          styles.menuIconContainer,
+                          { backgroundColor: Theme.primary + "10" },
+                        ]}
+                      >
+                        <Ionicons
+                          name="bar-chart-outline"
+                          size={18}
+                          color={Theme.primary}
+                        />
                       </View>
                       <Text style={styles.subMenuItemText}>Sales Report</Text>
                     </TouchableOpacity>
@@ -2665,8 +3264,17 @@ export default function Category() {
                         router.push("/day-end");
                       }}
                     >
-                      <View style={[styles.menuIconContainer, { backgroundColor: Theme.warning + "10" }]}>
-                        <MaterialCommunityIcons name="calendar-clock" size={18} color={Theme.warning} />
+                      <View
+                        style={[
+                          styles.menuIconContainer,
+                          { backgroundColor: Theme.warning + "10" },
+                        ]}
+                      >
+                        <MaterialCommunityIcons
+                          name="calendar-clock"
+                          size={18}
+                          color={Theme.warning}
+                        />
                       </View>
                       <Text style={styles.subMenuItemText}>Day End Report</Text>
                     </TouchableOpacity>
@@ -2681,12 +3289,25 @@ export default function Category() {
                     style={styles.menuItem}
                     onPress={() => setIsSettingsExpanded(!isSettingsExpanded)}
                   >
-                    <View style={[styles.menuIconContainer, { backgroundColor: Theme.textSecondary + "10" }]}>
-                      <Ionicons name="settings-outline" size={18} color={Theme.textSecondary} />
+                    <View
+                      style={[
+                        styles.menuIconContainer,
+                        { backgroundColor: Theme.textSecondary + "10" },
+                      ]}
+                    >
+                      <Ionicons
+                        name="settings-outline"
+                        size={18}
+                        color={Theme.textSecondary}
+                      />
                     </View>
-                    <Text style={[styles.menuItemText, { flex: 1 }]}>Settings</Text>
+                    <Text style={[styles.menuItemText, { flex: 1 }]}>
+                      Settings
+                    </Text>
                     <Ionicons
-                      name={isSettingsExpanded ? "chevron-down" : "chevron-forward"}
+                      name={
+                        isSettingsExpanded ? "chevron-down" : "chevron-forward"
+                      }
                       size={16}
                       color={Theme.textSecondary}
                     />
@@ -2702,10 +3323,21 @@ export default function Category() {
                             setIsSettingsVisible(true);
                           }}
                         >
-                          <View style={[styles.menuIconContainer, { backgroundColor: Theme.textSecondary + "10" }]}>
-                            <Ionicons name="storefront-outline" size={18} color={Theme.textSecondary} />
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.textSecondary + "10" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="storefront-outline"
+                              size={18}
+                              color={Theme.textSecondary}
+                            />
                           </View>
-                          <Text style={styles.subMenuItemText}>Store Settings</Text>
+                          <Text style={styles.subMenuItemText}>
+                            Store Settings
+                          </Text>
                         </TouchableOpacity>
                       )}
 
@@ -2714,13 +3346,24 @@ export default function Category() {
                           style={styles.subMenuItem}
                           onPress={() => {
                             setIsMenuVisible(false);
-                            setIsGeneralSettingsVisible(true);
+                            router.push("/general-settings");
                           }}
                         >
-                          <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                            <Ionicons name="options-outline" size={18} color={Theme.primary} />
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.primary + "10" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="options-outline"
+                              size={18}
+                              color={Theme.primary}
+                            />
                           </View>
-                          <Text style={styles.subMenuItemText}>General Settings</Text>
+                          <Text style={styles.subMenuItemText}>
+                            General Settings
+                          </Text>
                         </TouchableOpacity>
                       )}
 
@@ -2732,10 +3375,21 @@ export default function Category() {
                             router.push("/company-settings");
                           }}
                         >
-                          <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                            <Ionicons name="receipt-outline" size={18} color={Theme.primary} />
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.primary + "10" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="receipt-outline"
+                              size={18}
+                              color={Theme.primary}
+                            />
                           </View>
-                          <Text style={styles.subMenuItemText}>Receipt Settings</Text>
+                          <Text style={styles.subMenuItemText}>
+                            Receipt Settings
+                          </Text>
                         </TouchableOpacity>
                       )}
 
@@ -2747,10 +3401,21 @@ export default function Category() {
                             router.push("/terminal-settings");
                           }}
                         >
-                          <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                            <Ionicons name="hardware-chip-outline" size={18} color={Theme.primary} />
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.primary + "10" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="hardware-chip-outline"
+                              size={18}
+                              color={Theme.primary}
+                            />
                           </View>
-                          <Text style={styles.subMenuItemText}>Terminal Management</Text>
+                          <Text style={styles.subMenuItemText}>
+                            Terminal Management
+                          </Text>
                         </TouchableOpacity>
                       )}
 
@@ -2762,8 +3427,17 @@ export default function Category() {
                           router.push("/cash-drawer");
                         }}
                       >
-                        <View style={[styles.menuIconContainer, { backgroundColor: "#16A34A10" }]}>
-                          <Ionicons name="cash-outline" size={18} color="#16A34A" />
+                        <View
+                          style={[
+                            styles.menuIconContainer,
+                            { backgroundColor: "#16A34A10" },
+                          ]}
+                        >
+                          <Ionicons
+                            name="cash-outline"
+                            size={18}
+                            color="#16A34A"
+                          />
                         </View>
                         <Text style={styles.subMenuItemText}>Cash Drawer</Text>
                       </TouchableOpacity>
@@ -2776,17 +3450,28 @@ export default function Category() {
                           router.push("/customer-display");
                         }}
                       >
-                        <View style={[styles.menuIconContainer, { backgroundColor: Theme.primary + "10" }]}>
-                          <Ionicons name="desktop-outline" size={18} color={Theme.primary} />
+                        <View
+                          style={[
+                            styles.menuIconContainer,
+                            { backgroundColor: Theme.primary + "10" },
+                          ]}
+                        >
+                          <Ionicons
+                            name="desktop-outline"
+                            size={18}
+                            color={Theme.primary}
+                          />
                         </View>
-                        <Text style={styles.subMenuItemText}>Customer Display</Text>
+                        <Text style={styles.subMenuItemText}>
+                          Customer Display
+                        </Text>
                       </TouchableOpacity>
                     </View>
                   )}
                 </>
               )}
-            
-            {/* Legend in Menu for Mobile */}
+
+              {/* Legend in Menu for Mobile */}
               {!isTablet && (
                 <>
                   <View style={styles.menuDivider} />
@@ -2801,11 +3486,11 @@ export default function Category() {
                     </Text>
                     <View style={{ gap: 8 }}>
                       {[
-                        { color: "#22c55e", label: "Dining" },
-                        { color: "#3b82f6", label: "Hold" },
-                        { color: "#f59e0b", label: "Checkout" },
-                        { color: "#ef4444", label: "Reserved" },
-                        { color: "#8b5cf6", label: "Overtime" },
+                        { color: "#10B981", label: "Active" },
+                        { color: "#3B82F6", label: "On Hold" },
+                        { color: "#F59E0B", label: "Billing" },
+                        { color: "#EF4444", label: "Reserved" },
+                        { color: "#A855F7", label: "Overtime" },
                       ].map((item) => (
                         <View key={item.label} style={styles.legendItem}>
                           <View
@@ -3171,7 +3856,9 @@ export default function Category() {
         animationType="fade"
         onRequestClose={() => setShowBusinessCalendar(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setShowBusinessCalendar(false)}>
+        <TouchableWithoutFeedback
+          onPress={() => setShowBusinessCalendar(false)}
+        >
           <View style={styles.centerOverlay}>
             <TouchableWithoutFeedback>
               <View
@@ -3204,17 +3891,28 @@ export default function Category() {
                   >
                     Select Business Date
                   </Text>
-                  <TouchableOpacity onPress={() => setShowBusinessCalendar(false)}>
-                    <Ionicons name="close" size={24} color={Theme.textPrimary} />
+                  <TouchableOpacity
+                    onPress={() => setShowBusinessCalendar(false)}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={24}
+                      color={Theme.textPrimary}
+                    />
                   </TouchableOpacity>
                 </View>
                 <CalendarPicker
-                  selectedDate={selectedBusinessDate || getSingaporeDateString()}
+                  selectedDate={
+                    selectedBusinessDate || getSingaporeDateString()
+                  }
                   onDateChange={async (date) => {
                     setSelectedBusinessDate(date);
                     setShowBusinessCalendar(false);
                     try {
-                      await AsyncStorage.setItem("selected_business_date", date);
+                      await AsyncStorage.setItem(
+                        "selected_business_date",
+                        date,
+                      );
                       showToast({
                         type: "success",
                         message: "Date Saved",
@@ -3541,9 +4239,11 @@ const styles = StyleSheet.create({
   },
   menuContent: {
     width: 260,
-    backgroundColor: "#FFF",
+    backgroundColor: Theme.bgCard,
     borderRadius: 20,
     padding: 10,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
     ...Theme.shadowLg,
   },
   menuUserSection: {

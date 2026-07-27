@@ -178,9 +178,11 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 320,
     maxHeight: '85%',
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgCard,
     borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
     ...Theme.shadowLg,
   },
   scrollContent: {
@@ -204,17 +206,17 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     padding: 6,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: Theme.bgMuted,
     borderRadius: 10,
   },
   amountContainer: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Theme.bgMuted,
     padding: 10,
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: Theme.border,
   },
   amountLabel: {
     fontSize: 11,

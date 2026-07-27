@@ -259,7 +259,7 @@ export default function ArtistBonusPaymentsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="dark-content" backgroundColor={Theme.bgMain} />
+      <StatusBar barStyle="light-content" backgroundColor={Theme.bgMain} />
 
       {/* Header */}
       <View style={styles.header}>
@@ -529,7 +529,7 @@ export default function ArtistBonusPaymentsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Theme.bgMain },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Theme.bgCard, borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 12 },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Theme.bgNav, borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 12 },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center" },
   headerTitle: { fontFamily: Fonts.black, fontSize: 17, color: Theme.textPrimary },
   headerSub: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary },
@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
   summaryBar: { padding: 16, backgroundColor: Theme.bgCard, borderBottomWidth: 1, borderBottomColor: Theme.border },
   summaryCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   summaryMeta: { flexDirection: "row", gap: 10, alignItems: "center" },
-  sumBadge: { width: 38, height: 38, borderRadius: 10, backgroundColor: "#FEE2E2", justifyContent: "center", alignItems: "center" },
+  sumBadge: { width: 38, height: 38, borderRadius: 10, backgroundColor: "rgba(239,68,68,0.15)", justifyContent: "center", alignItems: "center" },
   sumLabel: { fontFamily: Fonts.medium, fontSize: 10, color: Theme.textSecondary, textTransform: "uppercase" },
   sumValue: { fontFamily: Fonts.black, fontSize: 18, color: "#DC2626", marginTop: 2 },
   payAllBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.bgMuted },
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, paddingBottom: 60 },
 
   // Batch Card
-  batchCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FECACA", padding: 12, borderRadius: 12, marginBottom: 16 },
+  batchCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(239,68,68,0.12)", borderWidth: 1.5, borderColor: "rgba(239,68,68,0.30)", padding: 12, borderRadius: 12, marginBottom: 16 },
   batchTitle: { fontFamily: Fonts.black, fontSize: 13, color: "#DC2626" },
   batchSub: { fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 2 },
   batchPayBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#DC2626", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },

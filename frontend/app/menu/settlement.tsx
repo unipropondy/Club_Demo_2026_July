@@ -1511,7 +1511,7 @@ const fetchDayHistory = async () => {
               style={{ 
                 flexDirection: 'row', 
                 alignItems: 'center', 
-                backgroundColor: '#fff', 
+                backgroundColor: Theme.bgMuted, 
                 borderWidth: 1.5, 
                 borderColor: Theme.border, 
                 borderRadius: 10, 
@@ -1522,7 +1522,7 @@ const fetchDayHistory = async () => {
                 minWidth: 150,
                 ...Platform.select({
                   web: {
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
                     cursor: 'pointer',
                   }
                 }) as any
@@ -1634,7 +1634,7 @@ const fetchDayHistory = async () => {
               <View style={{
                 flexDirection: 'row',
                 justifyContent: 'space-between',
-                backgroundColor: '#fff',
+                backgroundColor: Theme.bgCard,
                 paddingVertical: 12,
                 paddingHorizontal: 16,
                 borderRadius: 12,
@@ -1727,16 +1727,16 @@ const fetchDayHistory = async () => {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.card, { flex: isTablet ? 1 : undefined, minWidth: isTablet ? 0 : '48%', flexGrow: 1, padding: isTablet ? 15 : 10, alignItems: 'center', justifyContent: 'center', backgroundColor: "#fffbeb", borderColor: "#fde68a", borderWidth: 1 }]}
+                style={[styles.card, { flex: isTablet ? 1 : undefined, minWidth: isTablet ? 0 : '48%', flexGrow: 1, padding: isTablet ? 15 : 10, alignItems: 'center', justifyContent: 'center', backgroundColor: Theme.warningBg, borderColor: Theme.warningBorder, borderWidth: 1 }]}
                 onPress={() => {
                   setShowCashBoxModal(true);
                 }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="cube-outline" size={isTablet ? 16 : 14} color="#d97706" />
-                  <Text style={{ fontFamily: Fonts.bold, color: "#d97706", fontSize: isTablet ? 12 : 11 }}>Cash Box</Text>
+                  <Ionicons name="cube-outline" size={isTablet ? 16 : 14} color={Theme.warning} />
+                  <Text style={{ fontFamily: Fonts.bold, color: Theme.warning, fontSize: isTablet ? 12 : 11 }}>Cash Box</Text>
                 </View>
-                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: "#b45309", marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(totalCashBoxEntries)}</Text>
+                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: Theme.warning, marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(totalCashBoxEntries)}</Text>
               </TouchableOpacity>
 
               <View style={[styles.card, { flex: isTablet ? 1 : undefined, minWidth: isTablet ? 0 : '48%', flexGrow: 1, padding: isTablet ? 15 : 10, alignItems: 'center', justifyContent: 'center', backgroundColor: Theme.successBg, borderColor: Theme.successBorder, borderWidth: 1 }]}>
@@ -1899,15 +1899,15 @@ const fetchDayHistory = async () => {
                         <Text style={[styles.tableCellText, { flex: 1, textAlign: "right", color: isCash ? Theme.success : Theme.textSecondary }]}>
                           {isCash ? `+${formatCurrency(p.Amount)}` : "0.00"}
                         </Text>
-                        <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}></Text>
+                  <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}></Text>
                       </View>
                     );
                   })}
                   {payments.length === 0 && displayOpeningAmount === 0 && transactions.length === 0 && cashOutEntries.length === 0 && cashInEntries.length === 0 && <Text style={styles.emptyText}>No sales</Text>}
                 </ScrollView>
-                <View style={{ flexDirection: "row", paddingVertical: 12, paddingHorizontal: 12, backgroundColor: "#FAFAFA", borderTopWidth: 1, borderTopColor: Theme.border, alignItems: "center" }}>
+                <View style={{ flexDirection: "row", paddingVertical: 12, paddingHorizontal: 12, backgroundColor: Theme.bgNav, borderTopWidth: 1, borderTopColor: Theme.border, alignItems: "center" }}>
                   <View style={{ flex: 2, alignItems: 'flex-end', paddingRight: 15 }}>
-                    <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.primaryDark }}>TOTAL</Text>
+                    <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.primary }}>TOTAL</Text>
                   </View>
                   <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 14, color: Theme.success }}>
                     {formatCurrency(totalCashIn)}
@@ -1916,10 +1916,10 @@ const fetchDayHistory = async () => {
                     {formatCurrency(totalCashOutSum)}
                   </Text>
                 </View>
-                <View style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, backgroundColor: "#F9FAFB", borderTopWidth: 1, borderTopColor: "#E5E7EB", alignItems: "center" }}>
+                <View style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, backgroundColor: Theme.bgNav, borderTopWidth: 1, borderTopColor: Theme.border, alignItems: "center" }}>
                   <View style={{ flex: 2, alignItems: 'flex-end', paddingRight: 15 }}>
                     <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: Theme.textSecondary }}>NET AMOUNT</Text>
-</View>
+                  </View>
                   <Text style={{ flex: 2, textAlign: "right", fontFamily: Fonts.black, fontSize: 14, color: (totalCashIn - totalCashOutSum) >= 0 ? Theme.success : Theme.danger }}>
                     {formatCurrency(totalCashIn - totalCashOutSum)}
                   </Text>
@@ -2608,7 +2608,7 @@ const fetchDayHistory = async () => {
                           style={{
                             flexDirection: "row",
                             alignItems: "center",
-                            backgroundColor: isStart ? "#fffbe6" : "#fef2f2",
+                            backgroundColor: isStart ? "rgba(245,158,11,0.12)" : "rgba(239, 68, 68, 0.12)",
                             borderLeftWidth: 4,
                             borderLeftColor: isStart ? "#f59e0b" : "#ef4444",
                             padding: 14,
@@ -2619,7 +2619,7 @@ const fetchDayHistory = async () => {
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 12, flex: 1 }}>
                             <Text style={{ fontSize: 22 }}>{isStart ? "☀️" : "🌙"}</Text>
                             <View style={{ flex: 1 }}>
-                              <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: isStart ? "#b45309" : "#b91c1c" }}>
+                              <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: isStart ? "#f59e0b" : "#ef4444" }}>
                                 {isStart ? "Day Started" : "Day Ended"}
                               </Text>
                               <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, marginTop: 4 }}>
@@ -2786,7 +2786,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: Theme.border,
   },
   rowLabel: {
     fontSize: 13,
@@ -2799,7 +2799,7 @@ const styles = StyleSheet.create({
     color: Theme.textPrimary,
   },
   highlightRow: {
-    backgroundColor: '#FAFAFA',
+    backgroundColor: Theme.bgNav,
     borderTopWidth: 1,
     borderTopColor: Theme.border,
     borderBottomWidth: 0,
@@ -2809,13 +2809,13 @@ const styles = StyleSheet.create({
     marginBottom: -12,
   },
   highlightText: {
-    color: Theme.primaryDark,
+    color: Theme.primary,
     fontFamily: Fonts.black,
     fontSize: 14,
   },
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: '#F8FAFC', // Very subtle cool gray
+    backgroundColor: Theme.bgMuted,
     paddingVertical: 10,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
@@ -2832,7 +2832,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: Theme.border,
   },
   tableCellText: {
     fontSize: 13,
@@ -2955,7 +2955,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     alignItems: "center",
     padding: 8,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: Theme.bgNav,
     borderTopWidth: 1,
     borderTopColor: Theme.border,
   },

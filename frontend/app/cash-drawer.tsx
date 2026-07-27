@@ -189,7 +189,7 @@ export default function CashDrawerScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="light-content" />
 
       {/* Header bar */}
       <View style={styles.header}>
@@ -263,7 +263,7 @@ export default function CashDrawerScreen() {
               ref={pinInputRef}
               style={styles.pinInput}
               placeholder="••••"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={Theme.textMuted}
               keyboardType="number-pad"
               secureTextEntry
               maxLength={8}
@@ -364,7 +364,7 @@ export default function CashDrawerScreen() {
               ref={remarkInputRef}
               style={styles.remarksInput}
               placeholder="Enter remarks..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={Theme.textMuted}
               multiline
               numberOfLines={3}
               value={remark}
@@ -431,7 +431,7 @@ export default function CashDrawerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAF9F6",
+    backgroundColor: Theme.bgMain,
   },
   header: {
     flexDirection: "row",
@@ -439,9 +439,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 15,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgNav,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: Theme.border,
   },
   backButton: {
     padding: 4,
@@ -457,15 +457,15 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    backgroundColor: "#FFF7ED",
+    backgroundColor: Theme.primaryLight,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#FED7AA",
+    borderColor: Theme.primaryBorder,
   },
   reportButtonText: {
     fontSize: 12,
     fontFamily: Fonts.bold,
-    color: "#F97316",
+    color: Theme.primary,
   },
   scrollContent: {
     padding: 20,
@@ -488,22 +488,22 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: Theme.bgMuted,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 2,
   },
   stepDotActive: {
-    backgroundColor: "#F97316",
+    backgroundColor: Theme.primary,
   },
   stepDotCurrent: {
     borderWidth: 3,
-    borderColor: "#FED7AA",
+    borderColor: Theme.primaryBorder,
   },
   stepText: {
     fontSize: 12,
     fontFamily: Fonts.black,
-    color: "#9CA3AF",
+    color: Theme.textMuted,
   },
   stepTextActive: {
     color: "#fff",
@@ -511,22 +511,22 @@ const styles = StyleSheet.create({
   stepLine: {
     width: 40,
     height: 3,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: Theme.border,
     marginHorizontal: -2,
     zIndex: 1,
   },
   stepLineActive: {
-    backgroundColor: "#F97316",
+    backgroundColor: Theme.primary,
   },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 20,
     padding: 30,
     width: "100%",
     maxWidth: 450,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Theme.border,
     elevation: 2,
     shadowColor: "#000",
     shadowOpacity: 0.05,
@@ -554,9 +554,9 @@ const styles = StyleSheet.create({
   pinInput: {
     width: "100%",
     height: 52,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: Theme.bgInput,
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
+    borderColor: Theme.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 24,
@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   primaryButton: {
-    backgroundColor: "#F97316",
+    backgroundColor: Theme.primary,
     paddingVertical: 14,
     borderRadius: 12,
     width: "100%",
@@ -595,13 +595,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#9CA3AF",
   },
   gridCard: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 20,
     padding: 24,
     width: "100%",
     maxWidth: 600,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Theme.border,
   },
   grid: {
     flexDirection: "row",
@@ -611,7 +611,7 @@ const styles = StyleSheet.create({
   },
   gridItem: {
     width: "48%",
-    backgroundColor: "#FFF",
+    backgroundColor: Theme.bgMuted,
     borderWidth: 1.5,
     borderRadius: 16,
     padding: 16,
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: 2,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: Theme.border,
     width: "100%",
     justifyContent: "center",
     marginBottom: 30,
@@ -665,9 +665,9 @@ const styles = StyleSheet.create({
   remarksInput: {
     width: "100%",
     minHeight: 80,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: Theme.bgInput,
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
+    borderColor: Theme.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,

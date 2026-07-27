@@ -37,11 +37,11 @@ interface ArtistRow {
 }
 
 const WALLET_STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  Paid:             { bg: "#DCFCE7", text: "#16A34A", label: "🟢 Settled" },
-  "Partially Paid": { bg: "#FFF7ED", text: "#F97316", label: "🟠 Partial" },
-  Pending:          { bg: "#FEE2E2", text: "#DC2626", label: "🔴 Waiting" },
-  Accruing:         { bg: "#EFF6FF", text: "#2563EB", label: "🔵 Live Day" },
-  "No Bonus":      { bg: "#F5F5F4", text: "#78716C", label: "⚪ Empty" },
+  Paid:             { bg: "rgba(16,185,129,0.15)",  text: "#10B981", label: "🟢 Settled" },
+  "Partially Paid": { bg: "rgba(245,158,11,0.15)",  text: "#F59E0B", label: "🟠 Partial" },
+  Pending:          { bg: "rgba(239,68,68,0.15)",   text: "#EF4444", label: "🔴 Waiting" },
+  Accruing:         { bg: "rgba(59,130,246,0.15)",  text: "#3B82F6", label: "🔵 Live Day" },
+  "No Bonus":      { bg: "rgba(255,255,255,0.06)",  text: "#5A5A80", label: "⚪ Empty" },
 };
 
 export default function ArtistManagementScreen() {
@@ -144,10 +144,10 @@ export default function ArtistManagementScreen() {
   }
 
   const quickLinks = [
-    { title: "Live Sales", subtitle: "Watch sales progress", icon: "trending-up", color: "#2563EB", bg: "#EFF6FF", route: "/menu/artist-sales" },
-    { title: "Bonus Wallets", subtitle: "Settle money waiting", icon: "wallet", color: "#DC2626", bg: "#FEF2F2", route: "/menu/artist-bonus-payments" },
-    { title: "Bonus Rules", subtitle: "Setup targets & rewards", icon: "settings", color: "#F97316", bg: "#FFF7ED", route: "/menu/artist-bonus-master" },
-    { title: "Reports", subtitle: "Audit wallets & payments", icon: "document-text", color: "#78716C", bg: "#F5F5F4", route: "/menu/artist-reports" },
+    { title: "Live Sales",   subtitle: "Watch sales progress",      icon: "trending-up",   color: "#3B82F6",  bg: "rgba(59,130,246,0.12)",   route: "/menu/artist-sales" },
+    { title: "Bonus Wallets",subtitle: "Settle money waiting",       icon: "wallet",        color: "#EF4444",  bg: "rgba(239,68,68,0.12)",    route: "/menu/artist-bonus-payments" },
+    { title: "Bonus Rules",  subtitle: "Setup targets & rewards",    icon: "settings",      color: "#A855F7",  bg: "rgba(168,85,247,0.12)",   route: "/menu/artist-bonus-master" },
+    { title: "Reports",      subtitle: "Audit wallets & payments",   icon: "document-text", color: "#5A5A80",  bg: "rgba(255,255,255,0.06)",  route: "/menu/artist-reports" },
   ];
 
   return (
@@ -166,7 +166,7 @@ export default function ArtistManagementScreen() {
           <Ionicons name="chevron-back" size={22} color={Theme.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Artist Bonus Wallet</Text>
+          <Text style={styles.headerTitle}>Artist Hub</Text>
           <Text style={styles.headerSub}>
             {activeRule
               ? `Rule: Every $${activeRule.ThresholdAmount} ➔ $${activeRule.BonusAmount} Bonus`
@@ -333,9 +333,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Theme.bgMain },
   header: {
     flexDirection: "row", alignItems: "center", paddingHorizontal: 16,
-    paddingVertical: 12, backgroundColor: Theme.bgCard,
+    paddingVertical: 12, backgroundColor: Theme.bgNav,
     borderBottomWidth: 1, borderBottomColor: Theme.border, gap: 12,
-    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.06)" } }) as any,
+    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.25)" } }) as any,
   },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center" },
   headerTitle: { fontFamily: Fonts.black, fontSize: 17, color: Theme.textPrimary },
@@ -374,7 +374,8 @@ const styles = StyleSheet.create({
   card: {
     width: "47%", borderRadius: 14, padding: 14,
     borderWidth: 1, borderColor: Theme.border,
-    ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(0,0,0,0.04)" } }) as any,
+    backgroundColor: Theme.bgCard,
+    ...Platform.select({ web: { boxShadow: "0 2px 12px rgba(0,0,0,0.20)" } }) as any,
   },
   cardIconWrap: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center", marginBottom: 10 },
   cardValue: { fontFamily: Fonts.black, fontSize: 20, color: Theme.textPrimary },
@@ -391,6 +392,7 @@ const styles = StyleSheet.create({
   quickLink: {
     width: "48%", borderRadius: 14, padding: 12, gap: 4,
     borderWidth: 1, borderColor: Theme.border,
+    backgroundColor: Theme.bgCard,
   },
   quickLinkIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: "center", alignItems: "center", marginBottom: 6 },
   quickLinkText: { fontFamily: Fonts.black, fontSize: 13 },
@@ -404,7 +406,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Theme.border,
   },
   tableRow: { flexDirection: "row", paddingHorizontal: 14, paddingVertical: 12, alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: Theme.border },
-  tableRowAlt: { backgroundColor: "#FAFAF9" },
+  tableRowAlt: { backgroundColor: Theme.bgMuted },
   rowCellLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1.2 },
   rowCellRight: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1, justifyContent: "flex-end" },
   avatarCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.primaryLight, justifyContent: "center", alignItems: "center" },

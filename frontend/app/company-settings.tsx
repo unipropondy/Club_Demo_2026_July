@@ -861,11 +861,13 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.bgMain, // 🟢 Force correct background
   },
   passwordCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 28,
     width: '88%',
     maxWidth: 400,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
     ...Theme.shadowLg,
   },
   passwordTitle: {
@@ -913,7 +915,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderBottomWidth: 1,
     borderBottomColor: Theme.border,
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgNav,
   },
   headerTitle: {
     fontSize: 20,
@@ -944,10 +946,12 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   section: {
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgCard,
     borderRadius: 20,
     padding: 20,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Theme.border,
     ...Theme.shadowSm,
   },
   sectionTitle: {
@@ -1044,7 +1048,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#ddd',
+    backgroundColor: Theme.bgMuted,
     justifyContent: 'center',
     paddingHorizontal: 2,
   },
@@ -1124,9 +1128,11 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 24,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
     ...Theme.shadowLg,
   },
   modalTitle: {

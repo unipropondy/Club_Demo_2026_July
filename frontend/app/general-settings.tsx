@@ -50,7 +50,7 @@ const CustomSwitch = ({ value, onValueChange, disabled = false }: CustomSwitchPr
 
   const backgroundColor = animatedValue.interpolate({
     inputRange: [0, 1],
-    outputRange: ["#E2E8F0", Theme.primary],
+    outputRange: [Theme.border, Theme.primary],
   });
 
   return (
@@ -469,13 +469,13 @@ export default function GeneralSettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAF7F2",
+    backgroundColor: Theme.bgMain,
   },
   header: {
     height: 72,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-    backgroundColor: "#FAF7F2",
+    borderBottomColor: Theme.border,
+    backgroundColor: Theme.bgNav,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -492,9 +492,9 @@ const styles = StyleSheet.create({
     left: 24,
     padding: 8,
     borderRadius: 10,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Theme.bgMuted,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Theme.border,
     zIndex: 10,
   },
   headerTitleContainer: {
@@ -528,9 +528,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Theme.border,
     borderRadius: 16,
     padding: 18,
     marginBottom: 16,
@@ -541,12 +541,12 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   settingCardActive: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderWidth: 1,
-    borderColor: "#FF6B00",
+    borderColor: Theme.primary,
     borderLeftWidth: 4,
-    borderLeftColor: "#FF6B00",
-    shadowColor: "#FF6B00",
+    borderLeftColor: Theme.primary,
+    shadowColor: Theme.primary,
     shadowOpacity: 0.04,
     shadowRadius: 10,
   },
@@ -574,10 +574,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   iconWrapperActive: {
-    backgroundColor: "#FFF7ED",
+    backgroundColor: Theme.primary + "15",
   },
   iconWrapperInactive: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: Theme.bgMuted,
   },
   settingTitle: {
     fontSize: 14,
@@ -614,9 +614,9 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: 20,
-    backgroundColor: "#FAF7F2",
+    backgroundColor: Theme.bgNav,
     borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    borderTopColor: Theme.border,
     flexDirection: "row",
     justifyContent: "flex-end",
     gap: 12,
@@ -626,10 +626,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Theme.border,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgMuted,
   },
   cancelBtnText: {
     fontSize: 14,
@@ -640,11 +640,11 @@ const styles = StyleSheet.create({
     height: 46,
     paddingHorizontal: 28,
     borderRadius: 10,
-    backgroundColor: "#FF6B00",
+    backgroundColor: Theme.primary,
     alignItems: "center",
     justifyContent: "center",
     minWidth: 140,
-    shadowColor: "#FF6B00",
+    shadowColor: Theme.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 6,
@@ -663,9 +663,11 @@ const styles = StyleSheet.create({
   },
   pwModalContent: {
     width: 380,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 16,
     padding: 24,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -697,8 +699,9 @@ const styles = StyleSheet.create({
   },
   pwInput: {
     height: 44,
-    borderWidth: 0,
-    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: Theme.border,
+    backgroundColor: Theme.bgInput,
     borderRadius: 8,
     paddingHorizontal: 12,
     fontSize: 14,

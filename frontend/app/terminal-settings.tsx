@@ -623,10 +623,10 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   badgeActive: {
-    backgroundColor: "#ECFDF5",
+    backgroundColor: "rgba(16,185,129,0.12)",
   },
   badgeInactive: {
-    backgroundColor: "#F1F5F9",
+    backgroundColor: Theme.bgMuted,
   },
   badgeText: {
     fontSize: 11,
@@ -636,7 +636,7 @@ const styles = StyleSheet.create({
     color: "#10B981",
   },
   badgeTextInactive: {
-    color: "#64748B",
+    color: Theme.textSecondary,
   },
   modalOverlay: {
     flex: 1,
@@ -651,8 +651,10 @@ const styles = StyleSheet.create({
     maxHeight: "90%",
   },
   modalContent: {
-    backgroundColor: "#FFF",
+    backgroundColor: Theme.bgCard,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
@@ -663,7 +665,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#EEE",
+    borderBottomColor: Theme.border,
   },
   modalTitle: {
     fontSize: 16,
@@ -695,13 +697,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 8,
     fontSize: 14,
-    backgroundColor: "#FAF9F6",
+    backgroundColor: Theme.bgInput,
     color: Theme.textPrimary,
     fontFamily: Fonts.medium,
   },
   inputDisabled: {
-    backgroundColor: "#E2E8F0",
-    color: Theme.textSecondary,
+    backgroundColor: Theme.bgMuted,
+    color: Theme.textMuted,
   },
   checkboxRow: {
     width: "48%",

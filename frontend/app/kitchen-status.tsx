@@ -201,7 +201,7 @@ export default function KitchenStatusScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <Pressable onPress={() => router.replace('/(tabs)/category')} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={Theme.textPrimary} />
@@ -252,14 +252,14 @@ export default function KitchenStatusScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F0EBE3" }, // Warm Stone background to match Theme.bgMuted
+  safe: { flex: 1, backgroundColor: Theme.bgMain },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 18,
-    backgroundColor: "#FFF",
+    backgroundColor: Theme.bgNav,
     borderBottomWidth: 1,
     borderBottomColor: Theme.border,
     ...Theme.shadowSm,
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   list: { padding: 16, paddingBottom: 60 },
   columnWrapper: { gap: 16 },
   orderCard: {
-    backgroundColor: "#FFF",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     marginBottom: 16,
     borderWidth: 1,
@@ -298,16 +298,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Theme.border + "50",
+    borderBottomColor: Theme.border,
   },
-  headerDineIn: { backgroundColor: "#F0F9FF" }, // Soft Blue
-  headerTakeaway: { backgroundColor: "#FFFBEB" }, // Soft Amber
+  headerDineIn: { backgroundColor: "rgba(168,85,247,0.12)" },
+  headerTakeaway: { backgroundColor: "rgba(245,158,11,0.12)" },
   headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconCircle: {
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: "#FFF",
+    backgroundColor: Theme.bgMuted,
     alignItems: "center",
     justifyContent: "center",
     ...Theme.shadowSm,
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     color: Theme.primary,
   },
   orderStats: {
-    backgroundColor: "#FFF",
+    backgroundColor: Theme.bgMuted,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -351,10 +351,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Theme.border + "50",
+    borderBottomColor: Theme.border,
   },
   itemReadyRow: {
-    backgroundColor: "#F0FDF4",
+    backgroundColor: "rgba(34,197,94,0.08)",
     marginHorizontal: -16,
     paddingHorizontal: 16,
   },
@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 6,
     marginLeft: 34,
-    backgroundColor: '#FFF5F5',
+    backgroundColor: 'rgba(239,68,68,0.1)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -461,10 +461,12 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: "#FFF",
+    backgroundColor: Theme.bgCard,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: Theme.border,
     ...Theme.shadowMd,
   },
   emptyText: {

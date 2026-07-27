@@ -1290,7 +1290,7 @@ export default function MenuScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <View style={{ flex: 1 }}>
         {isLandscape ? (
           <View style={styles.layout}>
@@ -2028,7 +2028,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   rail: {
     width: 90,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgNav,
     borderRightWidth: 1,
     borderRightColor: Theme.border,
     alignItems: "center",
@@ -2073,7 +2073,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgMuted,
     justifyContent: "center",
     alignItems: "center",
     ...Theme.shadowSm,
@@ -2081,7 +2081,7 @@ const styles = StyleSheet.create({
   searchWrap: {
     flex: 0.7,
     height: 48,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgInput,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Theme.border,
@@ -2103,7 +2103,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgMuted,
     justifyContent: "center",
     alignItems: "center",
     ...Theme.shadowSm,
@@ -2114,7 +2114,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     height: 36,
     borderRadius: 12,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgMuted,
     borderWidth: 1,
     borderColor: Theme.border,
     justifyContent: "center",
@@ -2133,14 +2133,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 38,
     borderRadius: full,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgMuted,
     borderWidth: 1,
     borderColor: Theme.border,
     justifyContent: "center",
     alignItems: "center",
   },
   groupPillActive: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderWidth: 2,
     borderColor: Theme.primary,
     ...Theme.shadowSm,
@@ -2155,7 +2155,7 @@ const styles = StyleSheet.create({
   listPadding: { paddingBottom: 80 },
   card: {
     position: "relative",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 20,
     padding: 10,
     alignItems: "center",
@@ -2265,12 +2265,12 @@ const styles = StyleSheet.create({
     width: "85%",
     maxWidth: 480,
     maxHeight: "90%",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 24,
     ...Theme.shadowLg,
     borderWidth: 1,
-    borderColor: Theme.border,
+    borderColor: Theme.primaryBorder,
   },
   modalHeader: {
     flexDirection: "row",
@@ -2299,14 +2299,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 14,
     borderWidth: 1,
-    borderColor: "#EAECEE",
+    borderColor: Theme.border,
     borderRadius: 10,
-    backgroundColor: "#FAF9F6",
+    backgroundColor: Theme.bgMuted,
     marginBottom: 8,
   },
   modifierRowSelected: {
     borderColor: Theme.primary,
-    backgroundColor: "#FFF5EB",
+    backgroundColor: Theme.primaryLight,
   },
   modifierName: {
     color: Theme.textPrimary,
@@ -2354,12 +2354,12 @@ const styles = StyleSheet.create({
   customItemModal: {
     width: "85%",
     maxWidth: 380,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 24,
     ...Theme.shadowLg,
     borderWidth: 1,
-    borderColor: Theme.border,
+    borderColor: Theme.primaryBorder,
   },
   customModalTitle: {
     fontSize: 20,
@@ -2442,14 +2442,14 @@ const styles = StyleSheet.create({
   modifierGroupContainer: {
     marginBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomColor: Theme.border,
     paddingBottom: 15,
   },
   modifierGroupHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#f8fafc",
+    backgroundColor: Theme.bgMuted,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
@@ -2478,7 +2478,7 @@ const styles = StyleSheet.create({
     borderColor: Theme.primary,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgMuted,
   },
   qtyText: {
     fontSize: 16,
@@ -2495,9 +2495,9 @@ const styles = StyleSheet.create({
   },
   modifierCard: {
     width: "48%",
-    backgroundColor: "#FAF9F6",
+    backgroundColor: Theme.bgMuted,
     borderWidth: 1.5,
-    borderColor: "#EAECEE",
+    borderColor: Theme.border,
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 10,
@@ -2508,12 +2508,12 @@ const styles = StyleSheet.create({
   },
   modifierCardSelected: {
     borderColor: Theme.primary,
-    backgroundColor: "#FFF5EB",
+    backgroundColor: Theme.primaryLight,
   },
   modifierCardName: {
     fontSize: 13,
     fontFamily: Fonts.bold,
-    color: "#2C3E50",
+    color: Theme.textPrimary,
     textAlign: "center",
   },
   modifierCardTextSelected: {
@@ -2524,7 +2524,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: Theme.primary,
     marginTop: 4,
-    backgroundColor: "#FFEEDB",
+    backgroundColor: Theme.primaryLight,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
@@ -2550,7 +2550,7 @@ const styles = StyleSheet.create({
     borderColor: Theme.primary,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgMuted,
   },
   modifierCardQtyText: {
     fontSize: 13,

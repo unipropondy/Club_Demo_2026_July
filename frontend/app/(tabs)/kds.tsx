@@ -556,7 +556,7 @@ export default function KDSScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0E0E1A" />
       <View style={styles.container}>
 
         {/* ITEM SELECTION MODAL */}
@@ -666,8 +666,8 @@ export default function KDSScreen() {
               </Pressable>
             )}
             <View style={styles.logoAndTitle}>
-              <Ionicons name="fast-food" size={30} color={Theme.primary} />
-              <Text style={styles.screenTitle}>KDS</Text>
+              <Ionicons name="flame" size={28} color={Theme.primary} />
+              <Text style={styles.screenTitle}>Prep Station</Text>
             </View>
           </View>
 
@@ -779,7 +779,7 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: 25, paddingVertical: 8,
-    backgroundColor: "#FFF", borderBottomWidth: 1, borderBottomColor: Theme.border,
+    backgroundColor: Theme.bgNav, borderBottomWidth: 1, borderBottomColor: Theme.border,
     ...Theme.shadowSm,
   },
   backBtn: {
@@ -802,7 +802,7 @@ const styles = StyleSheet.create({
   legendText: { fontSize: 12, fontFamily: Fonts.bold, color: Theme.textSecondary },
   statChip: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    backgroundColor: "#FFF", borderRadius: 20,
+    backgroundColor: Theme.bgCard, borderRadius: 20,
     paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1,
   },
   statDot: { width: 9, height: 9, borderRadius: 5 },
@@ -881,14 +881,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 20,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: Theme.bgMuted,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: Theme.border,
   },
   itemCountMutedText: {
     fontSize: 11,
     fontFamily: Fonts.black,
-    color: '#666',
+    color: Theme.textMuted,
     letterSpacing: 0.3,
   },
 
@@ -955,7 +955,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 5,
     alignSelf: "center",
-    backgroundColor: "#FFF",
+    backgroundColor: Theme.bgCard,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -979,7 +979,7 @@ const styles = StyleSheet.create({
   modalContent: {
     width: "100%",
     maxWidth: 600,
-    backgroundColor: "#FFF",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 20,
     ...Theme.shadowLg,

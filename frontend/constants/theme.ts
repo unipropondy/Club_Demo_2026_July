@@ -1,91 +1,107 @@
 import { Platform } from 'react-native';
 
 /**
- * Light Warm Food POS Theme
- * Primary: Orange #F97316
- * Background: Warm Cream #FAF7F2
+ * ★ Neon Noir — Club & Pub Venue POS Theme ★
+ * Primary:    Electric Violet #A855F7
+ * Background: Deep Navy-Black #0A0A14
+ * Accents:    Neon Pink, Neon Gold, Neon Green, Neon Blue
  */
 
 export const Theme = {
-  // ── Primary Brand ──
-  primary: '#F97316',
-  primaryDark: '#C2500A',
-  primaryLight: '#FFF4EC',
-  primaryBorder: 'rgba(249,115,22,0.35)',
+  // ── Primary Brand (Electric Violet) ──
+  primary: '#A855F7',
+  primaryDark: '#7C3AED',
+  primaryLight: '#2D1B69',
+  primaryBorder: 'rgba(168,85,247,0.40)',
 
-  // ── Backgrounds ──
-  bgMain: '#FAF7F2',
-  bgCard: '#FFFFFF',
-  bgInput: '#F5F0E8',
-  bgNav: '#FFFFFF',
-  bgMuted: '#F0EBE3',
-  bgOverlay: 'rgba(250,247,242,0.95)',
+  // ── Dark Backgrounds ──
+  bgMain: '#0A0A14',        // Deep navy-black — main app bg
+  bgCard: '#12121F',        // Dark card surface
+  bgInput: '#1A1A2E',       // Dark input fields
+  bgNav: '#0E0E1A',         // Header / nav bar
+  bgMuted: '#1E1E30',       // Secondary / muted surfaces
+  bgOverlay: 'rgba(10,10,20,0.96)',
 
-  // ── Dark/Professional Palette ──
-  bgDark: '#0F172A',     // Midnight Slate
-  cardDark: '#1E293B',   // Shadow Slate
-  borderDark: '#334155', // Slate Border
-  bgDarkMuted: '#1E293B',
+  // ── Dark Palette (legacy tokens mapped to dark equivalents) ──
+  bgDark: '#0A0A14',
+  cardDark: '#12121F',
+  borderDark: '#2A2A45',
+  bgDarkMuted: '#1E1E30',
 
   // ── Text ──
-  textPrimary: '#1C1C1E',
-  textSecondary: '#6B6B6B',
-  textMuted: '#9CA3AF',
-  textInverse: '#FFFFFF',
-  textOrange: '#F97316',
+  textPrimary: '#F0F0FF',          // Near-white with slight lavender
+  textSecondary: '#9B9BC4',        // Muted lavender
+  textMuted: '#5A5A80',            // Placeholder / disabled
+  textInverse: '#0A0A14',          // Dark text on light surfaces
+  textOrange: '#A855F7',           // Mapped to violet (primary)
 
   // ── Borders ──
-  border: '#E8E0D5',
-  borderStrong: '#D6CBBC',
-  borderOrange: 'rgba(249,115,22,0.3)',
+  border: '#2A2A45',               // Subtle dark border
+  borderStrong: '#3D3D60',         // Stronger border
+  borderOrange: 'rgba(168,85,247,0.35)',  // Violet border variant
 
-  // ── Shadows ──
+  // ── Neon Accent Colors ──
+  neonViolet: '#A855F7',
+  neonBlue: '#3B82F6',
+  neonPink: '#EC4899',
+  neonGold: '#F59E0B',
+  neonGreen: '#10B981',
+  neonRed: '#EF4444',
+  neonCyan: '#06B6D4',
+
+  // ── Glassmorphism ──
+  glassCard: 'rgba(255,255,255,0.04)',
+  glassBorder: 'rgba(255,255,255,0.08)',
+  glassCardStrong: 'rgba(168,85,247,0.08)',
+  glassBorderStrong: 'rgba(168,85,247,0.25)',
+
+  // ── Shadows (colored glow for dark mode) ──
   shadowSm: {
-    shadowColor: '#000',
+    shadowColor: '#A855F7',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: Platform.OS === 'android' ? 0 : 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: Platform.OS === 'android' ? 2 : 2,
   },
   shadowMd: {
-    shadowColor: '#000',
+    shadowColor: '#A855F7',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-    elevation: Platform.OS === 'android' ? 0 : 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: Platform.OS === 'android' ? 4 : 4,
   },
   shadowLg: {
-    shadowColor: '#000',
+    shadowColor: '#A855F7',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
-    shadowRadius: 16,
-    elevation: Platform.OS === 'android' ? 0 : 8,
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: Platform.OS === 'android' ? 8 : 8,
   },
 
-  // ── Semantic Status Colors (kept for table grid) ──
-  success: '#22C55E',
-  successBg: '#F0FDF4',
-  successBorder: 'rgba(34,197,94,0.35)',
+  // ── Semantic Status Colors (neon dark-mode versions) ──
+  success: '#10B981',
+  successBg: 'rgba(16,185,129,0.12)',
+  successBorder: 'rgba(16,185,129,0.35)',
 
   warning: '#F59E0B',
-  warningBg: '#FFFBEB',
+  warningBg: 'rgba(245,158,11,0.12)',
   warningBorder: 'rgba(245,158,11,0.35)',
 
   danger: '#EF4444',
-  dangerBg: '#FEF2F2',
+  dangerBg: 'rgba(239,68,68,0.12)',
   dangerBorder: 'rgba(239,68,68,0.35)',
 
   info: '#3B82F6',
-  infoBg: '#F0F9FF',
+  infoBg: 'rgba(59,130,246,0.12)',
   infoBorder: 'rgba(59,130,246,0.35)',
 
-  // ── Table status backgrounds (light versions) ──
-  tableLocked: { bg: 'rgba(239,68,68,0.15)', border: '#EF4444' }, // Red for Reserved
-  tableHold: { bg: 'rgba(59,130,246,0.15)', border: '#3B82F6' },
-  tableSent: { bg: 'rgba(34,197,94,0.15)', border: '#22C55E' }, // Green for Sent/Dining
-  tableSentOld: { bg: 'rgba(249,115,22,0.15)', border: '#F97316' },
-  tableBillRequest: { bg: 'rgba(245,158,11,0.15)', border: '#F59E0B' }, // Amber for Checkout/Bill
-  tableEmpty: { bg: '#FFFFFF', border: '#E8E0D5' },
+  // ── Table / Zone status (neon glow for dark surfaces) ──
+  tableLocked:      { bg: 'rgba(239,68,68,0.15)',    border: '#EF4444' },   // Red — Reserved
+  tableHold:        { bg: 'rgba(59,130,246,0.15)',   border: '#3B82F6' },   // Blue — Hold
+  tableSent:        { bg: 'rgba(16,185,129,0.15)',   border: '#10B981' },   // Green — Active/Dining
+  tableSentOld:     { bg: 'rgba(168,85,247,0.15)',   border: '#A855F7' },   // Violet — legacy
+  tableBillRequest: { bg: 'rgba(245,158,11,0.15)',   border: '#F59E0B' },   // Gold — Billing
+  tableEmpty:       { bg: 'rgba(255,255,255,0.03)',  border: '#2A2A45' },   // Dark — Open
 
   // ── Radius ──
   radiusSm: 8,
@@ -95,7 +111,7 @@ export const Theme = {
   radiusFull: 999,
 };
 
-// Legacy Colors export to avoid breaking imports
+// Legacy Colors export — dark mode values for both light/dark
 export const Colors = {
   light: {
     text: Theme.textPrimary,
@@ -114,3 +130,4 @@ export const Colors = {
     tabIconSelected: Theme.primary,
   },
 };
+

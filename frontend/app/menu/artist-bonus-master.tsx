@@ -204,7 +204,7 @@ export default function ArtistBonusMasterScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="dark-content" backgroundColor={Theme.bgMain} />
+      <StatusBar barStyle="light-content" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -410,22 +410,22 @@ const styles = StyleSheet.create({
   ruleTypeTag: { backgroundColor: Theme.bgMuted, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
   ruleTypeText: { fontFamily: Fonts.black, fontSize: 10, color: Theme.textSecondary },
   ruleStatusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
-  activeTag: { backgroundColor: "#DCFCE7" },
-  inactiveTag: { backgroundColor: "#F5F5F5" },
+  activeTag: { backgroundColor: "rgba(22,163,74,0.12)" },
+  inactiveTag: { backgroundColor: Theme.bgMuted },
   ruleStatusText: { fontFamily: Fonts.bold, fontSize: 11 },
   activeTagText: { color: "#16A34A" },
-  inactiveTagText: { color: "#9CA3AF" },
+  inactiveTagText: { color: Theme.textSecondary },
 
   // Flow Card
-  ruleFlowCard: { backgroundColor: "#EFF6FF", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "#BFDBFE", alignItems: "center", marginBottom: 12 },
-  flowHeading: { fontFamily: Fonts.black, fontSize: 11, color: "#2563EB", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
+  ruleFlowCard: { backgroundColor: Theme.bgMuted, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Theme.border, alignItems: "center", marginBottom: 12 },
+  flowHeading: { fontFamily: Fonts.black, fontSize: 11, color: Theme.primary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 },
   flowBody: { alignItems: "center", gap: 6, width: "100%" },
   flowItem: { alignItems: "center", minWidth: 100 },
   flowLabel: { fontFamily: Fonts.medium, fontSize: 9, color: Theme.textSecondary, textTransform: "uppercase" },
   flowVal: { fontFamily: Fonts.black, fontSize: 22, color: Theme.textPrimary, marginVertical: 2 },
   flowSub: { fontFamily: Fonts.bold, fontSize: 10, color: Theme.textMuted },
   flowArrow: { marginVertical: 4 },
-  flowRepeatText: { fontFamily: Fonts.bold, fontSize: 11, color: "#2563EB", marginTop: 10 },
+  flowRepeatText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.primary, marginTop: 10 },
 
   // Preview Box
   previewBox: { backgroundColor: Theme.bgMuted, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Theme.border, marginBottom: 14 },
@@ -436,11 +436,11 @@ const styles = StyleSheet.create({
   previewEarned: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textPrimary },
 
   ruleActions: { flexDirection: "row", gap: 10 },
-  editBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE" },
-  editBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: "#3B82F6" },
-  deactivateBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
+  editBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, backgroundColor: Theme.primaryLight, borderWidth: 1, borderColor: Theme.primaryBorder },
+  editBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.primary },
+  deactivateBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, backgroundColor: "rgba(220,38,38,0.08)", borderWidth: 1, borderColor: "rgba(220,38,38,0.2)" },
   deactivateBtnText: { fontFamily: Fonts.bold, fontSize: 13, color: "#DC2626" },
-  activateBtn: { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" },
+  activateBtn: { backgroundColor: "rgba(22,163,74,0.08)", borderColor: "rgba(22,163,74,0.2)" },
   activateBtnText: { color: "#16A34A" },
 
   emptyState: { alignItems: "center", paddingVertical: 60 },
