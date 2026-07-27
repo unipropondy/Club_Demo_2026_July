@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+﻿import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -636,7 +636,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#E9ECEF",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
   },
   backBtn: {
     marginRight: 16,
@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
     maxWidth: "80%",        // User messages stay capped at 80%
   },
   assistantBubble: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderColor: "#E9ECEF",
     borderBottomLeftRadius: 2,
     flex: 1,               // Assistant bubbles take up all remaining space in the row
@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderTopWidth: 1,
     borderTopColor: "#E9ECEF",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     alignItems: "center",
   },
   quickPromptsDesktopRow: {
@@ -795,7 +795,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderTopWidth: 1,
     borderTopColor: "#E9ECEF",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     gap: 8,
   },
   input: {
@@ -820,7 +820,7 @@ const styles = StyleSheet.create({
   },
   dashboardCard: {
     marginTop: 14,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#E9ECEF",
@@ -919,7 +919,7 @@ const styles = StyleSheet.create({
   modalContent: {
     width: "100%",
     maxWidth: 320,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 12,
     padding: 20,
     alignItems: "center",
@@ -1010,7 +1010,7 @@ const styles = StyleSheet.create({
   },
   paymentCard: {
     marginTop: 14,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: "#E9ECEF",

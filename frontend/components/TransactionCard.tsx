@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
   StyleSheet,
@@ -78,11 +78,11 @@ const TransactionCard = React.memo(
                 : isUpi
                 ? "#a855f7"
                 : isYeahpayPaynow
-                ? "#f97316"
+                ? "#A855F7"
                 : isYeahpayCard
                 ? "#818cf8"
                 : isPayNow
-                ? "#f97316"
+                ? "#A855F7"
                 : isNets
                 ? "#3b82f6"
                 : "#818cf8"
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   splitBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#eff6ff',
+    backgroundColor: Theme.infoBg,
     borderColor: '#dbeafe',
     borderWidth: 1,
     borderRadius: 6,

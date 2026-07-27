@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -556,7 +556,7 @@ export default function KDSScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor="#0E0E1A" />
+      <StatusBar barStyle="light-content" backgroundColor="#08071A" />
       <View style={styles.container}>
 
         {/* ITEM SELECTION MODAL */}

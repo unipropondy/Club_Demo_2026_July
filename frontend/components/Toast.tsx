@@ -34,29 +34,30 @@ const TYPE_CONFIG: Record<ToastType, {
 }> = {
   success: {
     icon:   "checkmark-circle",
-    color:  "#4ade80",
-    bg:     "rgba(20,83,45,0.85)",
-    border: "rgba(74,222,128,0.4)",
+    color:  "#10B981",
+    bg:     "rgba(16,92,46,0.90)",
+    border: "rgba(16,185,129,0.45)",
   },
   error: {
     icon:   "close-circle",
-    color:  "#f87171",
-    bg:     "rgba(127,29,29,0.85)",
-    border: "rgba(248,113,113,0.4)",
+    color:  "#EF4444",
+    bg:     "rgba(100,20,20,0.92)",
+    border: "rgba(239,68,68,0.45)",
   },
   warning: {
     icon:   "warning",
-    color:  "#fbbf24",
-    bg:     "rgba(120,53,15,0.85)",
-    border: "rgba(251,191,36,0.4)",
+    color:  "#F59E0B",
+    bg:     "rgba(100,60,0,0.92)",
+    border: "rgba(245,158,11,0.45)",
   },
   info: {
     icon:   "information-circle",
-    color:  "#60a5fa",
-    bg:     "rgba(30,58,138,0.85)",
-    border: "rgba(96,165,250,0.4)",
+    color:  "#A855F7",
+    bg:     "rgba(75,28,113,0.92)",
+    border: "rgba(168,85,247,0.50)",
   },
 };
+
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 const ToastContext = createContext<ToastContextValue>({

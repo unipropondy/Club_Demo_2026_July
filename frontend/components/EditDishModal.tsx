@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
     maxWidth: 340,
   },
   content: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 20,
     padding: 20,
     ...Theme.shadowLg,

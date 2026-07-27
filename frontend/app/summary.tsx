@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useEffect, useMemo, useState } from "react";
@@ -1385,7 +1385,7 @@ export default function SummaryScreen() {
           style={[
             styles.actionBtn,
             {
-              backgroundColor: "#FFFBEB",
+              backgroundColor: Theme.warningBg,
               borderColor: "#FEF3C7",
               borderWidth: 1,
             },
@@ -1936,7 +1936,7 @@ export default function SummaryScreen() {
                     <View
                       style={{
                         backgroundColor: "#FFF7ED",
-                        borderColor: "#F97316",
+                        borderColor: "#A855F7",
                         borderWidth: 1,
                         borderRadius: 10,
                         padding: 12,
@@ -1945,7 +1945,7 @@ export default function SummaryScreen() {
                       }}
                     >
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Ionicons name="gift" size={16} color="#F97316" />
+                        <Ionicons name="gift" size={16} color="#A855F7" />
                         <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary, flex: 1 }}>
                           Reward Member: {rewardMember.Name}
                         </Text>
@@ -1956,7 +1956,7 @@ export default function SummaryScreen() {
                           onPress={() => setShowRewardModal(true)}
                           style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "#FFEDD5" }}
                         >
-                          <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: "#F97316" }}>Change</Text>
+                          <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: "#A855F7" }}>Change</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={() => {
@@ -1988,7 +1988,7 @@ export default function SummaryScreen() {
                           style={{
                             marginTop: 8,
                             marginLeft: 22,
-                            backgroundColor: "#FFFBEB",
+                            backgroundColor: Theme.warningBg,
                             borderColor: "#FDE68A",
                             borderWidth: 1,
                             borderRadius: 8,
@@ -2326,7 +2326,7 @@ export default function SummaryScreen() {
                             position: "absolute",
                             top: -8,
                             right: -8,
-                            backgroundColor: "#fff",
+                            backgroundColor: Theme.bgCard,
                             borderRadius: 12,
                             elevation: 2,
                             shadowColor: "#000",
@@ -4747,7 +4747,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 6,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
@@ -4889,7 +4889,7 @@ const styles = StyleSheet.create({
   mergeConfirmBox: {
     width: "100%",
     maxWidth: 420,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 28,
     alignItems: "center",

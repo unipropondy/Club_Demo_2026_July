@@ -95,8 +95,8 @@ const getStatusUI = (status: number) => {
     case 4:
       return {
         text: "OVERTIME",
-        color: "#A855F7",
-        lightBg: "rgba(168,85,247,0.14)",
+        color: "#F5EBD0",
+        lightBg: "rgba(245, 235, 208, 0.15)",
       };
     case 5:
       return {
@@ -108,7 +108,7 @@ const getStatusUI = (status: number) => {
     default:
       return {
         text: "OPEN",
-        color: "#5A5A80",
+        color: "#5A5080",
         lightBg: "rgba(255,255,255,0.03)",
       };
   }
@@ -187,7 +187,7 @@ const TableItemComponent = React.memo(
     const isPaid = rawEntryStatus === "q" && Number(rawPaymentStatus) === 1;
 
     if (isPaid) {
-      ui = { text: "PAID", color: "#f43f5e", lightBg: "#fff1f2" };
+      ui = { text: "PAID", color: "#f43f5e", lightBg: "rgba(244,63,94,0.15)" };
     }
 
     const borderColor = status === 0 ? Theme.border : ui.color;
@@ -2178,7 +2178,7 @@ export default function Category() {
               paddingVertical: 12,
               borderBottomWidth: 1,
               borderBottomColor: "#EAE8E4",
-              backgroundColor: "#FFF",
+              backgroundColor: Theme.bgCard,
             }}
           >
             <TouchableOpacity
@@ -2292,7 +2292,7 @@ export default function Category() {
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    backgroundColor: "#FFF",
+                    backgroundColor: Theme.bgCard,
                     borderWidth: 1.5,
                     borderColor: "#fd7e14",
                     borderRadius: 20,
@@ -2322,7 +2322,7 @@ export default function Category() {
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                backgroundColor: "#FFF",
+                backgroundColor: Theme.bgCard,
                 borderWidth: 1,
                 borderColor: "#EAE8E4",
                 borderRadius: 12,
@@ -2505,7 +2505,7 @@ export default function Category() {
                               borderRadius: 8,
                               paddingHorizontal: 6,
                               paddingVertical: 1,
-                              backgroundColor: "#FFF",
+                              backgroundColor: Theme.bgCard,
                             }}
                           >
                             <Text
@@ -2651,7 +2651,7 @@ export default function Category() {
                 justifyContent: "space-between",
                 paddingHorizontal: 20,
                 paddingVertical: 14,
-                backgroundColor: "#FFF",
+                backgroundColor: Theme.bgCard,
                 borderTopWidth: 1,
                 borderTopColor: "#EAE8E4",
                 elevation: 10,
@@ -2812,7 +2812,7 @@ export default function Category() {
               Scan this code to view the menu and place orders.
             </Text>
             <View
-              style={{ padding: 16, backgroundColor: "#fff", borderRadius: 8 }}
+              style={{ padding: 16, backgroundColor: Theme.bgCard, borderRadius: 8 }}
             >
               <QRCode
                 value="https://example.com/menu"
@@ -3490,7 +3490,7 @@ export default function Category() {
                         { color: "#3B82F6", label: "On Hold" },
                         { color: "#F59E0B", label: "Billing" },
                         { color: "#EF4444", label: "Reserved" },
-                        { color: "#A855F7", label: "Overtime" },
+                        { color: "#F5EBD0", label: "Overtime" },
                       ].map((item) => (
                         <View key={item.label} style={styles.legendItem}>
                           <View
@@ -3601,7 +3601,7 @@ export default function Category() {
                 { color: "#3b82f6", label: "Hold" },
                 { color: "#f59e0b", label: "Checkout" },
                 { color: "#ef4444", label: "Reserved" },
-                { color: "#8b5cf6", label: "Overtime" },
+                { color: "#F5EBD0", label: "Overtime" },
               ].map((item) => (
                 <View key={item.label} style={styles.legendItem}>
                   <View

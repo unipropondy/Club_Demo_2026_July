@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+﻿import { useRouter } from "expo-router";
 import React from "react";
 import { View, ActivityIndicator } from "react-native";
 
@@ -629,11 +629,11 @@ const styles = StyleSheet.create({
   backBtn: { width: 42, height: 42, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.12)", justifyContent: "center", alignItems: "center" },
   listContent: { padding: 10, paddingBottom: 200 },
   gridRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  footer: { backgroundColor: "#FFF", padding: 20, borderTopLeftRadius: 30, borderTopRightRadius: 30, ...Theme.shadowLg },
+  footer: { backgroundColor: Theme.bgCard, padding: 20, borderTopLeftRadius: 30, borderTopRightRadius: 30, ...Theme.shadowLg },
   totalValue: { fontSize: 32, fontFamily: Fonts.black, color: "#1a1a1a", textAlign: 'center' },
   sendBtn: { backgroundColor: "#f59e0b", padding: 16, borderRadius: 12, marginTop: 12, alignItems: 'center' },
   btnText: { fontSize: 18, fontFamily: Fonts.black, color: "#FFF" },
-  cartItem: { backgroundColor: "#FFF", borderRadius: 16, padding: 12, borderWidth: 1, borderColor: "#f3f4f6" },
+  cartItem: { backgroundColor: Theme.bgCard, borderRadius: 16, padding: 12, borderWidth: 1, borderColor: "#f3f4f6" },
   voidedItem: { opacity: 0.6 },
   itemTop: { flexDirection: 'row', gap: 12 },
   itemImageContainer: { width: 60, height: 60, borderRadius: 12, backgroundColor: "#fff7ed", justifyContent: "center", alignItems: "center" },
@@ -642,7 +642,7 @@ const styles = StyleSheet.create({
   itemPrice: { fontSize: 18, fontFamily: Fonts.black, color: "#f59e0b" },
   itemControls: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 8, borderTopWidth: 1, borderTopColor: "#f3f4f6" },
   quantityControls: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: "#f9fafb", padding: 4, borderRadius: 12 },
-  qtyBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: "#FFF", justifyContent: "center", alignItems: "center" },
+  qtyBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: Theme.bgCard, justifyContent: "center", alignItems: "center" },
   qtyDisplay: { fontSize: 16, fontFamily: Fonts.black, color: "#1a1a1a" },
   sentStatusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: "#f0fdf4" },
   sentStatusText: { fontSize: 12, fontFamily: Fonts.bold, color: "#16a34a" },

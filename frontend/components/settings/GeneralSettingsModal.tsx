@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -858,7 +858,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Theme.bgCard,
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 1.5 },
     shadowOpacity: 0.14,
@@ -916,7 +916,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   confirmCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Theme.bgCard,
     borderRadius: 16,
     padding: 20,
     width: "90%",
@@ -965,7 +965,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: Theme.border,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Theme.bgCard,
     alignItems: "center",
   },
   confirmBtnCancelText: {

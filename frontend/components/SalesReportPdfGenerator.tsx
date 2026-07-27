@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Sales Report PDF Generation Example Component
  * Shows how to integrate professional PDF download/email features
  * 
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    backgroundColor: '#fff'
+    backgroundColor: Theme.bgCard
   },
   title: {
     fontSize: 24,
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: Theme.border,
     backgroundColor: '#f9f9f9'
   },
   filterButtonActive: {
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   },
   emailInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: Theme.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,

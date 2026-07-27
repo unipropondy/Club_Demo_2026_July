@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -332,14 +332,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   passwordBox: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     padding: 25,
     borderRadius: 16,
     width: "85%",
     maxWidth: 400,
   },
   content: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     width: "90%",
     height: "80%",
     borderRadius: 24,
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F0F9FF",
+    backgroundColor: Theme.infoBg,
   },
   uploadText: { marginTop: 10, color: Theme.primary, fontWeight: "700" },
   previewContainer: { position: "relative", alignItems: "center" },

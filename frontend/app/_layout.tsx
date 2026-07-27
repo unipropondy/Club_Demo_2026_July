@@ -2,7 +2,8 @@ import "../shims/displayMock";
 import "react-native-get-random-values";
 import "react-native-reanimated";
 
-import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import { DarkTheme, ThemeProvider } from "@react-navigation/native";
+
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -36,6 +37,20 @@ import { LogBox } from "react-native";
 LogBox.ignoreLogs([
   "setLayoutAnimationEnabledExperimental is currently a no-op",
 ]);
+
+// ── Royal Noir: override navigation theme with purple palette ──
+const RoyalNoirTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary:      '#A855F7',
+    background:   '#0C0A22',
+    card:         '#08071A',
+    text:         '#F0EEFF',
+    border:       '#3D3875',
+    notification: '#A855F7',
+  },
+};
 
 // Set root background immediately to match theme
 SystemUI.setBackgroundColorAsync(Theme.bgMain);
@@ -344,7 +359,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+      <ThemeProvider value={RoyalNoirTheme}>
         <ToastProvider>
           {/* 🖥️ Customer Display: auto-projects onto Sunmi D3 secondary screen */}
           <CustomerDisplayManager isPOSReady={isPOSReady} />

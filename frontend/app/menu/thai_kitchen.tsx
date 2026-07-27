@@ -1,4 +1,4 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -1731,7 +1731,7 @@ export default function MenuScreen() {
                                           adjustModifierQuantity(m, gId, 1);
                                         }}
                                         disabled={isDisabled}
-                                        style={[styles.modifierCardQtyBtn, isDisabled && { borderColor: '#ddd' }]}
+                                        style={[styles.modifierCardQtyBtn, isDisabled && { borderColor: Theme.border }]}
                                       >
                                         <Ionicons name="add" size={12} color={isDisabled ? '#ccc' : Theme.primary} />
                                       </TouchableOpacity>

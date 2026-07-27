@@ -1,4 +1,4 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -380,7 +380,7 @@ export default function StaffAttendanceScreen() {
           <View style={styles.grid}>
             {[
               { id: 1, label: "CLOCK IN", icon: "enter", color: "#22c55e", active: canLogin },
-              { id: 3, label: "BREAK IN", icon: "cafe", color: "#f97316", active: canBreakIn },
+              { id: 3, label: "BREAK IN", icon: "cafe", color: "#A855F7", active: canBreakIn },
               { id: 4, label: "BREAK OUT", icon: "play", color: "#3b82f6", active: canBreakOut },
               { id: 0, label: "CLOCK OUT", icon: "power", color: "#ef4444", active: canOut },
             ].map((btn) => (
@@ -427,7 +427,7 @@ export default function StaffAttendanceScreen() {
                 let iconColor = "#6b7280";
                 if (isClockIn) { iconName = "checkmark-circle"; iconColor = "#22c55e"; }
                 if (isOut) { iconName = "power"; iconColor = "#ef4444"; }
-                if (isBreak) { iconName = "cafe"; iconColor = "#f97316"; }
+                if (isBreak) { iconName = "cafe"; iconColor = "#A855F7"; }
 
                 return (
                   <View key={i} style={[styles.historyRow, { borderLeftColor: iconColor }]}>

@@ -1,4 +1,4 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -41,7 +41,7 @@ const WALLET_STATUS_COLORS: Record<string, { bg: string; text: string; label: st
   "Partially Paid": { bg: "rgba(245,158,11,0.15)",  text: "#F59E0B", label: "🟠 Partial" },
   Pending:          { bg: "rgba(239,68,68,0.15)",   text: "#EF4444", label: "🔴 Waiting" },
   Accruing:         { bg: "rgba(59,130,246,0.15)",  text: "#3B82F6", label: "🔵 Live Day" },
-  "No Bonus":      { bg: "rgba(255,255,255,0.06)",  text: "#5A5A80", label: "⚪ Empty" },
+  "No Bonus":      { bg: "rgba(255,255,255,0.06)",  text: "#5A5080", label: "⚪ Empty" },
 };
 
 export default function ArtistManagementScreen() {
@@ -147,7 +147,7 @@ export default function ArtistManagementScreen() {
     { title: "Live Sales",   subtitle: "Watch sales progress",      icon: "trending-up",   color: "#3B82F6",  bg: "rgba(59,130,246,0.12)",   route: "/menu/artist-sales" },
     { title: "Bonus Wallets",subtitle: "Settle money waiting",       icon: "wallet",        color: "#EF4444",  bg: "rgba(239,68,68,0.12)",    route: "/menu/artist-bonus-payments" },
     { title: "Bonus Rules",  subtitle: "Setup targets & rewards",    icon: "settings",      color: "#A855F7",  bg: "rgba(168,85,247,0.12)",   route: "/menu/artist-bonus-master" },
-    { title: "Reports",      subtitle: "Audit wallets & payments",   icon: "document-text", color: "#5A5A80",  bg: "rgba(255,255,255,0.06)",  route: "/menu/artist-reports" },
+    { title: "Reports",      subtitle: "Audit wallets & payments",   icon: "document-text", color: "#5A5080",  bg: "rgba(255,255,255,0.06)",  route: "/menu/artist-reports" },
   ];
 
   return (
@@ -233,7 +233,7 @@ export default function ArtistManagementScreen() {
         <View style={styles.cardsGrid}>
           {[
             { label: "Today's Artist Sales", value: `$${cards.totalArtistSales.toFixed(0)}`, icon: "trending-up", color: "#2563EB", bg: "#EFF6FF" },
-            { label: "Today's Bonus Earned", value: `$${cards.totalBonusEarned.toFixed(0)}`, icon: "trophy", color: "#F97316", bg: "#FFF7ED" },
+            { label: "Today's Bonus Earned", value: `$${cards.totalBonusEarned.toFixed(0)}`, icon: "trophy", color: "#A855F7", bg: "#FFF7ED" },
             { label: "Bonus Waiting", value: `$${totalAllTimePending.toFixed(0)}`, sub: `${artistsWithPending.length} Artists`, icon: "wallet", color: totalAllTimePending > 0 ? "#DC2626" : "#16A34A", bg: totalAllTimePending > 0 ? "#FEF2F2" : "#F0FDF4" },
             { label: "Last Settlement", value: lastPayment ? `$${lastPayment.amount.toFixed(0)}` : "$0", sub: lastPayment ? lastPayment.date : "None yet", icon: "checkmark-circle", color: "#16A34A", bg: "#F0FDF4" },
           ].map(c => (
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
   // Attention Banner
   pendingAlert: {
     flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16,
-    backgroundColor: "#FEF2F2", borderWidth: 1.5, borderColor: "#FECACA",
+    backgroundColor: Theme.dangerBg, borderWidth: 1.5, borderColor: "#FECACA",
     borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12,
     ...Platform.select({ web: { boxShadow: "0 2px 8px rgba(220,38,38,0.08)" } }) as any,
   },

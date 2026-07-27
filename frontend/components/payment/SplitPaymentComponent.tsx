@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+﻿import React, { useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -1150,7 +1150,7 @@ textCancelled: {
     width: "80%",
     maxWidth: 300,
     maxHeight: 350,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 16,
     padding: 16,
     ...Theme.shadowLg,

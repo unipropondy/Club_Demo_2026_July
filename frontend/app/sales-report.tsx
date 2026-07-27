@@ -1,4 +1,4 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { format } from "date-fns";
@@ -2668,7 +2668,7 @@ export default function SalesReport() {
                   {
                     borderColor: hexToRgba(color, 0.25),
                     borderWidth: 1,
-                    backgroundColor: "#ffffff",
+                    backgroundColor: Theme.bgCard,
                   },
                   isActive && {
                     borderColor: color,
@@ -4556,7 +4556,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 10,
     borderRadius: 16,
-    backgroundColor: "#ffffff",
+    backgroundColor: Theme.bgCard,
     borderWidth: 1,
     borderColor: Theme.border,
     shadowColor: "#000",
@@ -5303,7 +5303,7 @@ const styles = StyleSheet.create({
   detailSplitContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#eff6ff',
+    backgroundColor: Theme.infoBg,
     borderColor: '#dbeafe',
     borderWidth: 1,
     borderRadius: 12,

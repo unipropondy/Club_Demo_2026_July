@@ -1,4 +1,4 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -36,7 +36,7 @@ const fmtDate = (raw: string | null) => {
 
 const WALLET_STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   Paid:             { bg: "#DCFCE7", text: "#16A34A", label: "🟢 Settled" },
-  "Partially Paid": { bg: "#FFF7ED", text: "#F97316", label: "🟠 Partial Payment" },
+  "Partially Paid": { bg: "#FFF7ED", text: "#A855F7", label: "🟠 Partial Payment" },
   Pending:          { bg: "#FEE2E2", text: "#DC2626", label: "🟡 Waiting Payment" },
   "No Bonus":      { bg: "#F5F5F4", text: "#78716C", label: "⚪ Wallet Empty" },
 };
@@ -146,7 +146,7 @@ export default function ArtistDetailScreen() {
       date: new Date(b.SalesToDate),
       title: "Bonus Earned",
       icon: "trophy",
-      color: "#F97316",
+      color: "#A855F7",
       amount: b.BonusEarned,
       desc: `Threshold met during business cycle`
     });
@@ -314,7 +314,7 @@ export default function ArtistDetailScreen() {
           <View style={styles.cardsGrid}>
             {[
               { label: "Lifetime Sales", value: `$${summary.totalSales.toFixed(0)}`, color: "#2563EB", bg: "#EFF6FF" },
-              { label: "Lifetime Earned", value: `$${summary.lifetimeEarned.toFixed(0)}`, color: "#F97316", bg: "#FFF7ED" },
+              { label: "Lifetime Earned", value: `$${summary.lifetimeEarned.toFixed(0)}`, color: "#A855F7", bg: "#FFF7ED" },
               { label: "Lifetime Paid", value: `$${summary.lifetimePaid.toFixed(0)}`, color: "#16A34A", bg: "#F0FDF4" },
               { label: "Current Wallet", value: `$${totalOutstanding.toFixed(0)}`, color: totalOutstanding > 0 ? "#DC2626" : "#16A34A", bg: totalOutstanding > 0 ? "#FEF2F2" : "#F0FDF4" },
             ].map(c => (
@@ -475,7 +475,7 @@ export default function ArtistDetailScreen() {
                       <Text style={styles.logBillText}>Milestone Reached</Text>
                       <Text style={styles.logSubText}>{fmtDate(b.SalesFromDate)} ➔ {fmtDate(b.SalesToDate)} · Sales: ${b.TotalSales}</Text>
                     </View>
-                    <Text style={[styles.logAmountText, { color: "#F97316" }]}>+${Number(b.BonusEarned).toFixed(2)}</Text>
+                    <Text style={[styles.logAmountText, { color: "#A855F7" }]}>+${Number(b.BonusEarned).toFixed(2)}</Text>
                   </View>
                 ))}
               </View>

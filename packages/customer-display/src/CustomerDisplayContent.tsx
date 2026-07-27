@@ -1097,7 +1097,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   brandingCard: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     padding: 40,
     borderRadius: 30,
     alignItems: "center",
@@ -1160,12 +1160,12 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.bgMain,
   },
   topHeaderBanner: {
-    backgroundColor: "#FEF9E7",
+    backgroundColor: Theme.bgNav,
     paddingVertical: 10,
     paddingLeft: 110,
     paddingRight: 24,
     borderBottomWidth: 1.5,
-    borderBottomColor: "#F5CBA7",
+    borderBottomColor: Theme.border,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -1173,7 +1173,7 @@ const styles = StyleSheet.create({
   topHeaderText: {
     fontSize: 24,
     fontFamily: Fonts.black,
-    color: "#4A2711",
+    color: Theme.textPrimary,
     letterSpacing: 1.5,
     textTransform: "uppercase",
   },
@@ -1185,14 +1185,14 @@ const styles = StyleSheet.create({
   headerSectionText: {
     fontSize: 14,
     fontFamily: Fonts.bold,
-    color: "#7E5109",
+    color: Theme.textSecondary,
     textTransform: "uppercase",
-    backgroundColor: "#FFF9E6",
+    backgroundColor: Theme.bgMuted,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#F5CBA7",
+    borderColor: Theme.border,
   },
   headerTableBadge: {
     backgroundColor: "#16A34A",
@@ -1223,7 +1223,7 @@ const styles = StyleSheet.create({
   // Left column
   leftPane: {
     flex: 0.85,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 24,
     borderWidth: 1.5,
@@ -1322,9 +1322,9 @@ const styles = StyleSheet.create({
 
   // Unipro Footers
   uniproFooterContainer: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgNav,
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
+    borderColor: Theme.border,
     borderRadius: 16,
     paddingVertical: 8,
     paddingHorizontal: 16,
@@ -1343,9 +1343,9 @@ const styles = StyleSheet.create({
     height: 80,
   },
   idleUniproFooter: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgNav,
     borderWidth: 1.5,
-    borderColor: "#E5E7EB",
+    borderColor: Theme.border,
     borderRadius: 16,
     paddingVertical: 8,
     paddingHorizontal: 24,
@@ -1361,7 +1361,7 @@ const styles = StyleSheet.create({
   // Right column
   rightPane: {
     flex: 1.4,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     borderWidth: 1.5,
     borderColor: Theme.border,
@@ -1374,16 +1374,16 @@ const styles = StyleSheet.create({
   },
   tableHeaderRow: {
     flexDirection: "row",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: Theme.bgNav,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1.5,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: Theme.border,
   },
   tableHeaderCell: {
     fontSize: 14,
     fontFamily: Fonts.extraBold,
-    color: "#4B5563",
+    color: Theme.textSecondary,
   },
   cellDesc: {
     flex: 1.6,
@@ -1653,7 +1653,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: Theme.primary,
   },
-  // â”€â”€â”€ Terminal setup modal â”€â”€â”€
+  // ─── Terminal setup modal ───
   terminalModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.65)",
@@ -1661,12 +1661,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   terminalModalCard: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     width: 380,
     maxWidth: "90%",
     maxHeight: "80%",
     padding: 28,
+    borderWidth: 1,
+    borderColor: Theme.primaryBorder,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
@@ -1704,7 +1706,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Theme.border,
     marginBottom: 10,
-    backgroundColor: "#fafafa",
+    backgroundColor: Theme.bgMuted,
   },
   terminalItemSelected: {
     borderColor: Theme.primary,
@@ -1768,11 +1770,13 @@ const styles = StyleSheet.create({
   paymodeSelectedCard: {
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 20,
     width: "95%",
     maxWidth: 440,
+    borderWidth: 1,
+    borderColor: Theme.border,
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -1803,13 +1807,13 @@ const styles = StyleSheet.create({
   },
   paymodeAmountBox: {
     width: "100%",
-    backgroundColor: "#F9FAFB",
+    backgroundColor: Theme.bgMuted,
     borderRadius: 16,
     paddingVertical: 16,
     paddingHorizontal: 24,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#F3F4F6",
+    borderColor: Theme.border,
   },
   paymodeAmountLabel: {
     fontSize: 12,
@@ -1821,31 +1825,33 @@ const styles = StyleSheet.create({
   paymodeAmountValue: {
     fontSize: 32,
     fontFamily: Fonts.black,
-    color: "#111827",
+    color: Theme.textPrimary,
   },
   memberNameBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: Theme.bgMuted,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: Theme.border,
   },
   memberNameText: {
     fontSize: 14,
     fontFamily: Fonts.black,
   },
   splitCard: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 24,
     width: "95%",
     maxWidth: 440,
     maxHeight: 460,
+    borderWidth: 1,
+    borderColor: Theme.border,
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -1858,7 +1864,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: Theme.border,
     paddingBottom: 12,
   },
   splitTitle: {
@@ -1876,7 +1882,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F9FAFB",
+    borderBottomColor: Theme.border,
   },
   splitRowLeft: {
     flexDirection: "row",
@@ -1917,7 +1923,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 16,
     borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
+    borderTopColor: Theme.border,
     paddingTop: 16,
   },
   splitFooterLabel: {

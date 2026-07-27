@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   },
   qrBox: {
     padding: 10,
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgCard,
     borderRadius: 16,
     elevation: 4,
     shadowColor: '#000',

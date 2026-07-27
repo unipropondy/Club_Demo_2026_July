@@ -41,7 +41,7 @@ const getStatusUI = (status: number) => {
     case 1: return { text: "DINING", color: "#22c55e", lightBg: "#F0FDF4" };
     case 2: return { text: "CHECKOUT", color: "#fd7e14", lightBg: "#FFF7ED" };
     case 3: return { text: "HOLD", color: "#3b82f6", lightBg: "#F0F9FF" };
-    case 4: return { text: "OVERTIME", color: "#8b5cf6", lightBg: "#F5F3FF" };
+    case 4: return { text: "OVERTIME", color: "#F5EBD0", lightBg: "rgba(245, 235, 208, 0.15)" };
     case 5: return { text: "RESERVED", color: "#ef4444", lightBg: "#FEF2F2" };
     case 0:
     default: return { text: "AVAILABLE", color: "#94A3B8", lightBg: "transparent" };

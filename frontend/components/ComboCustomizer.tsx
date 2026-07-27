@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+﻿import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -874,7 +874,7 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     width: 125,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: Theme.bgCard,
     borderWidth: 1.5,
     borderColor: "#EAECEE",
     borderRadius: 12,

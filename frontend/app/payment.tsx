@@ -1,4 +1,4 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
@@ -3460,7 +3460,7 @@ export default function PaymentScreen() {
                               width: 24,
                               height: 24,
                               borderRadius: 12,
-                              backgroundColor: "#fff",
+                              backgroundColor: Theme.bgCard,
                               alignSelf: newIsActive
                                 ? "flex-end"
                                 : "flex-start",
@@ -4444,7 +4444,7 @@ const styles = StyleSheet.create({
   mobileAdjustBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -4489,7 +4489,7 @@ const styles = StyleSheet.create({
   },
   qrContainer: {
     padding: 10,
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Theme.border,

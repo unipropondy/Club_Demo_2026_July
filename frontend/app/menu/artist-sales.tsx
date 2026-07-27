@@ -1,4 +1,4 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -178,7 +178,7 @@ function CustomDatePicker({ visible, onClose, selectedDate, onApply, title }: Cu
 
 const pickerStyles = StyleSheet.create({
   overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', zIndex: 9999 },
-  modalContainer: { backgroundColor: '#fff', borderRadius: 20, maxWidth: '95%', padding: 24 },
+  modalContainer: { backgroundColor: Theme.bgCard, borderRadius: 20, maxWidth: '95%', padding: 24 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F3F4F6', paddingBottom: 16 },
   headerTitle: { fontSize: 16, fontFamily: Fonts.black, color: Theme.textPrimary },
   closeBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' },
@@ -186,17 +186,17 @@ const pickerStyles = StyleSheet.create({
   navBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F9FAFB', justifyContent: 'center', alignItems: 'center' },
   monthYearText: { fontSize: 14, fontFamily: Fonts.black, color: Theme.textPrimary },
   weekdaysRow: { flexDirection: 'row', marginBottom: 8 },
-  weekdayText: { flex: 1, textAlign: 'center', fontSize: 12, fontFamily: Fonts.bold, color: '#9CA3AF' },
+  weekdayText: { flex: 1, textAlign: 'center', fontSize: 12, fontFamily: Fonts.bold, color: Theme.textMuted },
   daysGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   dayBtn: { width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', marginVertical: 2, borderRadius: 8 },
-  dayBtnSelected: { backgroundColor: '#F97316' },
+  dayBtnSelected: { backgroundColor: '#A855F7' },
   dayText: { fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary },
   dayTextInactive: { color: '#D1D5DB' },
   dayTextSelected: { color: '#fff' },
   footer: { flexDirection: 'row', gap: 12, marginTop: 20 },
   cancelBtn: { flex: 1, height: 44, borderRadius: 10, backgroundColor: '#F5F5F4', justifyContent: 'center', alignItems: 'center' },
   cancelBtnText: { fontSize: 13, fontFamily: Fonts.black, color: '#44403C' },
-  applyBtn: { flex: 1, height: 44, borderRadius: 10, backgroundColor: '#F97316', justifyContent: 'center', alignItems: 'center' },
+  applyBtn: { flex: 1, height: 44, borderRadius: 10, backgroundColor: '#A855F7', justifyContent: 'center', alignItems: 'center' },
   applyBtnText: { fontSize: 13, fontFamily: Fonts.black, color: '#fff' }
 });
 

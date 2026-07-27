@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -205,7 +205,7 @@ export default function CashDrawerReportScreen() {
       {/* Audit Logs Table */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#F97316" />
+          <ActivityIndicator size="large" color="#A855F7" />
         </View>
       ) : (
         <FlatList
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   kpiSub: {
     fontSize: 9,
     fontFamily: Fonts.medium,
-    color: '#9CA3AF',
+    color: Theme.textMuted,
   },
   filterBar: {
     backgroundColor: Theme.bgCard,
@@ -395,7 +395,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 13,
     fontFamily: Fonts.medium,
-    color: '#9CA3AF',
+    color: Theme.textMuted,
   },
   rowCard: {
     backgroundColor: Theme.bgCard,
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
   rowTime: {
     fontSize: 11,
     fontFamily: Fonts.bold,
-    color: '#9CA3AF',
+    color: Theme.textMuted,
   },
   rowBody: {
     flexDirection: 'row',
@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 9,
     fontFamily: Fonts.bold,
-    color: '#9CA3AF',
+    color: Theme.textMuted,
     marginBottom: 2,
     textTransform: 'uppercase',
   },

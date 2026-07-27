@@ -1,4 +1,4 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -228,7 +228,7 @@ const pickerStyles = StyleSheet.create({
     zIndex: 9999,
   },
   modalContainer: {
-    backgroundColor: "#fff",
+    backgroundColor: Theme.bgCard,
     borderRadius: 20,
     maxWidth: "95%",
     padding: 24,
@@ -281,7 +281,7 @@ const pickerStyles = StyleSheet.create({
     textAlign: "center",
     fontSize: 12,
     fontFamily: Fonts.bold,
-    color: "#9CA3AF",
+    color: Theme.textMuted,
   },
   daysGrid: { flexDirection: "row", flexWrap: "wrap" },
   dayBtn: {
@@ -292,7 +292,7 @@ const pickerStyles = StyleSheet.create({
     marginVertical: 2,
     borderRadius: 8,
   },
-  dayBtnSelected: { backgroundColor: "#F97316" },
+  dayBtnSelected: { backgroundColor: "#A855F7" },
   dayText: { fontSize: 13, fontFamily: Fonts.bold, color: Theme.textPrimary },
   dayTextInactive: { color: "#D1D5DB" },
   dayTextSelected: { color: "#fff" },
@@ -310,7 +310,7 @@ const pickerStyles = StyleSheet.create({
     flex: 1,
     height: 44,
     borderRadius: 10,
-    backgroundColor: "#F97316",
+    backgroundColor: "#A855F7",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -680,7 +680,7 @@ export default function ArtistReportsScreen() {
             {
               label: "Largest Bonus",
               value: `$${summaryStats.largestBonus.toFixed(0)}`,
-              color: "#F97316",
+              color: "#A855F7",
             },
             {
               label: "Average Bonus",
@@ -780,7 +780,7 @@ export default function ArtistReportsScreen() {
                         </Text>
                       )}
                       {activeTab === "bonus" && (
-                        <Text style={[styles.metricText, { color: "#F97316" }]}>
+                        <Text style={[styles.metricText, { color: "#A855F7" }]}>
                           +{fmtMoney(row.BonusEarned)}
                         </Text>
                       )}
@@ -838,7 +838,7 @@ export default function ArtistReportsScreen() {
         </View>
         <View style={styles.stripCell}>
           <Text style={styles.stripLabel}>Total Bonus</Text>
-          <Text style={[styles.stripVal, { color: "#F97316" }]}>
+          <Text style={[styles.stripVal, { color: "#A855F7" }]}>
             ${summaryStats.totalBonus.toFixed(0)}
           </Text>
         </View>

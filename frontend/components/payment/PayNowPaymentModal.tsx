@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import {
   View,
   Text,
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   qrBox: {
     width: width > 500 ? 180 : 150,
     height: width > 500 ? 180 : 150,
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgCard,
     borderRadius: 16,
     elevation: 4,
     shadowColor: '#000',

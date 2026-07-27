@@ -1,4 +1,4 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -210,7 +210,7 @@ const pickerStyles = StyleSheet.create({
     zIndex: 9999,
   },
   modalContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: Theme.bgCard,
     borderRadius: 20,
     width: 620,
     maxWidth: '95%',
@@ -272,7 +272,7 @@ const pickerStyles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     fontFamily: Fonts.bold,
-    color: '#9CA3AF',
+    color: Theme.textMuted,
   },
   daysGrid: {
     flexDirection: 'row',
@@ -287,7 +287,7 @@ const pickerStyles = StyleSheet.create({
     borderRadius: 8,
   },
   dayBtnSelected: {
-    backgroundColor: '#F97316', // Orange theme
+    backgroundColor: '#A855F7', // Orange theme
   },
   dayText: {
     fontSize: 13,
@@ -367,12 +367,12 @@ const pickerStyles = StyleSheet.create({
   ampmBtnTextActive: {
     fontSize: 15,
     fontFamily: Fonts.black,
-    color: '#F97316',
+    color: '#A855F7',
   },
   timeLabel: {
     fontSize: 10,
     fontFamily: Fonts.medium,
-    color: '#9CA3AF',
+    color: Theme.textMuted,
     marginTop: 4,
   },
   summaryCard: {
@@ -387,13 +387,13 @@ const pickerStyles = StyleSheet.create({
   summaryLabel: {
     fontSize: 10,
     fontFamily: Fonts.medium,
-    color: '#9CA3AF',
+    color: Theme.textMuted,
     marginBottom: 2,
   },
   summaryValue: {
     fontSize: 13,
     fontFamily: Fonts.black,
-    color: '#F97316',
+    color: '#A855F7',
   },
   footer: {
     flexDirection: 'row',
@@ -417,7 +417,7 @@ const pickerStyles = StyleSheet.create({
     flex: 1,
     height: 44,
     borderRadius: 10,
-    backgroundColor: '#F97316',
+    backgroundColor: '#A855F7',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2568,7 +2568,7 @@ const fetchDayHistory = async () => {
             >
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottomWidth: 1, borderBottomColor: Theme.border, paddingBottom: 12 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#eff6ff", justifyContent: "center", alignItems: "center" }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.infoBg, justifyContent: "center", alignItems: "center" }}>
                     <Ionicons name="time" size={20} color="#3b82f6" />
                   </View>
                   <View>

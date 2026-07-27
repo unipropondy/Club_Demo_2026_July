@@ -1,4 +1,4 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -368,9 +368,9 @@ export default function ArtistBonusPaymentsScreen() {
                 </View>
                 <View style={{ alignItems: "flex-end", marginRight: 8 }}>
                   <Text style={styles.dueLabel}>Bonus Due</Text>
-                  <Text style={[styles.dueAmount, { color: "#F97316" }]}>${t.pendingBonus.toFixed(0)}</Text>
+                  <Text style={[styles.dueAmount, { color: "#A855F7" }]}>${t.pendingBonus.toFixed(0)}</Text>
                 </View>
-                <TouchableOpacity style={[styles.payBtn, { backgroundColor: "#F97316" }]} onPress={() => openSettleModal(t)}>
+                <TouchableOpacity style={[styles.payBtn, { backgroundColor: "#A855F7" }]} onPress={() => openSettleModal(t)}>
                   <Text style={styles.payBtnText}>Pay</Text>
                 </TouchableOpacity>
               </View>
