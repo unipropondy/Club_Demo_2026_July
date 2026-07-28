@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -229,16 +229,15 @@ export default function ArtistManagementScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── 3. SUMMARY CARDS ── */}
         <View style={styles.cardsGrid}>
           {[
-            { label: "Today's Artist Sales", value: `$${cards.totalArtistSales.toFixed(0)}`, icon: "trending-up", color: "#2563EB", bg: "#EFF6FF" },
-            { label: "Today's Bonus Earned", value: `$${cards.totalBonusEarned.toFixed(0)}`, icon: "trophy", color: "#A855F7", bg: "#FFF7ED" },
-            { label: "Bonus Waiting", value: `$${totalAllTimePending.toFixed(0)}`, sub: `${artistsWithPending.length} Artists`, icon: "wallet", color: totalAllTimePending > 0 ? "#DC2626" : "#16A34A", bg: totalAllTimePending > 0 ? "#FEF2F2" : "#F0FDF4" },
-            { label: "Last Settlement", value: lastPayment ? `$${lastPayment.amount.toFixed(0)}` : "$0", sub: lastPayment ? lastPayment.date : "None yet", icon: "checkmark-circle", color: "#16A34A", bg: "#F0FDF4" },
+            { label: "Today's Artist Sales", value: `$${cards.totalArtistSales.toFixed(0)}`, icon: "trending-up", color: "#3B82F6" },
+            { label: "Today's Bonus Earned", value: `$${cards.totalBonusEarned.toFixed(0)}`, icon: "trophy", color: "#A855F7" },
+            { label: "Bonus Waiting", value: `$${totalAllTimePending.toFixed(0)}`, sub: `${artistsWithPending.length} Artists`, icon: "wallet", color: totalAllTimePending > 0 ? "#EF4444" : "#10B981" },
+            { label: "Last Settlement", value: lastPayment ? `$${lastPayment.amount.toFixed(0)}` : "$0", sub: lastPayment ? lastPayment.date : "None yet", icon: "checkmark-circle", color: "#10B981" },
           ].map(c => (
-            <View key={c.label} style={[styles.card, { backgroundColor: c.bg }, isTablet && { flex: 1 }]}>
-              <View style={[styles.cardIconWrap, { backgroundColor: c.color + "22" }]}>
+            <View key={c.label} style={[styles.card, { borderColor: c.color + "40" }, isTablet && { flex: 1 }]}>
+              <View style={[styles.cardIconWrap, { backgroundColor: c.color + "15" }]}>
                 <Ionicons name={c.icon as any} size={18} color={c.color} />
               </View>
               <Text style={styles.cardValue}>{c.value}</Text>

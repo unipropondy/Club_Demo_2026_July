@@ -1806,7 +1806,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                         <>
                           {/* Hold button (Blue, icon only, 50px) */}
                           <TouchableOpacity
-                            style={[styles.compactIconBtn, { backgroundColor: "#2563EB" }]}
+                            style={[styles.compactIconBtn, { backgroundColor: Theme.info }]}
                             onPress={async () => {
                               useCartStore.getState().cancelPendingSync();
                               const targetOrderId = activeOrder?.orderId || "HOLD";
@@ -1890,7 +1890,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             disabled={isCheckingOut}
                             style={[
                               styles.compactIconBtn,
-                              { backgroundColor: "#4F46E5" },
+                              { backgroundColor: Theme.primary },
                               isCheckingOut && { opacity: 0.6 }
                             ]}
                             onPress={async () => {
@@ -1917,7 +1917,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             disabled={isCheckingOut}
                             style={[
                               styles.proceedBtn,
-                              { backgroundColor: "#10B981" },
+                              { backgroundColor: Theme.success },
                               isCheckingOut && { opacity: 0.6 }
                             ]}
                             onPress={async () => {
@@ -1971,7 +1971,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                         <TouchableOpacity
                           style={[
                             styles.proceedBtn,
-                            { flex: 1, backgroundColor: "#10B981" },
+                            { flex: 1, backgroundColor: Theme.success },
                           ]}
                           onPress={() => {
                             router.push("/summary");
@@ -1987,7 +1987,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                         <TouchableOpacity
                           style={[
                             styles.proceedBtn,
-                            { flex: 1, backgroundColor: "#10B981" },
+                            { flex: 1, backgroundColor: Theme.success },
                           ]}
                           onPress={() => {
                             router.push("/summary");
@@ -2007,7 +2007,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                         <TouchableOpacity
                           style={[
                             styles.proceedBtn,
-                            { flex: 1, backgroundColor: "#10B981" },
+                            { flex: 1, backgroundColor: Theme.success },
                           ]}
                           onPress={() => {
                             router.push("/summary");
@@ -2029,7 +2029,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                         disabled={isCheckingOut}
                         style={[
                           styles.proceedBtn,
-                          { flex: 1, backgroundColor: "#10B981" },
+                          { flex: 1, backgroundColor: Theme.success },
                           isCheckingOut && { opacity: 0.6 }
                         ]}
                         onPress={async () => {
@@ -2318,7 +2318,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             styles.proceedBtn,
                             {
                               flex: 1,
-                              backgroundColor: "#10B981",
+                              backgroundColor: Theme.success,
                             },
                           ]}
                           onPress={() => {
@@ -2336,7 +2336,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             styles.holdBtn,
                             {
                               flex: 1,
-                              backgroundColor: "#10B981",
+                              backgroundColor: Theme.success,
                             },
                           ]}
                           onPress={() => {

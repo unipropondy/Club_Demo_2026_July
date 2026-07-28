@@ -103,6 +103,7 @@ export default function GeneralSettingsScreen() {
   const [showPromoCode, setShowPromoCode] = useState(settings.showPromoCode !== undefined ? settings.showPromoCode : true);
 
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [passwordValue, setPasswordValue] = useState("");
   const [verifyingPassword, setVerifyingPassword] = useState(false);
   const [pendingCashDrawerValue, setPendingCashDrawerValue] = useState<boolean | null>(null);
@@ -202,23 +203,7 @@ export default function GeneralSettingsScreen() {
   };
 
   const handleSave = () => {
-    if (Platform.OS === "web") {
-      const confirmSave = window.confirm(
-        "Are you sure you want to update settings? These changes will apply globally to all users."
-      );
-      if (confirmSave) {
-        performSave();
-      }
-    } else {
-      Alert.alert(
-        "Confirm Changes",
-        "Are you sure you want to update settings? These changes will apply globally to all users.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Save", onPress: performSave }
-        ]
-      );
-    }
+    setShowConfirmModal(true);
   };
 
   const performSave = async () => {
@@ -475,6 +460,45 @@ export default function GeneralSettingsScreen() {
                   <Text style={styles.pwBtnText}>Verify Password</Text>
                 )}
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirm Save Changes Modal */}
+      <Modal
+        visible={showConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowConfirmModal(false)}
+      >
+        <View style={styles.pwOverlay}>
+          <View style={styles.pwModalContent}>
+            <View style={styles.pwHeader}>
+              <Text style={styles.pwTitle}>Confirm Changes</Text>
+              <TouchableOpacity onPress={() => setShowConfirmModal(false)} style={styles.pwClose}>
+                <Ionicons name="close" size={20} color={Theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.pwBody}>
+              <Text style={styles.pwDesc}>Are you sure you want to update settings? These changes will apply globally to all users.</Text>
+              <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+                <TouchableOpacity
+                  style={[styles.cancelBtn, { flex: 1, height: 44 }]}
+                  onPress={() => setShowConfirmModal(false)}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.pwBtn, { flex: 1, height: 44, marginTop: 0 }]}
+                  onPress={() => {
+                    setShowConfirmModal(false);
+                    performSave();
+                  }}
+                >
+                  <Text style={styles.pwBtnText}>Save</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>

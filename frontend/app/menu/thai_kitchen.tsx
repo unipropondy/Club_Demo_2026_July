@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
@@ -429,6 +429,8 @@ export default function MenuScreen() {
   };
 
   const isFetchingCart = React.useRef(false);
+  const categoryListRef = React.useRef<FlatList>(null);
+  const groupListRef = React.useRef<FlatList>(null);
 
   // Removed cartItemsCount dependency
 
@@ -756,33 +758,43 @@ export default function MenuScreen() {
         isPhone && isLandscape && { marginBottom: 6 },
       ]}
     >
-      <ScrollView
+      <FlatList
+        ref={categoryListRef}
+        data={kitchens}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.catScroll}
-      >
-        {kitchens.map((k: any) => (
+        keyExtractor={(item: any) => item.CategoryId}
+        onScrollToIndexFailed={(info) => {
+          setTimeout(() => {
+            categoryListRef.current?.scrollToIndex({ index: info.index, viewPosition: 0.5, animated: true });
+          }, 50);
+        }}
+        renderItem={({ item, index }) => (
           <TouchableOpacity
-            key={k.CategoryId}
+            key={item.CategoryId}
             style={[
               styles.catPill,
-              selectedKitchenId === k.CategoryId && styles.catPillActive,
+              selectedKitchenId === item.CategoryId && styles.catPillActive,
               isPhone && isLandscape && { height: 36, paddingHorizontal: 16 },
             ]}
-            onPress={() => loadGroups(k.CategoryId)}
+            onPress={() => {
+              loadGroups(item.CategoryId);
+              categoryListRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+            }}
           >
             <Text
               style={[
                 styles.catText,
-                selectedKitchenId === k.CategoryId && styles.catTextActive,
+                selectedKitchenId === item.CategoryId && styles.catTextActive,
                 isPhone && isLandscape && { fontSize: 13 },
               ]}
             >
-              {k.KitchenTypeName}
+              {item.KitchenTypeName}
             </Text>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+        )}
+      />
 
       <View
         style={isPhone && isLandscape ? { marginTop: 12 } : { marginTop: 15 }}
@@ -794,34 +806,44 @@ export default function MenuScreen() {
             <Text style={styles.emptyNavText}>No Dishgroup added</Text>
           </View>
         ) : (
-          <ScrollView
+          <FlatList
+            ref={groupListRef}
+            data={groups}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.groupScroll}
-          >
-            {groups.map((g: any) => (
+            keyExtractor={(item: any) => item.DishGroupId}
+            onScrollToIndexFailed={(info) => {
+              setTimeout(() => {
+                groupListRef.current?.scrollToIndex({ index: info.index, viewPosition: 0.5, animated: true });
+              }, 50);
+            }}
+            renderItem={({ item, index }) => (
               <TouchableOpacity
-                key={g.DishGroupId}
+                key={item.DishGroupId}
                 style={[
                   styles.groupPill,
-                  selectedGroup === g.DishGroupId && styles.groupPillActive,
+                  selectedGroup === item.DishGroupId && styles.groupPillActive,
                   isPhone &&
                   isLandscape && { height: 36, paddingHorizontal: 14 },
                 ]}
-                onPress={() => loadDishes(g.DishGroupId)}
+                onPress={() => {
+                  loadDishes(item.DishGroupId);
+                  groupListRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+                }}
               >
                 <Text
                   style={[
                     styles.groupText,
-                    selectedGroup === g.DishGroupId && styles.groupTextActive,
+                    selectedGroup === item.DishGroupId && styles.groupTextActive,
                     isPhone && isLandscape && { fontSize: 12 },
                   ]}
                 >
-                  {g.DishGroupName}
+                  {item.DishGroupName}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            )}
+          />
         )}
       </View>
     </View>
@@ -894,6 +916,9 @@ export default function MenuScreen() {
     setGroups(groupsData);
     if (groupsData.length > 0) {
       await loadDishes(groupsData[0].DishGroupId);
+      setTimeout(() => {
+        groupListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      }, 50);
     }
   };
 

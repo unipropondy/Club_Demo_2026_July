@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -344,10 +344,10 @@ export default function ArtistSalesScreen() {
       <View style={styles.filterBar}>
         <View style={[
           styles.activeDayBar,
-          { backgroundColor: isDayActive ? "#EFF6FF" : "#F5F5F4", borderColor: isDayActive ? "#3B82F6" : Theme.border }
+          { backgroundColor: isDayActive ? "rgba(59,130,246,0.14)" : "rgba(255,255,255,0.03)", borderColor: isDayActive ? "#3B82F6" : Theme.border }
         ]}>
-          <View style={[styles.activeDot, { backgroundColor: isDayActive ? "#2563EB" : "#78716C" }]} />
-          <Text style={[styles.activeDayText, { color: isDayActive ? "#2563EB" : "#78716C" }]}>
+          <View style={[styles.activeDot, { backgroundColor: isDayActive ? "#3B82F6" : "#78716C" }]} />
+          <Text style={[styles.activeDayText, { color: isDayActive ? "#93C5FD" : "#78716C" }]}>
             {isDayActive
               ? (isActiveDayView ? `Live Day: ${activeDay}` : `Viewing: ${fromDate} – ${toDate}`)
               : "No Active Day — Historical Mode"}
@@ -545,10 +545,10 @@ const styles = StyleSheet.create({
   clearBtn: { padding: 4 },
 
   // Events Feed
-  eventsCard: { backgroundColor: "#EFF6FF", margin: 16, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "#BFDBFE" },
+  eventsCard: { backgroundColor: "rgba(37,99,235,0.12)", margin: 16, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(37,99,235,0.3)" },
   eventsHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 },
-  eventsTitle: { fontFamily: Fonts.black, fontSize: 12, color: "#2563EB", textTransform: "uppercase", letterSpacing: 0.5 },
-  eventRow: { borderBottomWidth: 1, borderBottomColor: "#DBEAFE", paddingVertical: 8 },
+  eventsTitle: { fontFamily: Fonts.black, fontSize: 12, color: "#93C5FD", textTransform: "uppercase", letterSpacing: 0.5 },
+  eventRow: { borderBottomWidth: 1, borderBottomColor: "rgba(37,99,235,0.15)", paddingVertical: 8 },
   eventMilestoneRow: { flexDirection: "row", alignItems: "center", width: "100%" },
   eventCelebration: { marginRight: 6 },
   eventText: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textPrimary, flex: 1 },
@@ -583,8 +583,8 @@ const styles = StyleSheet.create({
   // Footer
   cardFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   motivationText: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary },
-  rewardTag: { backgroundColor: "#EFF6FF", borderWidth: 1, borderColor: "#BFDBFE", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  rewardTagText: { fontFamily: Fonts.black, fontSize: 11, color: "#2563EB" },
+  rewardTag: { backgroundColor: "rgba(37,99,235,0.15)", borderWidth: 1, borderColor: "rgba(37,99,235,0.3)", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  rewardTagText: { fontFamily: Fonts.black, fontSize: 11, color: "#93C5FD" },
 
   emptyState: { alignItems: "center", paddingVertical: 80, gap: 8 },
   emptyTitle: { fontFamily: Fonts.black, fontSize: 16, color: Theme.textPrimary },
