@@ -1447,42 +1447,6 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
       duration: 800,
     });
 
-    // 🔔 Play a success synth chime sound (Web Audio API - offline & CORS proof)
-    try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContext) {
-        const ctx = new AudioContext();
-        const now = ctx.currentTime;
-        
-        // Note 1: C5 (523Hz)
-        const osc1 = ctx.createOscillator();
-        const gain1 = ctx.createGain();
-        osc1.type = "sine";
-        osc1.frequency.setValueAtTime(523.25, now);
-        gain1.gain.setValueAtTime(0.2, now);
-        gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-        osc1.connect(gain1);
-        gain1.connect(ctx.destination);
-        
-        // Note 2: G5 (784Hz) slightly delayed
-        const osc2 = ctx.createOscillator();
-        const gain2 = ctx.createGain();
-        osc2.type = "sine";
-        osc2.frequency.setValueAtTime(783.99, now + 0.08);
-        gain2.gain.setValueAtTime(0.2, now + 0.08);
-        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-        osc2.connect(gain2);
-        gain2.connect(ctx.destination);
-        
-        osc1.start(now);
-        osc1.stop(now + 0.35);
-        osc2.start(now + 0.08);
-        osc2.stop(now + 0.5);
-      }
-    } catch (e) {
-      console.warn("🔔 Synth sound play failed:", e);
-    }
-
     // 🚀 RESTORED REDIRECT: Back to map as requested
     // 🚀 HYPER-SPEED SEND: Notify Kitchen and Printer INSTANTLY
     const currentOrderId = targetOrderId || "NEW";
