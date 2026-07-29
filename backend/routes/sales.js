@@ -98,19 +98,18 @@ const getReportDateRange = (req) => {
   return { start, end };
 };
 
-const resolveBusinessDateColumn = (col) => {
+const resolveBusinessDateColumn = (col, fallbackCol = "LastSettlementDate") => {
   const cleanCol = String(col).trim();
-  if (cleanCol.includes("LastSettlementDate")) {
-    const prefix = cleanCol.includes(".") ? cleanCol.split(".")[0] : "sh";
-    return `ISNULL(${prefix}.start_date, CAST(${prefix}.LastSettlementDate AS DATE))`;
+  const parts = cleanCol.split(".");
+  const prefix = parts.length > 1 ? parts[0] : "";
+  const colName = parts.length > 1 ? parts[1] : parts[0];
+  const pStr = prefix ? `${prefix}.` : "";
+
+  if (colName === "LastSettlementDate" || colName === "OrderDateTime" || colName === "InvoiceDate") {
+    return `ISNULL(${pStr}start_date, CAST(${pStr}${colName} AS DATE))`;
   }
   if (cleanCol.includes("ptd.CreatedDate") || cleanCol.includes("ptd.CreatedOn")) {
     return `ptd.CreatedDate`;
-  }
-  if (cleanCol.includes("InvoiceDate")) {
-    const prefix = cleanCol.includes(".") ? cleanCol.split(".")[0] : "";
-    const pStr = prefix ? `${prefix}.` : "";
-    return `ISNULL(${pStr}start_date, CAST(${pStr}InvoiceDate AS DATE))`;
   }
   return cleanCol;
 };
@@ -752,7 +751,8 @@ router.get("/category", async (req, res) => {
     const date = req.query.date;
     const { startDate, endDate } = req.query;
     const appDateWhereSql = await getReportDateWhereSql(filter, "sh.LastSettlementDate", date, startDate, endDate);
-    const legacyDateWhereSql = await getReportDateWhereSql(filter, "InvoiceDate", date, startDate, endDate);
+    const legacyDateWhereSql = await getReportDateWhereSql(filter, "ri.InvoiceDate", date, startDate, endDate);
+    const proDateWhereSql = await getReportDateWhereSql(filter, "ro.OrderDateTime", date, startDate, endDate);
     console.log(`[REPORT API] type=category filter=${filter} date=${date || 'today'} range=${startDate || ''}..${endDate || ''}`);
 
     const result = await pool.request().query(`
@@ -794,7 +794,7 @@ router.get("/category", async (req, res) => {
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
           LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE ${legacyDateWhereSql.replace(/start_date/g, 'ri.start_date').replace(/InvoiceDate/g, 'ri.InvoiceDate')}
+          WHERE ${legacyDateWhereSql}
             AND NOT EXISTS (
               SELECT 1 FROM SettlementHeader sh_dup 
               WHERE sh_dup.SettlementID = ri.RestaurantBillId
@@ -812,7 +812,7 @@ router.get("/category", async (req, res) => {
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
           LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE ${appDateWhereSql.replace(/sh\./g, 'ro.')}
+          WHERE ${proDateWhereSql}
             AND ISNULL(ro.StatusCode, 0) = 3
             AND NOT EXISTS (
               SELECT 1 FROM SettlementHeader sh_dup 
@@ -849,7 +849,8 @@ router.get("/dish", async (req, res) => {
     const date = req.query.date;
     const { startDate, endDate } = req.query;
     const appDateWhereSql = await getReportDateWhereSql(filter, "sh.LastSettlementDate", date, startDate, endDate);
-    const legacyDateWhereSql = await getReportDateWhereSql(filter, "InvoiceDate", date, startDate, endDate);
+    const legacyDateWhereSql = await getReportDateWhereSql(filter, "ri.InvoiceDate", date, startDate, endDate);
+    const proDateWhereSql = await getReportDateWhereSql(filter, "ro.OrderDateTime", date, startDate, endDate);
     console.log(`[REPORT API] type=dish filter=${filter} date=${date || 'today'} range=${startDate || ''}..${endDate || ''}`);
 
     const result = await pool.request().query(`
@@ -896,7 +897,7 @@ router.get("/dish", async (req, res) => {
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
           LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE ${legacyDateWhereSql.replace(/start_date/g, 'ri.start_date').replace(/InvoiceDate/g, 'ri.InvoiceDate')}
+          WHERE ${legacyDateWhereSql}
             AND NOT EXISTS (
               SELECT 1 FROM SettlementHeader sh_dup 
               WHERE sh_dup.SettlementID = ri.RestaurantBillId
@@ -919,7 +920,7 @@ router.get("/dish", async (req, res) => {
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
           LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE ${appDateWhereSql.replace(/sh\./g, 'ro.')}
+          WHERE ${proDateWhereSql}
             AND ISNULL(ro.StatusCode, 0) = 3
             AND NOT EXISTS (
               SELECT 1 FROM SettlementHeader sh_dup 
