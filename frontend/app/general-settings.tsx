@@ -243,8 +243,8 @@ export default function GeneralSettingsScreen() {
       onToggle: setEnableKOT,
     },
     {
-      title: "KDS (Kitchen Display System)",
-      desc: "Show kitchen display screen.",
+      title: "Order Hub (Order Display)",
+      desc: "Show Order Hub screen.",
       icon: "desktop-outline",
       value: enableKDS,
       onToggle: setEnableKDS,

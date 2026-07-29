@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -28,6 +28,13 @@ const URGENCY_FRESH = 15;
 const URGENCY_WARN = 30;
 
 type UrgencyLevel = "fresh" | "warn" | "critical";
+type ViewMode = "ALL" | "BAR" | "DECK";
+
+// 🎭 Items go to DECK if IsDeck = 1 in DishMaster (set per dish, not by keyword)
+const isDeckItem = (item: any): boolean => {
+  const v = item?.IsDeck ?? item?.isDeck;
+  return v === 1 || v === true || v === "1" || v === "true";
+};
 
 function getUrgency(minutes: number): UrgencyLevel {
   if (minutes < URGENCY_FRESH) return "fresh";
@@ -141,7 +148,7 @@ const OrderCard = React.memo(function OrderCard({ item, cardHeight, pulseAnim, g
             <View style={styles.itemCountBadgeMuted}>
               <Ionicons name="restaurant-outline" size={11} color="#666" />
               <Text style={styles.itemCountMutedText}>
-                {totalUniqueDishes} dish{totalUniqueDishes !== 1 ? 'es' : ''}
+                {totalUniqueDishes} item{totalUniqueDishes !== 1 ? 's' : ''}
               </Text>
             </View>
           </View>
@@ -344,6 +351,7 @@ export default function KDSScreen() {
   const [time, setTime] = useState(Date.now());
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [kdsPrinterIp, setKdsPrinterIp] = useState("");
+  const [viewMode, setViewMode] = useState<ViewMode>("ALL");
   const markItemReady = useActiveOrdersStore((s) => s.markItemReady);
  
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -374,6 +382,7 @@ export default function KDSScreen() {
     return () => clearInterval(interval);
   }, []);
 
+
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -383,7 +392,7 @@ export default function KDSScreen() {
     ).start();
   }, []);
 
-  const kitchenOrders = useMemo(() => {
+  const allKitchenOrders = useMemo(() => {
     // 1. Group items by Table/Section instead of raw OrderId to prevent "Two Column" issue
     const tableGroups: Record<string, any> = {};
 
@@ -398,7 +407,6 @@ export default function KDSScreen() {
           ...order,
           groupKey,
           items: [],
-          // Keep track of latest timestamp for sorting
           maxTs: 0
         };
       }
@@ -406,18 +414,15 @@ export default function KDSScreen() {
       // Add items that are not SERVED or are recently READY
       order.items.forEach((i: any) => {
         let shouldShow = false;
-        // 🚀 SHOW ONLY SENT or VOIDED ACTIVE STATUSES (Exclude NEW / drafts)
         if (i.status === "SENT" || i.status === "VOIDED") shouldShow = true;
         if (i.status === "READY" && i.readyAt) {
-          shouldShow = (time - i.readyAt < 60000); // Stay for 60 seconds (extended)
+          shouldShow = (time - i.readyAt < 60000);
         }
 
         if (shouldShow) {
-          // 🚀 DEDUPLICATION & MERGE: Force into single card per table
           const existingIdx = tableGroups[groupKey].items.findIndex((ei: any) => ei.lineItemId === i.lineItemId);
           if (existingIdx > -1) {
             const existing = tableGroups[groupKey].items[existingIdx];
-            // 🛡️ SYNC SHIELD: Keep the most informative metadata
             tableGroups[groupKey].items[existingIdx] = { 
               ...existing,
               ...i,
@@ -437,7 +442,6 @@ export default function KDSScreen() {
       });
     });
 
-    // 2. Pre-calculate "Kitchen Groups" (Categories) here to ensure stable references for memoization
     return Object.values(tableGroups)
       .filter(group => group.items.length > 0)
       .map(group => {
@@ -447,14 +451,76 @@ export default function KDSScreen() {
           if (!itemGroups[cat]) itemGroups[cat] = [];
           itemGroups[cat].push(i);
         });
-
-        return {
-          ...group,
-          itemGroups // 🚀 Stable reference for OrderCard
-        };
+        return { ...group, itemGroups };
       })
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [activeOrders, time]);
+
+  // 🎭 Filter orders by view mode: ALL | BAR (F&B only) | DECK (Entertainment only)
+  const kitchenOrders = useMemo(() => {
+    if (viewMode === "ALL") return allKitchenOrders;
+
+    return allKitchenOrders
+      .map((group) => {
+        const filteredItems = group.items.filter((i: any) =>
+          viewMode === "DECK" ? isDeckItem(i) : !isDeckItem(i)
+        );
+        if (filteredItems.length === 0) return null;
+
+        // Rebuild itemGroups for filtered items
+        const itemGroups: Record<string, any[]> = {};
+        filteredItems.forEach((i: any) => {
+          const cat = (i.KitchenTypeName || i.kitchenTypeName || i.dishGroupName || i.categoryName || "KITCHEN").toUpperCase();
+          if (!itemGroups[cat]) itemGroups[cat] = [];
+          itemGroups[cat].push(i);
+        });
+
+        return { ...group, items: filteredItems, itemGroups };
+      })
+      .filter(Boolean);
+  }, [allKitchenOrders, viewMode]);
+
+  // 🔔 SOUND NOTIFICATION: Play a chime when a new order arrives
+  const prevOrdersCount = useRef(kitchenOrders.length);
+  useEffect(() => {
+    if (kitchenOrders.length > prevOrdersCount.current) {
+      try {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+          const ctx = new AudioContext();
+          const now = ctx.currentTime;
+          
+          // Note 1: C5 (523Hz)
+          const osc1 = ctx.createOscillator();
+          const gain1 = ctx.createGain();
+          osc1.type = "sine";
+          osc1.frequency.setValueAtTime(523.25, now);
+          gain1.gain.setValueAtTime(0.2, now);
+          gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+          osc1.connect(gain1);
+          gain1.connect(ctx.destination);
+          
+          // Note 2: G5 (784Hz) slightly delayed
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.type = "sine";
+          osc2.frequency.setValueAtTime(783.99, now + 0.08);
+          gain2.gain.setValueAtTime(0.2, now + 0.08);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          
+          osc1.start(now);
+          osc1.stop(now + 0.35);
+          osc2.start(now + 0.08);
+          osc2.stop(now + 0.5);
+        }
+      } catch (err) {
+        console.warn("🔔 Sound playback blocked or failed:", err);
+      }
+    }
+    prevOrdersCount.current = kitchenOrders.length;
+  }, [kitchenOrders.length]);
 
   const selectedOrder = useMemo(() => {
     return kitchenOrders.find((o: any) => o.orderId === selectedOrderId);
@@ -666,8 +732,8 @@ export default function KDSScreen() {
               </Pressable>
             )}
             <View style={styles.logoAndTitle}>
-              <Ionicons name="flame" size={28} color={Theme.primary} />
-              <Text style={styles.screenTitle}>Prep Station</Text>
+              <Ionicons name="grid" size={28} color={Theme.primary} />
+              <Text style={styles.screenTitle}>Order Hub</Text>
             </View>
           </View>
 
@@ -701,28 +767,59 @@ export default function KDSScreen() {
           </View>
         </View>
 
-        {/* LEGEND BAR */}
+        {/* LEGEND + VIEW MODE BAR */}
         <View style={styles.legendBar}>
-          <View style={styles.legendItem}>
-            <View style={[styles.statChip, { borderColor: Theme.success + "50" }]}>
-              <View style={[styles.statDot, { backgroundColor: Theme.success }]} />
-              <Text style={styles.statChipText}>{stats.fresh}</Text>
+          {/* Urgency Legend */}
+          <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <View style={styles.legendItem}>
+              <View style={[styles.statChip, { borderColor: Theme.success + "50" }]}>
+                <View style={[styles.statDot, { backgroundColor: Theme.success }]} />
+                <Text style={styles.statChipText}>{stats.fresh}</Text>
+              </View>
+              <Text style={styles.legendText}>0–15m</Text>
             </View>
-            <Text style={styles.legendText}>0–15m Fresh</Text>
+            <View style={styles.legendItem}>
+              <View style={[styles.statChip, { borderColor: Theme.warning + "50" }]}>
+                <View style={[styles.statDot, { backgroundColor: Theme.warning }]} />
+                <Text style={styles.statChipText}>{stats.warn}</Text>
+              </View>
+              <Text style={styles.legendText}>15–30m</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.statChip, { borderColor: Theme.danger + "50" }]}>
+                <View style={[styles.statDot, { backgroundColor: Theme.danger }]} />
+                <Text style={styles.statChipText}>{stats.critical}</Text>
+              </View>
+              <Text style={styles.legendText}>30m+</Text>
+            </View>
           </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.statChip, { borderColor: Theme.warning + "50" }]}>
-              <View style={[styles.statDot, { backgroundColor: Theme.warning }]} />
-              <Text style={styles.statChipText}>{stats.warn}</Text>
-            </View>
-            <Text style={styles.legendText}>15–30m Running Long</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.statChip, { borderColor: Theme.danger + "50" }]}>
-              <View style={[styles.statDot, { backgroundColor: Theme.danger }]} />
-              <Text style={styles.statChipText}>{stats.critical}</Text>
-            </View>
-            <Text style={styles.legendText}>30m+ Overdue</Text>
+
+          {/* 🎛️ VIEW MODE TABS: ALL | BAR | DECK */}
+          <View style={styles.viewModeBar}>
+            {(["ALL", "BAR", "DECK"] as ViewMode[]).map((mode) => {
+              const active = viewMode === mode;
+              const icon =
+                mode === "ALL" ? "list-outline" :
+                mode === "BAR" ? "beer-outline" : "musical-notes-outline";
+              const activeColor =
+                mode === "ALL" ? Theme.primary :
+                mode === "BAR" ? Theme.warning : "#A855F7";
+              return (
+                <Pressable
+                  key={mode}
+                  onPress={() => setViewMode(mode)}
+                  style={[
+                    styles.viewModeBtn,
+                    active && { backgroundColor: activeColor + "20", borderColor: activeColor },
+                  ]}
+                >
+                  <Ionicons name={icon as any} size={14} color={active ? activeColor : Theme.textMuted} />
+                  <Text style={[styles.viewModeBtnText, active && { color: activeColor }]}>
+                    {mode}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
@@ -747,9 +844,17 @@ export default function KDSScreen() {
             removeClippedSubviews={Platform.OS !== 'web'}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Ionicons name="checkmark-circle-outline" size={100} color={Theme.success + "40"} />
+                <Ionicons
+                  name={viewMode === "DECK" ? "musical-notes-outline" : "checkmark-circle-outline"}
+                  size={100}
+                  color={(viewMode === "DECK" ? "#A855F7" : Theme.success) + "40"}
+                />
                 <Text style={styles.emptyText}>All Clear!</Text>
-                <Text style={styles.emptySub}>No pending kitchen orders</Text>
+                <Text style={styles.emptySub}>
+                  {viewMode === "ALL" ? "No pending orders" :
+                   viewMode === "BAR" ? "No pending bar / kitchen orders" :
+                   "No pending deck / entertainment orders"}
+                </Text>
               </View>
             }
           />
@@ -797,6 +902,32 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: Theme.border,
     flexWrap: 'wrap',
     gap: 10,
+  },
+  viewModeBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Theme.bgCard,
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: Theme.border,
+  },
+  viewModeBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  viewModeBtnText: {
+    fontSize: 12,
+    fontFamily: Fonts.black,
+    color: Theme.textMuted,
+    letterSpacing: 0.5,
   },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
   legendText: { fontSize: 12, fontFamily: Fonts.bold, color: Theme.textSecondary },

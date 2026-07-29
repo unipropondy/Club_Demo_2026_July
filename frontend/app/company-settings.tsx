@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -33,8 +33,11 @@ export default function CompanySettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [kitchenPrinters, setKitchenPrinters] = useState<any[]>([]);
   const [cashierIp, setCashierIp] = useState('');
+  const [cashierActive, setCashierActive] = useState(true);
   const [takeawayIp, setTakeawayIp] = useState('');
+  const [takeawayActive, setTakeawayActive] = useState(true);
   const [kdsIp, setKdsIp] = useState('');
+  const [kdsActive, setKdsActive] = useState(true);
   const [loadingKitchens, setLoadingKitchens] = useState(false);
   const [showAddPrinterModal, setShowAddPrinterModal] = useState(false);
   const [newPrinterName, setNewPrinterName] = useState('');
@@ -109,25 +112,31 @@ export default function CompanySettingsScreen() {
         const cashier = data.find(p => p.PrinterType === 1);
         if (cashier) {
           setCashierIp(cashier.PrinterPath || '');
+          setCashierActive(cashier.IsActive !== 0 && cashier.IsActive !== false);
         }
 
         // Find Takeaway printer (PrinterType = 3)
         const takeaway = data.find(p => p.PrinterType === 3);
         if (takeaway) {
           setTakeawayIp(takeaway.PrinterPath || '');
+          setTakeawayActive(takeaway.IsActive !== 0 && takeaway.IsActive !== false);
         }
 
         // Find KDS printer (PrinterType = 4)
         const kds = data.find(p => p.PrinterType === 4);
         if (kds) {
           setKdsIp(kds.PrinterPath || '');
+          setKdsActive(kds.IsActive !== 0 && kds.IsActive !== false);
         }
 
         // Filter and Deduplicate Kitchen printers (PrinterType = 2)
         const kitchens = data.filter(p => p.PrinterType === 2);
         const uniqueKitchens = kitchens.filter((item, index, self) =>
           index === self.findIndex(p => p.KitchenTypeValue === item.KitchenTypeValue)
-        );
+        ).map(p => ({
+          ...p,
+          IsActive: p.IsActive !== 0 && p.IsActive !== false
+        }));
         setKitchenPrinters(uniqueKitchens);
       }
     } catch (error) {
@@ -220,26 +229,30 @@ export default function CompanySettingsScreen() {
           id: 0,
           ip: cashierIp,
           type: 1,
-          name: 'Receipt Printer'
+          name: 'Receipt Printer',
+          isActive: cashierActive
         },
         {
           id: 6,
           ip: takeawayIp,
           type: 3,
-          name: 'TakeAway'
+          name: 'TakeAway',
+          isActive: takeawayActive
         },
         {
           id: 9,
           ip: kdsIp,
           type: 4,
-          name: 'KDS Printer'
+          name: 'KDS Printer',
+          isActive: kdsActive
         },
         ...kitchenPrinters.map(kp => ({
           id: kp.KitchenTypeValue,
           ip: kp.PrinterPath,
           type: 2,
           name: kp.KitchenTypeName,
-          printerId: kp.PrinterId
+          printerId: kp.PrinterId,
+          isActive: kp.IsActive
         }))
       ];
 
@@ -586,10 +599,20 @@ export default function CompanySettingsScreen() {
             </View>
 
             <View style={{ marginTop: 20 }}>
-              <Text style={styles.inputLabel}>Cashier / Receipt Printer IP</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Cashier / Receipt Printer IP</Text>
+                <TouchableOpacity
+                  onPress={() => setCashierActive(!cashierActive)}
+                  style={[styles.toggleSwitch, cashierActive && styles.toggleSwitchOn]}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.toggleThumb, cashierActive && styles.toggleThumbOn]} />
+                </TouchableOpacity>
+              </View>
               <TextInput 
-                style={styles.input}
+                style={[styles.input, !cashierActive && { opacity: 0.5, backgroundColor: Theme.bgMuted }]}
                 value={cashierIp}
+                editable={cashierActive}
                 onChangeText={(val) => {
                   setCashierIp(val);
                   updateSettings({ printerIp: val });
@@ -604,10 +627,20 @@ export default function CompanySettingsScreen() {
             </View>
 
             <View style={{ marginTop: 15 }}>
-              <Text style={styles.inputLabel}>TakeAway Printer IP</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>TakeAway Printer IP</Text>
+                <TouchableOpacity
+                  onPress={() => setTakeawayActive(!takeawayActive)}
+                  style={[styles.toggleSwitch, takeawayActive && styles.toggleSwitchOn]}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.toggleThumb, takeawayActive && styles.toggleThumbOn]} />
+                </TouchableOpacity>
+              </View>
               <TextInput 
-                style={styles.input}
+                style={[styles.input, !takeawayActive && { opacity: 0.5, backgroundColor: Theme.bgMuted }]}
                 value={takeawayIp}
+                editable={takeawayActive}
                 onChangeText={setTakeawayIp}
                 placeholder="e.g. 192.168.1.102"
                 placeholderTextColor={Theme.textMuted}
@@ -619,10 +652,20 @@ export default function CompanySettingsScreen() {
             </View>
 
             <View style={{ marginTop: 15 }}>
-              <Text style={styles.inputLabel}>KDS Printer IP</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>KDS Printer IP</Text>
+                <TouchableOpacity
+                  onPress={() => setKdsActive(!kdsActive)}
+                  style={[styles.toggleSwitch, kdsActive && styles.toggleSwitchOn]}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.toggleThumb, kdsActive && styles.toggleThumbOn]} />
+                </TouchableOpacity>
+              </View>
               <TextInput 
-                style={styles.input}
+                style={[styles.input, !kdsActive && { opacity: 0.5, backgroundColor: Theme.bgMuted }]}
                 value={kdsIp}
+                editable={kdsActive}
                 onChangeText={setKdsIp}
                 placeholder="e.g. 192.168.1.105"
                 placeholderTextColor={Theme.textMuted}
@@ -734,12 +777,24 @@ export default function CompanySettingsScreen() {
             ) : kitchenPrinters.length > 0 ? (
               kitchenPrinters.map((printer, index) => (
                 <View key={printer.KitchenTypeValue} style={styles.inputGroup}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.inputLabel}>{printer.KitchenTypeName} Printer IP</Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={[styles.inputLabel, { marginBottom: 0 }]}>{printer.KitchenTypeName} Printer IP</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const updated = [...kitchenPrinters];
+                        updated[index].IsActive = !updated[index].IsActive;
+                        setKitchenPrinters(updated);
+                      }}
+                      style={[styles.toggleSwitch, printer.IsActive && styles.toggleSwitchOn]}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.toggleThumb, printer.IsActive && styles.toggleThumbOn]} />
+                    </TouchableOpacity>
                   </View>
                   <TextInput 
-                    style={styles.input}
+                    style={[styles.input, !printer.IsActive && { opacity: 0.5, backgroundColor: Theme.bgMuted }]}
                     value={printer.PrinterPath || ''}
+                    editable={printer.IsActive}
                     onChangeText={(val) => {
                       const updated = [...kitchenPrinters];
                       updated[index].PrinterPath = val;

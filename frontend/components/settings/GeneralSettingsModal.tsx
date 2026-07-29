@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -345,7 +345,7 @@ export default function GeneralSettingsModal({
                   <View style={[styles.iconWrapper, enableKDS ? styles.iconWrapperActive : styles.iconWrapperInactive]}>
                     <Ionicons name="desktop-outline" size={16} color={enableKDS ? Theme.primary : Theme.textSecondary} />
                   </View>
-                  <Text style={styles.settingTitle}>KDS (Kitchen Display System)</Text>
+                  <Text style={styles.settingTitle}>Order Hub (Order Display)</Text>
                 </View>
                 <Text style={styles.settingDesc}>Show kitchen display screen.</Text>
               </View>

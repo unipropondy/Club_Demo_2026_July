@@ -56,6 +56,7 @@ export type CartItem = {
   isCombo?: boolean;
   comboSelections?: any[];
   IsDiscountAllowed?: number | boolean;
+  IsDeck?: number | boolean;  // 🎭 If 1, item is routed to Deck (Entertainment) view in Order Hub
 };
 
 export type DiscountInfo = {

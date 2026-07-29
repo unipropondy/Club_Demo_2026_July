@@ -2126,7 +2126,7 @@ export default function Category() {
                   <Text
                     style={[styles.headerActionText, { color: Theme.info }]}
                   >
-                    KDS
+                    Orders
                   </Text>
                 )}
               </TouchableOpacity>

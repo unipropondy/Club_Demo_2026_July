@@ -1783,6 +1783,7 @@ router.get("/active-kitchen", async (req, res) => {
         ISNULL(ckt.KitchenTypeCode, '0') as KitchenTypeCode, 
         ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') as KitchenTypeName,
         pm.PrinterPath as PrinterIP,
+        ISNULL(dish.IsDeck, 0) as IsDeck,
         tm.TableId, tm.DiningSection, tm.entry_status, tm.PAYMENT_STATUS, tm.Status
       FROM RestaurantOrderDetailCur d 
       JOIN RestaurantOrderCur h ON d.OrderId = h.OrderId 
