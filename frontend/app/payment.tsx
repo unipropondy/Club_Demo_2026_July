@@ -213,17 +213,22 @@ export default function PaymentScreen() {
   const [cashInput, setCashInput] = useState("");
   const [collectionAmount, setCollectionAmount] = useState("");
   const [processing, setProcessing] = useState(false);
-  const [checkoutSessionId, setCheckoutSessionId] = useState("");
+  // 🛡️ IDEMPOTENCY: Generate UUID immediately — never allow empty string.
+  // Using lazy initializer so the UUID is stable across re-renders but
+  // refreshes to a new UUID each time the screen comes back into focus.
+  const generateSessionId = () =>
+    "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  const [checkoutSessionId, setCheckoutSessionId] = useState(() => generateSessionId());
 
   useEffect(() => {
     if (isFocused) {
-      setCheckoutSessionId(
-        "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-          const r = (Math.random() * 16) | 0;
-          const v = c === "x" ? r : (r & 0x3) | 0x8;
-          return v.toString(16);
-        }),
-      );
+      // Refresh the session ID every time the payment screen gains focus
+      // so a new payment attempt always has a unique idempotency key.
+      setCheckoutSessionId(generateSessionId());
     }
   }, [isFocused]);
 
@@ -1182,6 +1187,16 @@ export default function PaymentScreen() {
     memberOverride?: any,
   ) => {
     if (processing) return;
+
+    // 🛡️ GHOST SETTLEMENT GUARD: Never save without a valid idempotency key.
+    // If checkoutSessionId is empty the backend idempotency check is skipped,
+    // which can create a SettlementHeader record that is never shown to the user.
+    if (!checkoutSessionId || checkoutSessionId.length < 10) {
+      console.warn('[Payment] executeFinalPayment blocked: checkoutSessionId is empty or invalid.');
+      showToast({ type: 'error', message: 'Session Error', subtitle: 'Payment session expired. Please go back and try again.' });
+      return;
+    }
+
     setProcessing(true);
     if (isLedgerCollection) {
       const selectedMode = paymentMethods.find((m) => m.payMode === method);

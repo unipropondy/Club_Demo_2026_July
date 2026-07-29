@@ -101,14 +101,16 @@ const getReportDateRange = (req) => {
 const resolveBusinessDateColumn = (col) => {
   const cleanCol = String(col).trim();
   if (cleanCol.includes("LastSettlementDate")) {
-    const prefix = cleanCol.includes(".") ? cleanCol.split(".")[0] + "." : "";
-    return `ISNULL(${prefix}start_date, CAST(${prefix}LastSettlementDate AS DATE))`;
+    const prefix = cleanCol.includes(".") ? cleanCol.split(".")[0] : "sh";
+    return `ISNULL(${prefix}.start_date, CAST(${prefix}.LastSettlementDate AS DATE))`;
   }
   if (cleanCol.includes("ptd.CreatedDate") || cleanCol.includes("ptd.CreatedOn")) {
     return `ptd.CreatedDate`;
   }
-  if (cleanCol === "InvoiceDate") {
-    return `start_date`;
+  if (cleanCol.includes("InvoiceDate")) {
+    const prefix = cleanCol.includes(".") ? cleanCol.split(".")[0] : "";
+    const pStr = prefix ? `${prefix}.` : "";
+    return `ISNULL(${pStr}start_date, CAST(${pStr}InvoiceDate AS DATE))`;
   }
   return cleanCol;
 };
@@ -766,6 +768,7 @@ router.get("/category", async (req, res) => {
           LEFT JOIN DishGroupMaster dg ON COALESCE(sid.DishGroupId, d.DishGroupId) = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON COALESCE(sid.CategoryId, dg.CategoryId) = cm.CategoryId
           WHERE ${appDateWhereSql}
+            AND ISNULL(sh.IsCancelled, 0) = 0
             AND ISNULL(sid.Qty, 0) > 0
           GROUP BY ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), ISNULL(cm.CategoryName, 'Unmapped'))
         ),
@@ -791,7 +794,7 @@ router.get("/category", async (req, res) => {
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
           LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE ${legacyDateWhereSql.replace(/start_date/g, 'ri.start_date')}
+          WHERE ${legacyDateWhereSql.replace(/start_date/g, 'ri.start_date').replace(/InvoiceDate/g, 'ri.InvoiceDate')}
             AND NOT EXISTS (
               SELECT 1 FROM SettlementHeader sh_dup 
               WHERE sh_dup.SettlementID = ri.RestaurantBillId
@@ -809,7 +812,7 @@ router.get("/category", async (req, res) => {
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
           LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE ${appDateWhereSql.replace(/sh\.start_date/g, 'ro.start_date')}
+          WHERE ${appDateWhereSql.replace(/sh\./g, 'ro.')}
             AND ISNULL(ro.StatusCode, 0) = 3
             AND NOT EXISTS (
               SELECT 1 FROM SettlementHeader sh_dup 
@@ -864,6 +867,7 @@ router.get("/dish", async (req, res) => {
           LEFT JOIN DishGroupMaster dg ON COALESCE(sid.DishGroupId, d.DishGroupId) = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON COALESCE(sid.CategoryId, dg.CategoryId) = cm.CategoryId
           WHERE ${appDateWhereSql}
+            AND ISNULL(sh.IsCancelled, 0) = 0
           GROUP BY 
             ISNULL(NULLIF(LTRIM(RTRIM(sid.DishName)), ''), ISNULL(d.Name, 'Unknown')), 
             ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), ISNULL(cm.CategoryName, 'Unmapped')), 
@@ -892,7 +896,7 @@ router.get("/dish", async (req, res) => {
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
           LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE ${legacyDateWhereSql.replace(/start_date/g, 'ri.start_date')}
+          WHERE ${legacyDateWhereSql.replace(/start_date/g, 'ri.start_date').replace(/InvoiceDate/g, 'ri.InvoiceDate')}
             AND NOT EXISTS (
               SELECT 1 FROM SettlementHeader sh_dup 
               WHERE sh_dup.SettlementID = ri.RestaurantBillId
@@ -915,7 +919,7 @@ router.get("/dish", async (req, res) => {
           LEFT JOIN DishMaster d ON rod.DishId = d.DishId
           LEFT JOIN DishGroupMaster dg ON d.DishGroupId = dg.DishGroupId
           LEFT JOIN CategoryMaster cm ON dg.CategoryId = cm.CategoryId
-          WHERE ${appDateWhereSql.replace(/sh\.start_date/g, 'ro.start_date')}
+          WHERE ${appDateWhereSql.replace(/sh\./g, 'ro.')}
             AND ISNULL(ro.StatusCode, 0) = 3
             AND NOT EXISTS (
               SELECT 1 FROM SettlementHeader sh_dup 
@@ -1476,6 +1480,26 @@ router.post("/save", async (req, res) => {
         const existing = existingCheck.recordset[0];
         console.log(`[SAVE SALE] Duplicate check matched by OrderId! Settlement already exists for order ${orderId}. BillNo: ${existing.BillNo}`);
         return res.json({ success: true, settlementId: existing.SettlementID, billNo: existing.BillNo, orderId: orderId });
+      }
+    }
+
+    // 3. 🛡️ TABLE-LEVEL GHOST SETTLEMENT GUARD: Catch the case where no settlementId or orderId
+    // was provided but the table's current order already has a non-cancelled settlement.
+    // This prevents duplicate records when the frontend sends an empty session ID.
+    if (tableId && !isSplit && !clientSettlementId) {
+      const cleanTableId = tableId.replace(/^\{|\}$/g, "").trim();
+      const tableSettlementCheck = await pool.request()
+        .input("tid", sql.VarChar(100), cleanTableId)
+        .query(`
+          SELECT TOP 1 sh.SettlementID, sh.BillNo
+          FROM SettlementHeader sh
+          INNER JOIN TableMaster tm ON sh.BillNo = tm.CurrentOrderId
+          WHERE tm.TableId = @tid AND ISNULL(sh.IsCancelled, 0) = 0
+        `);
+      if (tableSettlementCheck.recordset.length > 0) {
+        const existing = tableSettlementCheck.recordset[0];
+        console.warn(`[SAVE SALE] 🛡️ Ghost Settlement Guard: Table ${cleanTableId} already has a non-cancelled settlement (${existing.SettlementID}). Blocking duplicate write.`);
+        return res.json({ success: true, settlementId: existing.SettlementID, billNo: existing.BillNo, orderId: existing.BillNo });
       }
     }
 
