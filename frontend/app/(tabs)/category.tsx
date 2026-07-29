@@ -2167,7 +2167,7 @@ export default function Category() {
           setMoveStep("source");
         }}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF9F6" }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Theme.bgMain }}>
           {/* Header */}
           <View
             style={{
@@ -2177,7 +2177,7 @@ export default function Category() {
               paddingHorizontal: 16,
               paddingVertical: 12,
               borderBottomWidth: 1,
-              borderBottomColor: "#EAE8E4",
+              borderBottomColor: Theme.border,
               backgroundColor: Theme.bgCard,
             }}
           >
@@ -2194,7 +2194,9 @@ export default function Category() {
                 width: 40,
                 height: 40,
                 borderRadius: 20,
-                backgroundColor: "#F5F3EF",
+                backgroundColor: Theme.bgMuted,
+                borderWidth: 1,
+                borderColor: Theme.border,
                 justifyContent: "center",
                 alignItems: "center",
               }}
@@ -2238,7 +2240,9 @@ export default function Category() {
                 width: 40,
                 height: 40,
                 borderRadius: 20,
-                backgroundColor: "#F5F3EF",
+                backgroundColor: Theme.bgMuted,
+                borderWidth: 1,
+                borderColor: Theme.border,
                 justifyContent: "center",
                 alignItems: "center",
               }}
@@ -2322,9 +2326,9 @@ export default function Category() {
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                backgroundColor: Theme.bgCard,
-                borderWidth: 1,
-                borderColor: "#EAE8E4",
+                backgroundColor: Theme.bgInput || "#161530",
+                borderWidth: 1.5,
+                borderColor: Theme.border,
                 borderRadius: 12,
                 paddingHorizontal: 12,
                 height: 46,
@@ -2389,7 +2393,9 @@ export default function Category() {
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      backgroundColor: isActive ? "#fd7e14" : "#F5F3EF",
+                      backgroundColor: isActive ? "#fd7e14" : Theme.bgMuted,
+                      borderWidth: 1,
+                      borderColor: isActive ? "#fd7e14" : Theme.border,
                       paddingHorizontal: 14,
                       paddingVertical: 8,
                       borderRadius: 20,
@@ -2583,9 +2589,9 @@ export default function Category() {
                           onPress={() => setMoveDestTable(t)}
                           style={{
                             width: isTablet ? "9.1%" : "18.2%",
-                            backgroundColor: isSelected ? "#FFF7ED" : "#FFF",
+                            backgroundColor: isSelected ? "rgba(253,126,20,0.15)" : Theme.bgCard,
                             borderWidth: 1.5,
-                            borderColor: isSelected ? "#fd7e14" : "#E5E7EB",
+                            borderColor: isSelected ? "#fd7e14" : Theme.border,
                             borderRadius: 10,
                             paddingVertical: 10,
                             paddingHorizontal: 2,
@@ -2642,7 +2648,7 @@ export default function Category() {
             )}
           </ScrollView>
 
-          {/* Sticky Bottom Transfer Bar */}
+           {/* Sticky Bottom Transfer Bar */}
           {moveStep === "dest" && moveSourceTable && moveDestTable && (
             <View
               style={{
@@ -2653,12 +2659,12 @@ export default function Category() {
                 paddingVertical: 14,
                 backgroundColor: Theme.bgCard,
                 borderTopWidth: 1,
-                borderTopColor: "#EAE8E4",
+                borderTopColor: Theme.border,
                 elevation: 10,
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: -3 },
-                shadowOpacity: 0.05,
-                shadowRadius: 3,
+                shadowOpacity: 0.15,
+                shadowRadius: 6,
               }}
             >
               <View
@@ -2678,12 +2684,12 @@ export default function Category() {
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    backgroundColor: "#F5F3EF",
+                    backgroundColor: Theme.bgMuted,
                     paddingHorizontal: 12,
                     paddingVertical: 6,
                     borderRadius: 8,
                     borderWidth: 1,
-                    borderColor: "#EAE8E4",
+                    borderColor: Theme.border,
                   }}
                 >
                   <Text

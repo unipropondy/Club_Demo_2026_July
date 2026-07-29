@@ -214,7 +214,7 @@ async function getOrGenerateOrderId(req, tableId) {
       .input("tid", sql.VarChar(50), cleanId)
       .input("oid", sql.NVarChar(50), displayOrderId)
       .query(
-        "UPDATE TableMaster SET CurrentOrderId = @oid, StartTime = ISNULL(StartTime, GETDATE()) WHERE TableId = @tid",
+        "UPDATE TableMaster SET CurrentOrderId = @oid, StartTime = ISNULL(StartTime, GETDATE()), ModifiedOn = GETDATE() WHERE TableId = @tid",
       );
 
     return displayOrderId;
@@ -886,7 +886,7 @@ router.post("/save-cart", async (req, res) => {
           END
 
           -- Reset table status
-          UPDATE TableMaster SET Status = 0, entry_status = NULL, CurrentOrderId = NULL, StartTime = NULL, CustomerName = NULL, Pax = NULL WHERE TableId = @tid;
+          UPDATE TableMaster SET Status = 0, entry_status = NULL, CurrentOrderId = NULL, StartTime = NULL, CustomerName = NULL, Pax = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid;
         `);
       currentOrderId = null;
     }
@@ -920,7 +920,8 @@ router.post("/save-cart", async (req, res) => {
               CurrentOrderId = @oid,
               StartTime = CASE WHEN @oid IS NOT NULL AND (StartTime IS NULL OR StartTime < '2000-01-01') THEN GETDATE() 
                                WHEN @oid IS NULL THEN NULL 
-                               ELSE StartTime END
+                               ELSE StartTime END,
+              ModifiedOn = GETDATE()
           WHERE TableId = @tid
         `);
 
@@ -930,7 +931,7 @@ router.post("/save-cart", async (req, res) => {
         if (qrEnabled) {
           await transaction.request().input("tid", sql.VarChar(50), cleanId)
             .query(`
-              UPDATE TableMaster SET Status = 2, entry_status = 'q', PAYMENT_STATUS = 0 WHERE TableId = @tid
+              UPDATE TableMaster SET Status = 2, entry_status = 'q', PAYMENT_STATUS = 0, ModifiedOn = GETDATE() WHERE TableId = @tid
             `);
         }
       }
@@ -2104,7 +2105,7 @@ router.post("/merge", async (req, res) => {
           .request()
           .input("tid", sql.UniqueIdentifier, cleanSourceId)
           .query(
-            "UPDATE TableMaster SET Status = 0, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL WHERE TableId = @tid",
+            "UPDATE TableMaster SET Status = 0, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid",
           );
 
         // E. Emit source socket events immediately
@@ -2148,7 +2149,7 @@ router.post("/merge", async (req, res) => {
         .input("tid", sql.UniqueIdentifier, cleanTargetId)
         .input("total", sql.Decimal(18, 2), targetCombinedTotal)
         .query(
-          "UPDATE TableMaster SET TotalAmount = @total WHERE TableId = @tid",
+          "UPDATE TableMaster SET TotalAmount = @total, ModifiedOn = GETDATE() WHERE TableId = @tid",
         );
 
       console.log(`[MERGE STEP 5] Committing SQL transaction...`);

@@ -2334,7 +2334,7 @@ router.post("/save", async (req, res) => {
             await transaction.request()
               .input("tid", sql.UniqueIdentifier, validTableGuid)
               .input("total", sql.Decimal(18, 2), remainingTotal)
-              .query("UPDATE [dbo].[TableMaster] SET TotalAmount = @total WHERE TableId = @tid");
+              .query("UPDATE [dbo].[TableMaster] SET TotalAmount = @total, ModifiedOn = GETDATE() WHERE TableId = @tid");
           }
 
           const io = req.app.get("io");
@@ -2352,7 +2352,7 @@ router.post("/save", async (req, res) => {
           if (validTableGuid) {
             await transaction.request()
               .input("tid", sql.UniqueIdentifier, validTableGuid)
-              .query("UPDATE [dbo].[TableMaster] SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, CustomerName = NULL, Pax = NULL WHERE TableId = @tid");
+              .query("UPDATE [dbo].[TableMaster] SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, CustomerName = NULL, Pax = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid");
           }
 
           const io = req.app.get("io");
@@ -2388,7 +2388,7 @@ router.post("/save", async (req, res) => {
 
                 await transaction.request()
                   .input("tid", sql.NVarChar(128), childTableId)
-                  .query("UPDATE [dbo].[TableMaster] SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, CustomerName = NULL, Pax = NULL WHERE TableId = @tid");
+                  .query("UPDATE [dbo].[TableMaster] SET Status = 0, entry_status = NULL, TotalAmount = 0, StartTime = NULL, CurrentOrderId = NULL, CustomerName = NULL, Pax = NULL, ModifiedOn = GETDATE() WHERE TableId = @tid");
 
                 if (io) {
                   io.emit("table_status_updated", { 
