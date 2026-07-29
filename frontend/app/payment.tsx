@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
@@ -915,8 +915,14 @@ export default function PaymentScreen() {
 
       setPaymentMethods(filtered);
       if (filtered.length > 0) {
-        setMethod(filtered[0].payMode);
-        setSelectedDetail(filtered[0]);
+        setMethod((prev) => {
+          const isValid = filtered.some((x) => x.payMode === prev);
+          return (prev === "CAS" || !isValid) ? filtered[0].payMode : prev;
+        });
+        setSelectedDetail((prev) => {
+          const isValid = filtered.some((x) => x.payMode === prev?.payMode);
+          return (!prev || !isValid) ? filtered[0] : prev;
+        });
         if (isCashMethod(filtered[0].payMode)) {
           setCashInput(total.toFixed(2));
         }
@@ -1952,7 +1958,7 @@ export default function PaymentScreen() {
                     onPress={() => {
                       setRoundOff(p.target - baseTotal);
                       setRoundType(p.mode);
-                      if (method === "CAS") setCashInput(p.target.toFixed(2));
+                      if (isCashMethod(method)) setCashInput(p.target.toFixed(2));
                       setIsAdjustmentModalVisible(false);
                     }}
                   >
@@ -1978,7 +1984,7 @@ export default function PaymentScreen() {
                       if (!isNaN(n)) {
                         setRoundOff(n);
                         setRoundType("custom");
-                        if (method === "CAS")
+                        if (isCashMethod(method))
                           setCashInput((baseTotal + n).toFixed(2));
                         setIsAdjustmentModalVisible(false);
                       }
@@ -1993,7 +1999,7 @@ export default function PaymentScreen() {
                 onPress={() => {
                   setRoundOff(0);
                   setRoundType(null);
-                  if (method === "CAS") setCashInput(baseTotal.toFixed(2));
+                  if (isCashMethod(method)) setCashInput(baseTotal.toFixed(2));
                   setIsAdjustmentModalVisible(false);
                 }}
               >
@@ -3023,7 +3029,7 @@ export default function PaymentScreen() {
                                   onPress={() => {
                                     setRoundOff(0);
                                     setRoundType(null);
-                                    if (method === "CAS")
+                                    if (isCashMethod(method))
                                       setCashInput(baseTotal.toFixed(2));
                                   }}
                                 >
@@ -3045,14 +3051,14 @@ export default function PaymentScreen() {
                                   if (roundType === "ten") {
                                     setRoundOff(0);
                                     setRoundType(null);
-                                    if (method === "CAS")
+                                    if (isCashMethod(method))
                                       setCashInput(baseTotal.toFixed(2));
                                   } else {
                                     const target =
                                       Math.round(baseTotal * 10) / 10;
                                     setRoundOff(target - baseTotal);
                                     setRoundType("ten");
-                                    if (method === "CAS")
+                                    if (isCashMethod(method))
                                       setCashInput(target.toFixed(2));
                                   }
                                 }}
