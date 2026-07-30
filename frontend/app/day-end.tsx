@@ -52,10 +52,30 @@ export default function DayEndScreen() {
   });
 
   useEffect(() => {
+    const loadBusinessDate = async () => {
+      try {
+        const saved = await AsyncStorage.getItem("selected_business_date");
+        if (saved) {
+          const clean = saved.split("T")[0];
+          setDateRange({ start: clean, end: clean });
+        }
+      } catch (e) {
+        console.warn("Failed to load business date:", e);
+      }
+    };
+    loadBusinessDate();
+  }, []);
+
+  useEffect(() => {
     fetchDaySummary();
     
-    // Auto-update date if the day changes while the app is open
-    const interval = setInterval(() => {
+    // Auto-update date if the day changes while the app is open (only if no active business day is set)
+    const interval = setInterval(async () => {
+      try {
+        const saved = await AsyncStorage.getItem("selected_business_date");
+        if (saved) return; // Keep fixed business date
+      } catch {}
+
       const now = getSingaporeDateString();
       if (now !== dateRange.start && selectedFilter === "DAILY") {
         setDateRange({ start: now, end: now });
@@ -63,7 +83,7 @@ export default function DayEndScreen() {
     }, 60000); // Check every minute
 
     return () => clearInterval(interval);
-  }, [dateRange, selectedFilter]);
+  }, [dateRange.start, dateRange.end, selectedFilter]);
 
   const fetchDaySummary = async () => {
     setLoading(true);

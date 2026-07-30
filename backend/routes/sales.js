@@ -1164,10 +1164,29 @@ router.get("/day-end-summary", async (req, res) => {
       TotalRoundOff: 0, TotalTakeawayCharge: 0, TotalBills: 0, VoidQty: 0, VoidAmount: 0
     };
 
+    // B2. Compute actual void details directly from order detail tables (active and settled)
+    const actualVoidsRes = await pool.request()
+      .input("startDate", sql.VarChar, start)
+      .input("endDate", sql.VarChar, end)
+      .query(`
+        SELECT 
+          SUM(CAST(ISNULL(d.Quantity, 0) AS DECIMAL(18,2))) as VoidQty,
+          SUM(CAST(ISNULL(d.Quantity, 0) * ISNULL(d.PricePerUnit, 0) AS DECIMAL(18, 2))) as VoidAmount
+        FROM (
+          SELECT Quantity, PricePerUnit, START_DATE, CreatedOn FROM RestaurantOrderDetailCur WHERE StatusCode = 0
+          UNION ALL
+          SELECT Quantity, PricePerUnit, START_DATE, CreatedOn FROM RestaurantOrderDetail WHERE StatusCode = 0
+        ) d
+        WHERE CAST(ISNULL(d.START_DATE, CAST(d.CreatedOn AS DATE)) AS DATE) >= CAST(@startDate AS DATE)
+          AND CAST(ISNULL(d.START_DATE, CAST(d.CreatedOn AS DATE)) AS DATE) <= CAST(@endDate AS DATE)
+      `);
+    const actualVoids = actualVoidsRes.recordset[0] || { VoidQty: 0, VoidAmount: 0 };
+
     const totalSales = analysis.TotalSales || 0;
     const detailTotal = paymodes.reduce((acc, curr) => acc + (Number(curr.Amount) || 0), 0);
     const diff = totalSales - detailTotal;
     console.log(`[DAY-END DEBUG] Analysis:`, JSON.stringify(analysis));
+    console.log(`[DAY-END DEBUG] Actual Voids:`, JSON.stringify(actualVoids));
     console.log(`[DAY-END DEBUG] totalSales: ${totalSales}, detailTotal: ${detailTotal}, diff: ${diff}`);
 
     // If there's a real discrepancy, surface it explicitly as "Unknown / Unrecorded"
@@ -1354,8 +1373,8 @@ router.get("/day-end-summary", async (req, res) => {
         avgPerBill: billCount > 0 ? (totalSales / billCount) : 0
       },
       voidDetail: {
-        voidQty: analysis.VoidQty || 0,
-        voidAmount: analysis.VoidAmount || 0
+        voidQty: actualVoids.VoidQty || 0,
+        voidAmount: actualVoids.VoidAmount || 0
       },
       cancelledDetail: {
         count: analysis.CancelledCount || 0,
