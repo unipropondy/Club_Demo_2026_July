@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -36,20 +36,12 @@ export default function EditDishModal({
 
   useEffect(() => {
     if (visible && item) {
-      const currentId = item.lineItemId;
-      
-      // ONLY sync if the item has actually changed or the modal just opened
-      if (lastItemIdRef.current !== currentId) {
-        setNote(item.note || "");
-        setDiscountValue((item.discount || 0).toString());
-        setQtyValue((item.qty || 1).toString());
-        setIsTakeaway(!!item.isTakeaway);
-        lastItemIdRef.current = currentId;
-      }
-    } else if (!visible) {
-      lastItemIdRef.current = null;
+      setNote(item.note || "");
+      setDiscountValue((item.discount || 0).toString());
+      setQtyValue((item.qty || 1).toString());
+      setIsTakeaway(!!item.isTakeaway);
     }
-  }, [visible, item?.lineItemId]);
+  }, [visible, item]);
 
   const handleApply = () => {
     if (!item) return;
@@ -63,6 +55,8 @@ export default function EditDishModal({
     updateCartItemFull(item.lineItemId, {
       note: finalNote,
       discount: finalDiscount,
+      discountAmount: finalDiscount,
+      discountType: "percentage",
       qty: finalQty,
       isTakeaway: finalTakeaway,
     });

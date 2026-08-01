@@ -1,12 +1,19 @@
 {
   "compilerOptions": {
-    "strict": true,
-    "jsx": "react-native",
+    "target": "ES2018",
+    "lib": ["ES2018", "DOM"],
+    "module": "ESNext",
     "moduleResolution": "node",
+    "jsx": "react-native",
+    "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "noEmit": true,
+    "typeRoots": [
+      "../../frontend/node_modules/@types"
+    ],
     "baseUrl": ".",
     "paths": {
       "*": ["*", "../../frontend/node_modules/*"]

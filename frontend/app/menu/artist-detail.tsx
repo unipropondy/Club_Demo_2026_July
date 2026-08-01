@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -215,7 +215,7 @@ export default function ArtistDetailScreen() {
       setReceiptData({
         artistName: artist?.name || "Artist",
         amount: amt,
-        date: new Date().toLocaleString(),
+        date: formatToSingaporeDateTime(new Date()),
         method: payMethod,
         refNo: `WLT-${Date.now().toString().slice(-6)}`,
       });
@@ -239,8 +239,14 @@ export default function ArtistDetailScreen() {
     if (!receiptData) return;
     const html = `
       <html>
-      <body style="font-family: monospace; padding: 20px; width: 300px;">
-        <h3 style="text-align: center;">ARTIST BONUS RECEIPT</h3>
+      <head>
+        <style>
+          @page { size: auto; margin: 0mm; }
+          body { font-family: monospace; padding: 20px; width: 280px; margin: 0; }
+        </style>
+      </head>
+      <body>
+        <h3 style="text-align: center; margin-top: 10px;">ARTIST BONUS RECEIPT</h3>
         <hr/>
         <p><b>Date:</b> ${receiptData.date}</p>
         <p><b>Ref:</b> ${receiptData.refNo}</p>
@@ -249,7 +255,7 @@ export default function ArtistDetailScreen() {
         <hr/>
         <h2 style="text-align: center;">TOTAL: $${receiptData.amount.toFixed(2)}</h2>
         <hr/>
-        <p style="text-align: center; font-size: 10px;">Thank you for your performance!</p>
+        <p style="text-align: center; font-size: 10px; margin-bottom: 10px;">Thank you for your performance!</p>
       </body>
       </html>
     `;

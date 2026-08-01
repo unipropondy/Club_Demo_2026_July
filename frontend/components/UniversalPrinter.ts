@@ -1016,12 +1016,12 @@ class UniversalPrinter {
                             <div class="item-qty">${item.quantity || item.qty || 1}</div>
                             <div class="item-name">
                               ${(item.name || "").replace(/\n/g, '<br/>')}
-                              ${item.songName || item.SongName ? `<div style="font-size: 20px; font-weight: normal; color: #555; margin-top: 4px;">🎵 ${item.songName || item.SongName}</div>` : ''}
+                              ${item.songName || item.SongName ? `<div style="font-size: 14px; font-weight: normal; color: #555; margin-top: 2px;">🎵 ${item.songName || item.SongName}</div>` : ''}
                             </div>
                           </div>
                           ${
                             item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway
-                              ? `<div class="modifier-list"><span class="modifier-item" style="font-size: 20px; font-weight: 900; color: #000;">- Takeaway</span></div>`
+                              ? `<div class="modifier-list"><span class="modifier-item" style="font-size: 14px; font-weight: normal; color: #555;">- Takeaway</span></div>`
                               : ""
                           }
                           ${
@@ -1059,7 +1059,7 @@ class UniversalPrinter {
                       <div class="item-qty">${item.quantity || item.qty || 1}</div>
                       <div class="item-name">
                         ${(item.name || "").replace(/\n/g, '<br/>')}
-                        ${item.songName || item.SongName ? `<div style="font-size: 20px; font-weight: normal; color: #555; margin-top: 4px;">🎵 ${item.songName || item.SongName}</div>` : ''}
+                        ${item.songName || item.SongName ? `<div style="font-size: 14px; font-weight: normal; color: #555; margin-top: 2px;">🎵 ${item.songName || item.SongName}</div>` : ''}
                       </div>
                     </div>
                     ${
@@ -1069,7 +1069,7 @@ class UniversalPrinter {
                       item.IsTakeAway
                         ? `
                       <div class="modifier-list">
-                        <span class="modifier-item" style="font-size: 20px; font-weight: 900; color: #000;">- Takeaway</span>
+                        <span class="modifier-item" style="font-size: 14px; font-weight: normal; color: #555;">- Takeaway</span>
                       </div>
                     `
                         : ""
@@ -1918,6 +1918,16 @@ class UniversalPrinter {
     }
 
     text += `[R]<font size=\'big\'><B>TOTAL: ${symbol}${finalTotal.toFixed(2)}</B></font>\n`;
+
+    // 🏆 Reward points summary lines
+    if (saleData.rewardPointsEarned && parseFloat(String(saleData.rewardPointsEarned)) > 0) {
+      text += "[L]------------------------------------------------\n";
+      text += this.formatTwoCols48("Reward Points Earned:", `+${symbol}${parseFloat(String(saleData.rewardPointsEarned)).toFixed(2)}`);
+      if (saleData.memberRewardBalance && parseFloat(String(saleData.memberRewardBalance)) > 0) {
+        text += this.formatTwoCols48("Available Member Credit:", `${symbol}${parseFloat(String(saleData.memberRewardBalance)).toFixed(2)}`);
+      }
+    }
+
     text += "[C]================================================\n";
     text += "[C]<B>THANK YOU! COME AGAIN!</B>\n";
     text += "[C]SMART-POS BY UNIPROSG\n\n\n\n";

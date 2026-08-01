@@ -539,6 +539,58 @@ router.post("/pay", async (req, res) => {
       .query("UPDATE MemberMaster SET CurrentBalance = CurrentBalance - @Amount WHERE MemberId = @MemberId");
   }, { name: "MemberPayment", timeoutMs: 60000 });
 
+  let rewardPointsEarned = 0;
+  let memberRewardBalance = 0;
+
+  // 🏆 LOYALTY POINTS EARNED ON LEDGER SETTLEMENT COLLECTION
+  try {
+    // 1. Fetch active reward rule
+    const ruleRes = await pool.query(
+      `SELECT TOP 1 SpendAmount, CreditAmount FROM RewardMaster WHERE IsActive = 1 ORDER BY Id DESC`
+    );
+    if (ruleRes.recordset.length > 0) {
+      const rule = ruleRes.recordset[0];
+      const earned = (numericAmt / rule.SpendAmount) * rule.CreditAmount;
+      const pointsAwarded = Math.round(earned * 10000) / 10000; // 4dp precision
+
+      if (pointsAwarded > 0) {
+        rewardPointsEarned = pointsAwarded;
+
+        // 2. Add to MemberMaster.RewardCredit
+        const balanceRes = await pool.request()
+          .input("MemberId", sql.UniqueIdentifier, memberId)
+          .input("Points", sql.Decimal(18, 4), pointsAwarded)
+          .query(`
+            UPDATE MemberMaster 
+            SET RewardCredit = ISNULL(RewardCredit, 0) + @Points 
+            OUTPUT INSERTED.RewardCredit
+            WHERE MemberId = @MemberId
+          `);
+
+        if (balanceRes.recordset && balanceRes.recordset.length > 0) {
+          memberRewardBalance = parseFloat(balanceRes.recordset[0].RewardCredit) || 0;
+        }
+
+        // 3. Log to RewardPointDetails audit table
+        await pool.request()
+          .input("MemberId", sql.UniqueIdentifier, memberId)
+          .input("PaymentTransactionId", sql.UniqueIdentifier, paymentTransactionId)
+          .input("BillAmount", sql.Decimal(18, 2), numericAmt)
+          .input("PointsEarned", sql.Decimal(18, 4), pointsAwarded)
+          .input("PayMode", sql.NVarChar(50), payModeName)
+          .input("Remarks", sql.NVarChar(255), `Earned on ledger payment settlement`)
+          .query(`
+            INSERT INTO RewardPointDetails (Id, MemberId, SettlementId, BillNo, BillAmount, PointsEarned, PointsUsed, TransType, PayMode, Remarks, CreatedOn)
+            VALUES (NEWID(), @MemberId, @PaymentTransactionId, 'SETTLEMENT', @BillAmount, @PointsEarned, 0, 'EARN', @PayMode, @Remarks, GETDATE())
+          `);
+
+        console.log(`[Rewards] ✅ Settlement points: awarded ${pointsAwarded} credit on outstanding payment of ${numericAmt} for member ${memberId}.`);
+      }
+    }
+  } catch (rewardErr) {
+    console.error(`[Rewards] ❌ Settlement points award failed:`, rewardErr.message);
+  }
+
   setImmediate(async () => {
     try {
       await sendBalanceNotification(memberId, pool);
@@ -547,7 +599,13 @@ router.post("/pay", async (req, res) => {
     }
   });
 
-  res.json({ success: true, memberPaymentId, paymentTransactionId });
+  res.json({ 
+    success: true, 
+    memberPaymentId, 
+    paymentTransactionId,
+    rewardPointsEarned,
+    memberRewardBalance
+  });
 
   } catch (err) {
     console.error("[MEMBER PAYMENT ERROR]", err);

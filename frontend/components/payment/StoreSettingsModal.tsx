@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import {
@@ -357,10 +357,11 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 10,
     textAlign: "center",
+    color: Theme.textPrimary || "#FFFFFF",
   },
   subtitle: {
     fontSize: 14,
-    color: "#666",
+    color: Theme.textSecondary || "#A0AEC0",
     textAlign: "center",
     marginBottom: 20,
   },
@@ -372,20 +373,22 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   field: { marginBottom: 15 },
-  label: { fontSize: 14, color: "#444", marginBottom: 8, fontWeight: "600" },
+  label: { fontSize: 14, color: Theme.textSecondary || "#444", marginBottom: 8, fontWeight: "600" },
   input: {
     borderWidth: 1.5,
-    borderColor: "#E2E8F0",
+    borderColor: Theme.border || "#E2E8F0",
+    backgroundColor: Theme.bgInput || "#18163A",
+    color: Theme.textPrimary || "#FFFFFF",
     borderRadius: 12,
     padding: 14,
     fontSize: 16,
   },
-  helper: { fontSize: 12, color: "#718096", marginTop: 5 },
+  helper: { fontSize: 12, color: Theme.textMuted || "#718096", marginTop: 5 },
   row: { flexDirection: "row", gap: 10, marginTop: 10 },
   btn: { flex: 1, padding: 15, borderRadius: 12, alignItems: "center" },
-  cancelBtn: { backgroundColor: "#F1F5F9" },
+  cancelBtn: { backgroundColor: Theme.bgMuted || "#F1F5F9" },
   unlockBtn: { backgroundColor: Theme.primary },
-  btnText: { fontWeight: "700", color: "#64748B" },
+  btnText: { fontWeight: "700", color: Theme.textSecondary || "#64748B" },
   unlockText: { fontWeight: "700", color: "#fff" },
   successBadge: {
     flexDirection: "row",

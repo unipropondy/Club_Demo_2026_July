@@ -543,24 +543,24 @@ const styles = StyleSheet.create({
   // ── Brand ──
   brandRow: { alignItems: "center", marginBottom: 28, zIndex: 2 },
   logoRing: {
-    width: 84, height: 84, borderRadius: 26, marginBottom: 16,
+    width: 76, height: 76, borderRadius: 22, marginBottom: 12,
     backgroundColor: "rgba(168,85,247,0.10)",
     justifyContent: "center", alignItems: "center",
     borderWidth: 1.5, borderColor: "rgba(168,85,247,0.45)",
     shadowColor: "#A855F7", shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6, shadowRadius: 22, elevation: 10,
   },
-  appName: { color: "#F0EEFF", fontSize: 30, fontFamily: Fonts.black, letterSpacing: 1.2 },
+  appName: { color: "#F0EEFF", fontSize: 28, fontFamily: Fonts.black, letterSpacing: 0.5 },
   appTagline: {
     color: "rgba(192,132,252,0.65)", fontSize: 10, fontFamily: Fonts.bold,
-    letterSpacing: 3, marginTop: 5, textTransform: "uppercase",
+    letterSpacing: 1.5, marginTop: 4, textTransform: "uppercase",
   },
 
   // ── Card ──
   card: {
-    width: "100%", maxWidth: 420,
+    width: "100%", maxWidth: 460,
     backgroundColor: "rgba(11,9,30,0.88)",
-    borderRadius: 24, padding: 26,
+    borderRadius: 36, padding: 36,
     borderWidth: 1, borderColor: "rgba(168,85,247,0.30)",
     overflow: "hidden",
     shadowColor: "#7C3AED", shadowOffset: { width: 0, height: 8 },
@@ -571,8 +571,8 @@ const styles = StyleSheet.create({
     position: "absolute", top: 0, left: 0, right: 0,
     height: 2.5, borderRadius: 2,
   },
-  cardTitle: { color: "#F0EEFF", fontSize: 20, fontFamily: Fonts.black, marginTop: 6, marginBottom: 3 },
-  cardSub:   { color: "rgba(155,142,196,0.80)", fontSize: 13, fontFamily: Fonts.medium, marginBottom: 22 },
+  cardTitle: { color: "#F0EEFF", fontSize: 23, fontFamily: Fonts.black, marginTop: 6, marginBottom: 3 },
+  cardSub:   { color: "rgba(155,142,196,0.80)", fontSize: 13, fontFamily: Fonts.medium, marginBottom: 26 },
 
   // ── Error ──
   errorRow: {
@@ -584,16 +584,16 @@ const styles = StyleSheet.create({
   errorText: { color: "#EF4444", fontSize: 12, fontFamily: Fonts.medium, flex: 1 },
 
   // ── Inputs ──
-  inputGroup: { marginBottom: 16 },
+  inputGroup: { marginBottom: 20 },
   inputLabel: {
     color: "#9B8EC4", fontSize: 10, fontFamily: Fonts.bold,
-    textTransform: "uppercase", letterSpacing: 1.8, marginBottom: 7,
+    textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8,
   },
   inputWrap: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: "#18163A", borderRadius: 13,
+    backgroundColor: "#18163A", borderRadius: 16,
     borderWidth: 1.5, borderColor: "#3D3875",
-    paddingHorizontal: 13, height: 52,
+    paddingHorizontal: 16, height: 56,
   },
   input: {
     flex: 1, color: "#F0EEFF", fontSize: 15, fontFamily: Fonts.medium,
@@ -601,19 +601,19 @@ const styles = StyleSheet.create({
   },
 
   // ── Remember Me ──
-  rememberRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 20, paddingLeft: 2 },
+  rememberRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 24, paddingLeft: 2 },
   checkbox: {
-    width: 20, height: 20, borderRadius: 6, borderWidth: 2,
+    width: 22, height: 22, borderRadius: 7, borderWidth: 2,
     borderColor: "#3D3875", justifyContent: "center",
     alignItems: "center", backgroundColor: "#18163A",
   },
   checkboxActive: { backgroundColor: Theme.primary, borderColor: Theme.primary },
-  rememberText:   { fontSize: 14, fontFamily: Fonts.bold, color: "#9B8EC4" },
+  rememberText:   { fontSize: 15, fontFamily: Fonts.bold, color: "#9B8EC4" },
 
   // ── Sign In ──
   btnWrapper: { width: "100%" },
   btn: {
-    height: 54, borderRadius: 14, overflow: "hidden",
+    height: 56, borderRadius: 16, overflow: "hidden",
     shadowColor: "#A855F7", shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.50, shadowRadius: 18, elevation: 10,
   },
@@ -621,7 +621,7 @@ const styles = StyleSheet.create({
     flex: 1, flexDirection: "row", justifyContent: "center",
     alignItems: "center", gap: 10,
   },
-  btnText: { color: "#fff", fontSize: 17, fontFamily: Fonts.black, letterSpacing: 0.4 },
+  btnText: { color: "#fff", fontSize: 18, fontFamily: Fonts.black, letterSpacing: 0.4 },
 
   footerText: {
     color: "rgba(90,80,128,0.70)", fontSize: 11,

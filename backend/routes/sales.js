@@ -1286,38 +1286,34 @@ router.get("/day-end-summary", async (req, res) => {
     const settlementRes = await pool.request()
       .query(`
         SELECT 
-          CASE
-            WHEN UPPER(LTRIM(RTRIM(sd.Paymode))) IN ('CASHBOX', 'CASH BOX', 'CASH BOX ENTRY')
-              OR UPPER(LTRIM(RTRIM(ISNULL(sh.OrderType,'')))) = 'CASHBOX'
-            THEN 'Cash Box Entry'
-            ELSE ISNULL(
-              (SELECT TOP 1 LTRIM(RTRIM(Description)) FROM Paymode pm WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(sd.Paymode))
-                OR LTRIM(RTRIM(pm.Description)) = LTRIM(RTRIM(sd.Paymode))
-                OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(sd.Paymode))
-              ),
-              sd.Paymode
-            )
-          END as Paymode,
-          SUM(ISNULL(sd.SysAmount, 0)) as SysAmount,
-          SUM(ISNULL(sd.ManualAmount, 0)) as ManualAmount,
-          SUM(ISNULL(sd.SortageOrExces, 0)) as SortageOrExces,
-          CAST(SUM(ISNULL(sd.ReceiptCount, 0)) AS INT) as ReceiptCount
-        FROM SettlementHeader sh
-        INNER JOIN SettlementDetail sd ON sh.SettlementID = sd.SettlementId
-        WHERE ${whereSql}
-        GROUP BY 
-          CASE
-            WHEN UPPER(LTRIM(RTRIM(sd.Paymode))) IN ('CASHBOX', 'CASH BOX', 'CASH BOX ENTRY')
-              OR UPPER(LTRIM(RTRIM(ISNULL(sh.OrderType,'')))) = 'CASHBOX'
-            THEN 'Cash Box Entry'
-            ELSE ISNULL(
-              (SELECT TOP 1 LTRIM(RTRIM(Description)) FROM Paymode pm WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(sd.Paymode))
-                OR LTRIM(RTRIM(pm.Description)) = LTRIM(RTRIM(sd.Paymode))
-                OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(sd.Paymode))
-              ),
-              sd.Paymode
-            )
-          END
+          Paymode,
+          SUM(ISNULL(SysAmount, 0)) as SysAmount,
+          SUM(ISNULL(ManualAmount, 0)) as ManualAmount,
+          SUM(ISNULL(SortageOrExces, 0)) as SortageOrExces,
+          CAST(SUM(ISNULL(ReceiptCount, 0)) AS INT) as ReceiptCount
+        FROM (
+          SELECT 
+            CASE
+              WHEN UPPER(LTRIM(RTRIM(sd.Paymode))) IN ('CASHBOX', 'CASH BOX', 'CASH BOX ENTRY')
+                OR UPPER(LTRIM(RTRIM(ISNULL(sh.OrderType,'')))) = 'CASHBOX'
+              THEN 'Cash Box Entry'
+              ELSE ISNULL(
+                (SELECT TOP 1 LTRIM(RTRIM(Description)) FROM Paymode pm WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(sd.Paymode))
+                  OR LTRIM(RTRIM(pm.Description)) = LTRIM(RTRIM(sd.Paymode))
+                  OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(sd.Paymode))
+                ),
+                sd.Paymode
+              )
+            END as Paymode,
+            sd.SysAmount,
+            sd.ManualAmount,
+            sd.SortageOrExces,
+            sd.ReceiptCount
+          FROM SettlementHeader sh
+          INNER JOIN SettlementDetail sd ON sh.SettlementID = sd.SettlementId
+          WHERE ${whereSql}
+        ) Sub
+        GROUP BY Paymode
         ORDER BY SysAmount DESC
       `);
 
@@ -1531,6 +1527,8 @@ router.post("/save", async (req, res) => {
     let customerType = null;
     let customerRecord = null;
     let finalBillNo = null;
+    let rewardPointsEarned = 0;
+    let memberRewardBalance = 0;
 
     await runInTransaction(async (transaction) => {
       if (clientSettlementId) {
@@ -1568,7 +1566,20 @@ router.post("/save", async (req, res) => {
           customerType = "MEMBER";
           customerRecord = memberCustomer;
         } else {
-          throw new Error(`Customer ${memberId} not found`);
+          // If not found in either master (could be a legacy ID or simple reward member ID), query MemberMaster directly to see if we can treat them as a MEMBER
+          const fallbackMemberCheck = await transaction.request()
+            .input("MemberId", sql.UniqueIdentifier, memberId)
+            .query("SELECT Name, Phone, IsActive FROM MemberMaster WHERE MemberId = @MemberId");
+          if (fallbackMemberCheck.recordset.length > 0) {
+            customerType = "MEMBER";
+            customerRecord = {
+              CreditLimit: 0,
+              CurrentBalance: 0,
+              IsActive: fallbackMemberCheck.recordset[0].IsActive
+            };
+          } else {
+            throw new Error(`Customer ${memberId} not found`);
+          }
         }
 
         console.log(`[SAVE SALE DIAGNOSTIC] Customer lookup: memberId=${memberId}, customerType=${customerType}`);
@@ -2478,6 +2489,71 @@ router.post("/save", async (req, res) => {
         }
       }
 
+      // 🏆 REWARD POINTS ACCRUAL FLOW
+      // If a member is selected, earn points based on the active config rule
+      if (memberId && customerType === "MEMBER") {
+        try {
+          console.log(`[REWARD POINTS] Starting accrual calculation for member: ${memberId}...`);
+          
+          // 1. Fetch the active Reward Master earn rule ratio
+          const ruleRes = await transaction.request().query(`
+            SELECT TOP 1 SpendAmount, CreditAmount 
+            FROM RewardMaster 
+            WHERE IsActive = 1 
+            ORDER BY Id DESC
+          `);
+
+          if (ruleRes.recordset.length > 0) {
+            const rule = ruleRes.recordset[0];
+            const spendRule = parseFloat(rule.SpendAmount) || 100;
+            const creditRule = parseFloat(rule.CreditAmount) || 1;
+            
+            // Points are earned based on subtotal or net after discount
+            const finalBillAmount = parseFloat(totalAmount) || 0;
+            
+            // Calculate reward credits to award: (BillAmount / SpendAmount) * CreditAmount
+            const pointsEarned = (finalBillAmount / spendRule) * creditRule;
+            const pointsAwarded = Math.round(pointsEarned * 10000) / 10000; // 4 decimals precision
+
+            if (pointsAwarded > 0) {
+              console.log(`[REWARD POINTS] Awarding ${pointsAwarded} credits on bill ${finalBillNo} (Amount: ${finalBillAmount}) using rule $${spendRule} -> $${creditRule}`);
+              rewardPointsEarned = pointsAwarded;
+
+              // 2. Add points to MemberMaster RewardCredit balance
+              const balanceRes = await transaction.request()
+                .input("MemberId", sql.UniqueIdentifier, toGuidOrNull(memberId))
+                .input("PointsAwarded", sql.Decimal(18, 4), pointsAwarded)
+                .query(`
+                  UPDATE MemberMaster 
+                  SET RewardCredit = ISNULL(RewardCredit, 0) + @PointsAwarded,
+                      ModifiedDate = GETDATE()
+                  OUTPUT INSERTED.RewardCredit
+                  WHERE MemberId = @MemberId
+                `);
+
+              if (balanceRes.recordset && balanceRes.recordset.length > 0) {
+                memberRewardBalance = parseFloat(balanceRes.recordset[0].RewardCredit) || 0;
+              }
+
+              // 3. Log to RewardPointDetails audit ledger
+              await transaction.request()
+                .input("MemberId", sql.UniqueIdentifier, toGuidOrNull(memberId))
+                .input("SettlementId", sql.UniqueIdentifier, toGuidOrNull(settlementId))
+                .input("BillNo", sql.NVarChar(100), finalBillNo)
+                .input("BillAmount", sql.Decimal(18, 4), finalBillAmount)
+                .input("PointsEarned", sql.Decimal(18, 4), pointsAwarded)
+                .input("Remarks", sql.NVarChar(255), `Points earned from bill ${finalBillNo}`)
+                .query(`
+                  INSERT INTO RewardPointDetails (Id, MemberId, SettlementId, BillNo, BillAmount, PointsEarned, PointsUsed, TransType, PayMode, Remarks, CreatedOn)
+                  VALUES (NEWID(), @MemberId, @SettlementId, @BillNo, @BillAmount, @PointsEarned, 0, 'EARN', 'SALE', @Remarks, GETDATE())
+                `);
+            }
+          }
+        } catch (rewardErr) {
+          console.error("❌ [REWARD POINTS ERROR] Failed to calculate/accrue reward points:", rewardErr.message);
+        }
+      }
+
     }, { name: "SaveSale", timeoutMs: 60000 });
 
     // 🚀 POST-SAVE VALIDATION: Deep integrity check for Backoffice compatibility
@@ -2529,7 +2605,14 @@ router.post("/save", async (req, res) => {
       console.log(`[Loyalty Debug] Loyalty phone was empty or missing. Skipping trigger.`);
     }
 
-    res.json({ success: true, settlementId, billNo: finalBillNo || displayOrderId, orderId: displayOrderId });
+    res.json({ 
+      success: true, 
+      settlementId, 
+      billNo: finalBillNo || displayOrderId, 
+      orderId: displayOrderId,
+      rewardPointsEarned,
+      memberRewardBalance
+    });
   } catch (err) {
     console.error("SAVE SALE ERROR:", err);
     res.status(500).json({ success: false, error: err.message });

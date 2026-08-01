@@ -317,7 +317,7 @@ export default function CustomerDisplayContent() {
       const opacity = new Animated.Value(1);
 
       const newItem = { id, icon, x, y, scale, translateY, opacity };
-      setFloatingFoods((prev) => [...prev, newItem].slice(-15)); // Keep max 15 on screen
+      setFloatingFoods((prev: any[]) => [...prev, newItem].slice(-15)); // Keep max 15 on screen
 
       Animated.parallel([
         Animated.spring(scale, {
@@ -339,7 +339,7 @@ export default function CustomerDisplayContent() {
         }),
       ]).start(() => {
         // Clean up from state once finished
-        setFloatingFoods((prev) => prev.filter((item) => item.id !== id));
+        setFloatingFoods((prev: any[]) => prev.filter((item: any) => item.id !== id));
       });
     }, 900);
 
@@ -448,7 +448,7 @@ export default function CustomerDisplayContent() {
               disabled={!selectedTerminalCode}
               onPress={() => {
                 if (!selectedTerminalCode) return;
-                const found = terminals.find((t) => t.TerminalCode === selectedTerminalCode);
+                const found = terminals.find((t: any) => t.TerminalCode === selectedTerminalCode);
                 useTerminalStore
                   .getState()
                   .setTerminal(selectedTerminalCode, found?.TerminalName || selectedTerminalCode);
@@ -609,11 +609,11 @@ export default function CustomerDisplayContent() {
                     <Text style={styles.splitTitle}>Split Payments</Text>
                   </View>
                   <ScrollView style={styles.splitScroll} showsVerticalScrollIndicator={false}>
-                    {displayState.splitPayments && displayState.splitPayments.map((p, idx) => {
+                    {displayState.splitPayments && displayState.splitPayments.map((p: any, idx: number) => {
                       const isPaid = p.status === "Paid";
                       const isCancelled = p.status === "Cancelled";
                       return (
-                        <View key={idx} style={styles.splitRow}>
+                        <View key={String(idx)} style={styles.splitRow}>
                           <View style={styles.splitRowLeft}>
                             <View style={[styles.splitIndicator, { backgroundColor: isPaid ? Theme.success : isCancelled ? Theme.danger : Theme.warning }]} />
                             <Text style={styles.splitPaymodeText}>{p.payMode.toUpperCase()}</Text>
@@ -807,11 +807,11 @@ export default function CustomerDisplayContent() {
               showsVerticalScrollIndicator={false}
               style={styles.receiptItemsScroll}
             >
-              {displayState.items.map((item, idx) => {
-                const allItemsHaveSC = displayState.items.every(i => (Number(i.isServiceCharge) === 1 || i.isServiceCharge === true));
+              {displayState.items.map((item: any, idx: number) => {
+                const allItemsHaveSC = displayState.items.every((i: any) => (Number(i.isServiceCharge) === 1 || i.isServiceCharge === true));
                 return (
                   <View
-                    key={`${item.lineItemId}-${idx}`}
+                    key={String(item.lineItemId ? `${item.lineItemId}-${idx}` : idx)}
                     style={[
                       styles.receiptItemRow,
                       item.isVoided && styles.voidedRow,
@@ -850,7 +850,7 @@ export default function CustomerDisplayContent() {
                           const price = Number(m.Price || m.price || m.Amount || m.amount || 0);
                           const symbol = companySettings.currencySymbol || "$";
                           return (
-                            <Text key={mIdx} style={styles.receiptItemModifier}>
+                            <Text key={String(mIdx)} style={styles.receiptItemModifier}>
                               + {m.ModifierName}
                               {price > 0 ? ` (+${symbol}${price.toFixed(2)})` : ""}
                             </Text>
@@ -933,7 +933,7 @@ export default function CustomerDisplayContent() {
                 {displayState.serviceChargeAmount && displayState.serviceChargeAmount > 0 ? (
                   <View style={styles.breakdownItem}>
                     <Text style={styles.breakdownLabel}>
-                      {displayState.items.every(i => (Number(i.isServiceCharge) === 1 || i.isServiceCharge === true)) ? "Service Charge" : "Item Service Charge"} ({displayState.serviceChargePercentage || 0}%)
+                      {displayState.items.every((i: any) => (Number(i.isServiceCharge) === 1 || i.isServiceCharge === true)) ? "Service Charge" : "Item Service Charge"} ({displayState.serviceChargePercentage || 0}%)
                     </Text>
                     <Text style={styles.breakdownValue}>
                       {companySettings.currencySymbol || "$"}
@@ -1009,7 +1009,7 @@ export default function CustomerDisplayContent() {
         </TouchableOpacity>
       )}
       {/* Floating popping food animations */}
-      {floatingFoods.map((item) => (
+      {floatingFoods.map((item: any) => (
         <Animated.View
           key={item.id}
           style={[
@@ -1322,40 +1322,40 @@ const styles = StyleSheet.create({
 
   // Unipro Footers
   uniproFooterContainer: {
-    backgroundColor: Theme.bgNav,
-    borderWidth: 1.5,
-    borderColor: Theme.border,
-    borderRadius: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
     marginTop: 16,
-    elevation: 2,
+    elevation: 3,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.02,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
   },
   uniproLogoImage: {
-    width: 280,
-    height: 80,
+    width: 220,
+    height: 60,
   },
   idleUniproFooter: {
-    backgroundColor: Theme.bgNav,
-    borderWidth: 1.5,
-    borderColor: Theme.border,
-    borderRadius: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 24,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 36,
     alignItems: "center",
     justifyContent: "center",
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
   },
 
   // Right column

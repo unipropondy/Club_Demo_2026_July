@@ -59,8 +59,6 @@ async function getArtistSales(pool, artistDishId, artistName, fromDate, toDate) 
     DECLARE @sgtStart DATETIME = CAST(@fromDate AS DATETIME);
     DECLARE @sgtEnd   DATETIME = DATEADD(DAY, 1, CAST(@toDate AS DATETIME));
 
-    -- Source 1: App POS settlements (join with DishMaster to verify IsSplitDish = 1)
-    -- NOTE: Excludes CASHBOX OrderType headers — those are counted in Source 3 (ArtistCashBox)
     WITH AppSales AS (
       SELECT
         ISNULL(SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
@@ -85,7 +83,6 @@ async function getArtistSales(pool, artistDishId, artistName, fromDate, toDate) 
         AND d.IsActive = 1
         AND d.DishId = @artistDishId
     ),
-    -- Source 2: Professional POS (join with DishMaster to verify IsSplitDish = 1)
     ProfSales AS (
       SELECT
         ISNULL(SUM(CASE WHEN rod.StatusCode <> 0
@@ -108,7 +105,6 @@ async function getArtistSales(pool, artistDishId, artistName, fromDate, toDate) 
           SELECT 1 FROM SettlementHeader sh_dup WHERE sh_dup.BillNo = ro.OrderNumber
         )
     ),
-    -- Source 3: Direct Cash Box entries
     CashBoxSales AS (
       SELECT ISNULL(SUM(Amount), 0) AS total
       FROM ArtistCashBox
@@ -126,6 +122,93 @@ async function getArtistSales(pool, artistDishId, artistName, fromDate, toDate) 
   `);
 
   return Number(result.recordset[0]?.TotalSales) || 0;
+}
+
+/** Fetch sales for ALL active artists in a single optimized bulk query */
+async function bulkGetArtistSales(pool, fromDate, toDate) {
+  const request = pool.request();
+  request.input('fromDate', sql.Date, fromDate);
+  request.input('toDate', sql.Date, toDate);
+
+  const result = await request.query(`
+    DECLARE @sgtStart DATETIME = CAST(@fromDate AS DATETIME);
+    DECLARE @sgtEnd   DATETIME = DATEADD(DAY, 1, CAST(@toDate AS DATETIME));
+
+    WITH AppSales AS (
+      SELECT
+        d.DishId,
+        ISNULL(SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
+                        THEN CAST(ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0) AS DECIMAL(18,2))
+                        ELSE 0 END), 0) AS total
+      FROM SettlementHeader sh
+      INNER JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID
+      INNER JOIN DishMaster d ON (
+        sid.DishId = d.DishId 
+        OR LTRIM(RTRIM(sid.DishName)) = d.Name
+        OR sid.DishName LIKE '%' + d.Name + '%'
+      )
+      WHERE sh.IsCancelled = 0
+        AND ISNULL(sh.OrderType, '') <> 'CASHBOX'
+        AND (
+          (sh.start_date IS NOT NULL AND sh.start_date >= @fromDate AND sh.start_date <= @toDate)
+          OR
+          (sh.start_date IS NULL AND sh.LastSettlementDate >= @sgtStart AND sh.LastSettlementDate < @sgtEnd)
+        )
+        AND d.IsSplitDish = 1
+        AND d.IsGroupDish = 0
+        AND d.IsActive = 1
+      GROUP BY d.DishId
+    ),
+    ProfSales AS (
+      SELECT
+        d.DishId,
+        ISNULL(SUM(CASE WHEN rod.StatusCode <> 0
+                        THEN CAST(ISNULL(rod.TotalDetailLineAmount, 0) AS DECIMAL(18,2))
+                        ELSE 0 END), 0) AS total
+      FROM RestaurantOrderDetail rod
+      INNER JOIN RestaurantOrder ro ON rod.OrderId = ro.OrderId
+      INNER JOIN DishMaster d ON rod.DishId = d.DishId
+      WHERE ISNULL(ro.StatusCode, 0) = 3
+        AND (
+          (ro.start_date IS NOT NULL AND ro.start_date >= @fromDate AND ro.start_date <= @toDate)
+          OR
+          (ro.start_date IS NULL AND ro.OrderDateTime >= @sgtStart AND ro.OrderDateTime < @sgtEnd)
+        )
+        AND d.IsSplitDish = 1
+        AND d.IsGroupDish = 0
+        AND d.IsActive = 1
+        AND NOT EXISTS (
+          SELECT 1 FROM SettlementHeader sh_dup WHERE sh_dup.BillNo = ro.OrderNumber
+        )
+      GROUP BY d.DishId
+    ),
+    CashBoxSales AS (
+      SELECT 
+        d.DishId,
+        ISNULL(SUM(acb.Amount), 0) AS total
+      FROM ArtistCashBox acb
+      INNER JOIN DishMaster d ON LTRIM(RTRIM(d.Name)) = LTRIM(RTRIM(acb.ArtistName))
+      WHERE d.IsSplitDish = 1
+        AND d.IsGroupDish = 0
+        AND d.IsActive = 1
+        AND (
+          (acb.start_date IS NOT NULL AND acb.start_date >= @fromDate AND acb.start_date <= @toDate)
+          OR
+          (acb.start_date IS NULL AND CAST(acb.CreatedDate AS DATE) >= @fromDate AND CAST(acb.CreatedDate AS DATE) <= @toDate)
+        )
+      GROUP BY d.DishId
+    )
+    SELECT 
+      d.DishId,
+      d.Name,
+      ISNULL(a.total, 0) + ISNULL(p.total, 0) + ISNULL(c.total, 0) AS TotalSales
+    FROM DishMaster d
+    LEFT JOIN AppSales a ON d.DishId = a.DishId
+    LEFT JOIN ProfSales p ON d.DishId = p.DishId
+    LEFT JOIN CashBoxSales c ON d.DishId = c.DishId
+    WHERE d.IsSplitDish = 1 AND d.IsGroupDish = 0 AND d.IsActive = 1
+  `);
+  return result.recordset;
 }
 
 /** Calculate bonus given sales, threshold, bonus amount, and repeating flag */
@@ -162,54 +245,47 @@ async function syncActiveDayTransactions(pool, specificArtistDishId = null) {
     const globalRule = ruleRes.recordset[0];
     if (!globalRule) return;
 
-    // 2. Fetch artist(s)
-    let artists = [];
+    // 2. Fetch artist sales
+    let artistSales = [];
     if (specificArtistDishId) {
       const artistRes = await pool.request()
         .input('dishId', sql.UniqueIdentifier, specificArtistDishId)
         .query("SELECT DishId, Name FROM DishMaster WHERE DishId = @dishId AND IsActive = 1 AND IsSplitDish = 1 AND IsGroupDish = 0");
-      artists = artistRes.recordset;
+      if (artistRes.recordset.length > 0) {
+        const singleSales = await getArtistSales(pool, specificArtistDishId, artistRes.recordset[0].Name, activeDay, activeDay);
+        artistSales = [{ DishId: specificArtistDishId, Name: artistRes.recordset[0].Name, TotalSales: singleSales }];
+      }
     } else {
-      const artistsResult = await pool.request().query(`
-        SELECT DishId, Name FROM DishMaster
-        WHERE IsSplitDish = 1 AND IsGroupDish = 0 AND IsActive = 1
-      `);
-      artists = artistsResult.recordset;
+      artistSales = await bulkGetArtistSales(pool, activeDay, activeDay);
     }
 
-    for (const artist of artists) {
-      // Check override rule
-      const artistRuleRes = await pool.request()
-        .input('dishId', sql.UniqueIdentifier, artist.DishId)
-        .query(`
-          SELECT TOP 1 Id, ThresholdAmount, BonusAmount, IsRepeating
-          FROM ArtistBonusMaster
-          WHERE IsActive = 1 AND ArtistDishId = @dishId
-          ORDER BY CreatedDate DESC
-        `);
-      const rule = artistRuleRes.recordset[0] || globalRule;
+    // 3. Fetch all active artist overrides to avoid querying inside loop
+    const overridesRes = await pool.request().query(`
+      SELECT ArtistDishId, ThresholdAmount, BonusAmount, IsRepeating
+      FROM ArtistBonusMaster
+      WHERE IsActive = 1 AND ArtistDishId IS NOT NULL
+    `);
+    const overridesMap = new Map(overridesRes.recordset.map(o => [o.ArtistDishId.toLowerCase(), o]));
 
-      // Get live sales for the active day
-      const totalSales = await getArtistSales(pool, artist.DishId, artist.Name, activeDay, activeDay);
+    // 4. Fetch existing transactions for activeDay to avoid querying inside loop
+    const existingTxnsRes = await pool.request()
+      .input('activeDay', sql.Date, activeDay)
+      .query(`
+        SELECT Id, ArtistDishId, TotalSales, BonusEarned 
+        FROM ArtistBonusTransaction 
+        WHERE CAST(SalesFromDate AS DATE) = @activeDay
+          AND CAST(SalesToDate AS DATE) = @activeDay
+      `);
+    const existingTxnsMap = new Map(existingTxnsRes.recordset.map(t => [t.ArtistDishId.toLowerCase(), t]));
 
-      // Calculate bonus
+    for (const artist of artistSales) {
+      const rule = overridesMap.get(artist.DishId.toLowerCase()) || globalRule;
+      const totalSales = artist.TotalSales;
       const bonusEarned = calculateBonus(totalSales, rule.ThresholdAmount, rule.BonusAmount, rule.IsRepeating);
 
-      // Check if transaction already exists for this active day
-      const checkRes = await pool.request()
-        .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
-        .input('activeDay', sql.Date, activeDay)
-        .query(`
-          SELECT Id, TotalSales, BonusEarned 
-          FROM ArtistBonusTransaction 
-          WHERE ArtistDishId = @artistDishId 
-            AND CAST(SalesFromDate AS DATE) = @activeDay
-            AND CAST(SalesToDate AS DATE) = @activeDay
-        `);
+      const existingTxn = existingTxnsMap.get(artist.DishId.toLowerCase());
 
-      if (checkRes.recordset.length > 0) {
-        const existingTxn = checkRes.recordset[0];
-        // If sales or bonus changed, update the existing record
+      if (existingTxn) {
         if (Number(existingTxn.TotalSales) !== totalSales || Number(existingTxn.BonusEarned) !== bonusEarned) {
           await pool.request()
             .input('id', sql.UniqueIdentifier, existingTxn.Id)
@@ -223,7 +299,6 @@ async function syncActiveDayTransactions(pool, specificArtistDishId = null) {
             `);
         }
       } else {
-        // Only insert if totalSales > 0 to avoid empty/unused draft transaction entries
         if (totalSales > 0) {
           const newId = crypto.randomUUID();
           await pool.request()
@@ -373,6 +448,8 @@ router.delete('/master/:id', async (req, res) => {
 
 // GET /api/artist-bonus/sales-summary?fromDate=&toDate=
 // If no dates provided, defaults to the active business day (StartDate from DateEntry).
+// GET /api/artist-bonus/sales-summary?fromDate=&toDate=
+// If no dates provided, defaults to the active business day (StartDate from DateEntry).
 router.get('/sales-summary', async (req, res) => {
   try {
     const pool = getPool();
@@ -405,13 +482,8 @@ router.get('/sales-summary', async (req, res) => {
     const activeDayStr = activeDay || today;
     const isActiveDayView = fromStr === activeDayStr && toStr === activeDayStr;
 
-    // Get all active artist dishes
-    const artistsResult = await pool.request().query(`
-      SELECT DishId, Name FROM DishMaster
-      WHERE IsActive = 1 AND IsSplitDish = 1 AND IsGroupDish = 0
-      ORDER BY Name
-    `);
-    const artists = artistsResult.recordset;
+    // 1. Get all live sales in a single optimized bulk query
+    const artistListSales = await bulkGetArtistSales(pool, fromStr, toStr);
 
     // Get active bonus master rule (global)
     const ruleRes = await pool.request().query(`
@@ -421,71 +493,75 @@ router.get('/sales-summary', async (req, res) => {
     `);
     const globalRule = ruleRes.recordset[0] || null;
 
-    // For each artist, dynamically calculate live actual sales + fetch calculated bonus ledger totals
-    const artistList = await Promise.all(artists.map(async (artist) => {
-      const totalSales = await getArtistSales(pool, artist.DishId, artist.Name, fromStr, toStr);
+    // 2. Fetch overrides in bulk
+    const overridesRes = await pool.request().query(`
+      SELECT ArtistDishId, ThresholdAmount, BonusAmount, IsRepeating
+      FROM ArtistBonusMaster
+      WHERE IsActive = 1 AND ArtistDishId IS NOT NULL
+    `);
+    const overridesMap = new Map(overridesRes.recordset.map(o => [o.ArtistDishId.toLowerCase(), o]));
 
-      // Get calculated bonus earned from transactions
-      const txnRes = await pool.request()
-        .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
-        .input('fromDate', sql.Date, fromStr)
-        .input('toDate', sql.Date, toStr)
-        .query(`
-          SELECT SUM(BonusEarned) AS BonusEarned
-          FROM ArtistBonusTransaction
-          WHERE ArtistDishId = @artistDishId
-            AND CAST(SalesFromDate AS DATE) >= @fromDate
+    // 3. Fetch period transactions in bulk
+    const periodTxnsRes = await pool.request()
+      .input('fromDate', sql.Date, fromStr)
+      .input('toDate', sql.Date, toStr)
+      .query(`
+        SELECT ArtistDishId, SUM(BonusEarned) AS BonusEarned
+        FROM ArtistBonusTransaction
+        WHERE CAST(SalesFromDate AS DATE) >= @fromDate
+          AND CAST(SalesToDate   AS DATE) <= @toDate
+        GROUP BY ArtistDishId
+      `);
+    const periodTxnsMap = new Map(periodTxnsRes.recordset.map(t => [t.ArtistDishId.toLowerCase(), Number(t.BonusEarned) || 0]));
+
+    // 4. Fetch period payments in bulk
+    const periodPaysRes = await pool.request()
+      .input('fromDate', sql.Date, fromStr)
+      .input('toDate', sql.Date, toStr)
+      .query(`
+        SELECT abp.ArtistDishId, ISNULL(SUM(abp.PaymentAmount), 0) AS PeriodPaid
+        FROM ArtistBonusPayment abp
+        WHERE abp.BonusTransactionId IN (
+          SELECT Id FROM ArtistBonusTransaction
+          WHERE CAST(SalesFromDate AS DATE) >= @fromDate
             AND CAST(SalesToDate   AS DATE) <= @toDate
-        `);
+        )
+        GROUP BY abp.ArtistDishId
+      `);
+    const periodPaysMap = new Map(periodPaysRes.recordset.map(p => [p.ArtistDishId.toLowerCase(), Number(p.PeriodPaid) || 0]));
 
-      // Get total payments associated with transactions from this date range
-      const payRes = await pool.request()
-        .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
-        .input('fromDate', sql.Date, fromStr)
-        .input('toDate', sql.Date, toStr)
-        .query(`
-          SELECT ISNULL(SUM(PaymentAmount), 0) AS PeriodPaid
-          FROM ArtistBonusPayment
-          WHERE ArtistDishId = @artistDishId
-            AND BonusTransactionId IN (
-              SELECT Id FROM ArtistBonusTransaction
-              WHERE ArtistDishId = @artistDishId
-                AND CAST(SalesFromDate AS DATE) >= @fromDate
-                AND CAST(SalesToDate   AS DATE) <= @toDate
-            )
-        `);
+    // 5. Fetch lifetime totals in bulk
+    const lifetimeEarnedRes = await pool.request().query(`
+      SELECT ArtistDishId, ISNULL(SUM(BonusEarned), 0) AS LifetimeEarned
+      FROM ArtistBonusTransaction
+      GROUP BY ArtistDishId
+    `);
+    const lifetimeEarnedMap = new Map(lifetimeEarnedRes.recordset.map(l => [l.ArtistDishId.toLowerCase(), Number(l.LifetimeEarned) || 0]));
 
-      const bonusEarned = Number(txnRes.recordset[0]?.BonusEarned) || 0;
-      const bonusPaid   = Number(payRes.recordset[0]?.PeriodPaid) || 0;
+    const lifetimePaidRes = await pool.request().query(`
+      SELECT ArtistDishId, ISNULL(SUM(PaymentAmount), 0) AS LifetimePaid
+      FROM ArtistBonusPayment
+      GROUP BY ArtistDishId
+    `);
+    const lifetimePaidMap = new Map(lifetimePaidRes.recordset.map(l => [l.ArtistDishId.toLowerCase(), Number(l.LifetimePaid) || 0]));
 
-      // Get overall lifetime outstanding balance
-      const ledgerRes = await pool.request()
-        .input('artistDishId', sql.UniqueIdentifier, artist.DishId)
-        .query(`
-          SELECT 
-            (SELECT ISNULL(SUM(BonusEarned), 0) FROM ArtistBonusTransaction WHERE ArtistDishId = @artistDishId) AS LifetimeEarned,
-            (SELECT ISNULL(SUM(PaymentAmount), 0) FROM ArtistBonusPayment WHERE ArtistDishId = @artistDishId) AS LifetimePaid
-        `);
-      const lifetimeEarned = Number(ledgerRes.recordset[0]?.LifetimeEarned) || 0;
-      const lifetimePaid   = Number(ledgerRes.recordset[0]?.LifetimePaid) || 0;
+    const artistList = artistListSales.map((artist) => {
+      const dishIdKey = artist.DishId.toLowerCase();
+      const totalSales = Number(artist.TotalSales) || 0;
 
-      // Fetch rule override or global rule to calculate expected/estimated bonus on the fly
-      const artistRuleRes = await pool.request()
-        .input('dishId', sql.UniqueIdentifier, artist.DishId)
-        .query(`
-          SELECT TOP 1 ThresholdAmount, BonusAmount, IsRepeating
-          FROM ArtistBonusMaster
-          WHERE IsActive = 1 AND (ArtistDishId = @dishId OR ArtistDishId IS NULL)
-          ORDER BY CASE WHEN ArtistDishId IS NOT NULL THEN 0 ELSE 1 END, CreatedDate DESC
-        `);
-      const rule = artistRuleRes.recordset[0] || globalRule;
+      const bonusEarned = periodTxnsMap.get(dishIdKey) || 0;
+      const bonusPaid   = periodPaysMap.get(dishIdKey) || 0;
+
+      const lifetimeEarned = lifetimeEarnedMap.get(dishIdKey) || 0;
+      const lifetimePaid   = lifetimePaidMap.get(dishIdKey) || 0;
+
+      const rule = overridesMap.get(dishIdKey) || globalRule;
       let expectedBonus = 0;
       let thresholdAmount = rule ? Number(rule.ThresholdAmount) : 0;
       if (rule) {
         expectedBonus = calculateBonus(totalSales, rule.ThresholdAmount, rule.BonusAmount, rule.IsRepeating);
       }
 
-      // If no finalized transaction exists yet, display the expected draft values
       const finalEarned = bonusEarned || expectedBonus;
       const pendingBonus = Math.max(0, finalEarned - bonusPaid);
 
@@ -515,7 +591,7 @@ router.get('/sales-summary', async (req, res) => {
         progressPct,
         remainingToThreshold,
       };
-    }));
+    });
 
     // Summary cards
     const totalArtistSales  = artistList.reduce((s, a) => s + a.totalSales, 0);

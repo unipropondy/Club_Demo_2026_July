@@ -917,6 +917,8 @@ const CartItemRow = React.memo(
       prev.item.isTakeaway === next.item.isTakeaway &&
       prev.item.note === next.item.note &&
       prev.item.discount === next.item.discount &&
+      prev.item.discountAmount === next.item.discountAmount &&
+      prev.item.discountType === next.item.discountType &&
       JSON.stringify(prev.item.modifiers) === JSON.stringify(next.item.modifiers)
     );
   },

@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -799,7 +799,7 @@ const fetchDayHistory = async () => {
 
   const sysCash = salesCash + transactionsTotal;
 
-  const totalCashIn = salesCash + displayOpeningAmount + totalCashInEntries + transactions.filter(t => t.TransactionType === "IN").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
+  const totalCashIn = paymentsTotal + displayOpeningAmount + totalCashInEntries + transactions.filter(t => t.TransactionType === "IN").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
   const totalCashOutSum = totalCashOut + transactions.filter(t => t.TransactionType === "OUT").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
 
   const handleFinalize = async () => {
@@ -1896,10 +1896,10 @@ const fetchDayHistory = async () => {
                     return (
                       <View key={`pay-${i}`} style={styles.tableRow}>
                         <Text style={[styles.tableCellText, { flex: 2 }]}>{p.PaymodeName}</Text>
-                        <Text style={[styles.tableCellText, { flex: 1, textAlign: "right", color: isCash ? Theme.success : Theme.textSecondary }]}>
-                          {isCash ? `+${formatCurrency(p.Amount)}` : "0.00"}
+                        <Text style={[styles.tableCellText, { flex: 1, textAlign: "right", color: isCash ? Theme.success : Theme.textPrimary }]}>
+                          {`+${formatCurrency(p.Amount)}`}
                         </Text>
-                  <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}></Text>
+                        <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}>0.00</Text>
                       </View>
                     );
                   })}

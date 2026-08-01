@@ -445,7 +445,7 @@ private static escapeHtml(str: string): string {
             <tr>
                 <td class="item-name">
                     ${item.name || item.DishName || ''}
-                    ${item.songName || item.SongName ? `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">🎵 ${item.songName || item.SongName}</div>` : ''}
+                    ${item.songName || item.SongName ? `<div style="font-size: 7.5px; color: #555; font-style: italic; margin-top: 0.3mm;">🎵 ${item.songName || item.SongName}</div>` : ''}
                     ${(Number(item.isServiceCharge) === 1 || item.isServiceCharge === true) && !allItemsHaveSC ? `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">[Service Charge ${company.serviceChargePercentage}%]</div>` : ''}
                     ${modifiersHTML}
                     ${comboSelectionsHTML}
@@ -882,6 +882,22 @@ private static escapeHtml(str: string): string {
               `}
             `}
           </div>
+
+          <!-- 🏆 Reward points summary lines -->
+          ${saleData.rewardPointsEarned && parseFloat(String(saleData.rewardPointsEarned)) > 0 ? `
+            <div style="border-top: 1px dashed #ccc; margin-top: 2mm; padding-top: 2mm; margin-bottom: 2mm; font-size: 10px; font-weight: 700; font-family: monospace;">
+              <div style="display: flex; justify-content: space-between;">
+                <span>Points Earned:</span>
+                <span>+${currencySymbol}${parseFloat(String(saleData.rewardPointsEarned)).toFixed(2)}</span>
+              </div>
+              ${saleData.memberRewardBalance && parseFloat(String(saleData.memberRewardBalance)) > 0 ? `
+                <div style="display: flex; justify-content: space-between; margin-top: 1px;">
+                  <span>Member Credit Balance:</span>
+                  <span>${currencySymbol}${parseFloat(String(saleData.memberRewardBalance)).toFixed(2)}</span>
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
           
           <!-- Footer -->
           <div class="footer">

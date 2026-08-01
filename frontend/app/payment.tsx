@@ -124,6 +124,7 @@ export default function PaymentScreen() {
   const memberPhone = params.memberPhone as string | undefined;
   const isMember = params.isMember === "true";
   const isLedgerCollection = !!memberId;
+  const rewardMemberId = params.rewardMemberId as string | undefined;
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "cancelled" | "failed">("idle");
   const [paymentMessage, setPaymentMessage] = useState("");
   const allocationsParam = useMemo(() => {
@@ -181,8 +182,26 @@ export default function PaymentScreen() {
         }
       };
       fetchMemberDetails();
+    } else if (rewardMemberId) {
+      const fetchRewardMemberDetails = async () => {
+        try {
+          const res = await fetch(`${API_URL}/api/members/search?query=${encodeURIComponent(rewardMemberId)}`, {
+            headers: useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {},
+          });
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            const match = data.find((m: any) => m.MemberId.toLowerCase() === rewardMemberId.toLowerCase());
+            if (match) {
+              setSelectedMember(match);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load details for reward customer in payment screen:", err);
+        }
+      };
+      fetchRewardMemberDetails();
     }
-  }, [memberId, isMember]);
+  }, [memberId, isMember, rewardMemberId]);
 
   const isLandscape = width > height;
   const isTablet = Math.min(width, height) >= 500;
@@ -1273,6 +1292,9 @@ export default function PaymentScreen() {
               waiterName: user?.userName || "Cashier",
               isLedgerCollection: "true",
               isMember: isMember ? "true" : "false",
+              rewardPointsEarned: String(result.rewardPointsEarned || "0"),
+              memberRewardBalance: String(result.memberRewardBalance || "0"),
+              mobileNo: memberPhone || selectedMember?.Phone || "",
             },
           });
         } else {
@@ -1336,7 +1358,7 @@ export default function PaymentScreen() {
       totalAmount: total,
       paymentMethod: payments && payments.length > 0 ? "SPLIT" : method.trim(),
       payments: payments || null,
-      memberId: memberOverride?.MemberId || selectedMember?.MemberId || null,
+      memberId: memberOverride?.MemberId || selectedMember?.MemberId || rewardMemberId || null,
       roundOff: displayedRoundOff,
       cashierId: user?.userId,
       tableId: context?.tableId,
@@ -1366,7 +1388,39 @@ export default function PaymentScreen() {
       });
       const result = await response.json();
       if (result.success) {
+        // 🏆 REWARD REDEMPTION SYNC:
+        // If a discount from a reward member was applied, deduct it from their backend wallet balance.
+        // selectedMemId falls back to rewardMemberId (passed as param from summary screen)
+        // in case the async member search didn't resolve before checkout was triggered.
+        const selectedMemId = memberOverride?.MemberId || selectedMember?.MemberId || rewardMemberId || null;
+        console.log(`[REWARD REDEMPTION CHECK] selectedMemId=${selectedMemId}, discountApplied=${discount?.applied}, label=${discount?.label}, discountAmount=${discountAmount}`);
+        if (selectedMemId && discount?.applied && discount.label?.startsWith("Reward:") && discountAmount > 0) {
+          try {
+            console.log(`[REWARD REDEMPTION] Deducting redeemed points from wallet for member: ${selectedMemId}, amount: ${discountAmount}`);
+            const redeemRes = await fetch(`${API_URL}/api/rewards/redeem`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(useAuthStore.getState().token ? { "Authorization": `Bearer ${useAuthStore.getState().token}` } : {})
+              },
+              body: JSON.stringify({
+                memberId: selectedMemId,
+                amount: discountAmount,
+                billNo: result.billNo || result.orderId || displayOrderId || "",
+                billAmount: total
+              })
+            });
+            const redeemData = await redeemRes.json();
+            console.log(`[REWARD REDEMPTION] Result:`, redeemData);
+          } catch (redeemErr: any) {
+            console.warn("⚠️ [REWARD REDEMPTION ERROR] Failed to sync reward deduction:", redeemErr?.message || redeemErr);
+          }
+        } else if (discount?.applied && discount.label?.startsWith("Reward:") && discountAmount > 0) {
+          console.warn("[REWARD REDEMPTION] SKIPPED — no memberId resolved. rewardMemberId param:", rewardMemberId);
+        }
+
         // Navigate first — let the success screen mount fully before mutating store state
+
         router.push({
           pathname: "/payment_success" as any,
           params: {
@@ -1393,6 +1447,9 @@ export default function PaymentScreen() {
             takeawayCharge: currentTakeawayCharge.toFixed(2),
             isSplit: splitItems ? "true" : "false",
             waiterName: context?.serverName ?? "",
+            rewardPointsEarned: String(result.rewardPointsEarned || "0"),
+            memberRewardBalance: String(result.memberRewardBalance || "0"),
+            mobileNo: loyaltyPhone || "",
           },
         });
         // Snapshot context/splitItems before the delayed cleanup

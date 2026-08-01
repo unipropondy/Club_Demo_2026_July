@@ -339,6 +339,7 @@ type CartState = {
       discountAmount?: number;
       discountType?: string;
       isVoided?: boolean;
+      isTakeaway?: boolean;
     },
   ) => void;
   applyBulkItemDiscount: (value: number, type: "percentage" | "fixed") => void;
@@ -947,7 +948,7 @@ export const useCartStore = create<CartState>()(
               [currentContextId]: updatedCart
             },
             cartQtyMap: { ...state.cartQtyMap, [currentContextId]: newQtyMap },
-            lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
+            lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() - 1000 }
           };
         });
 
@@ -1011,7 +1012,7 @@ export const useCartStore = create<CartState>()(
             ...state.carts,
             [currentContextId]: updateCartItemInArray(state.carts[currentContextId] || [], lineItemId, { isTakeaway }),
           },
-          lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
+          lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() - 1000 }
         }));
 
         const tableId = useOrderContextStore.getState().currentOrder?.tableId;
@@ -1036,7 +1037,7 @@ export const useCartStore = create<CartState>()(
             ...state.carts,
             [currentContextId]: updateCartItemInArray(state.carts[currentContextId] || [], lineItemId, { discount }),
           },
-          lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
+          lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() - 1000 }
         }));
 
         const tableId = useOrderContextStore.getState().currentOrder?.tableId;
@@ -1078,8 +1079,6 @@ export const useCartStore = create<CartState>()(
           // 🚀 SURGICAL: Recompute only if qty changed
           const newQtyMap = { ...(state.cartQtyMap[currentContextId] || {}) };
           if (updates.qty !== undefined) {
-             // Reset qty map for this context and recompute
-             // (More robust than partial updates for nested items)
              const tempMap: Record<string, number> = {};
              updatedCart.forEach(i => {
                 tempMap[i.id] = (tempMap[i.id] || 0) + (i.qty || 0);
@@ -1087,13 +1086,13 @@ export const useCartStore = create<CartState>()(
              return {
                 carts: { ...state.carts, [currentContextId]: updatedCart },
                 cartQtyMap: { ...state.cartQtyMap, [currentContextId]: tempMap },
-                lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
+                lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() - 1000 }
              };
           }
 
           return {
             carts: { ...state.carts, [currentContextId]: updatedCart },
-            lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
+            lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() - 1000 }
           };
         });
         
@@ -1286,7 +1285,7 @@ export const useCartStore = create<CartState>()(
             if (__DEV__) console.log(`[TRACE] [${now}] [${currentContext}] fetchCartFromDB: START | Table: ${tableId} | LastEdit: ${timeSinceLastEdit}ms ago`);
 
             // 🛡️ DYNAMIC SHIELD: Latency protection
-            if (timeSinceLastEdit < 600 || lastEdit > fetchStartTime) {
+            if (timeSinceLastEdit < 1500 || lastEdit > fetchStartTime) {
                if (__DEV__) console.log(`🛡️ [TRACE] [${now}] [${currentContext}] fetchCartFromDB: ABORTED (Latency Shield)`);
                return;
             }
@@ -1365,7 +1364,7 @@ export const useCartStore = create<CartState>()(
               // 🛡️ SYNC SHIELD: If we have a local version that was modified recently,
               // we MUST preserve the local Qty/Note/TW even for SENT items.
               const timeSinceLastEdit = now - (state.lastLocalUpdate[resolvedContextId!] || 0);
-              const isRecentlyEdited = timeSinceLastEdit < 5000; // 🛡️ Increased to 5s for slower networks
+              const isRecentlyEdited = timeSinceLastEdit < 12000; // 🛡️ Increased to 12s to shield latency on slower connections
 
               if (localMatch && (localMatch.status === 'NEW' || !localMatch.status || isRecentlyEdited)) {
                 // Determine the most "advanced" status (SENT is more advanced than NEW)

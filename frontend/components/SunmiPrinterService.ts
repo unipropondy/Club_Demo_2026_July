@@ -611,6 +611,14 @@ class SunmiPrinterService {
       await SunmiModule.printText(formatter.doubleDivider("="));
 
       // ============ PAYMENT ============
+      if (saleData.rewardPointsEarned && parseFloat(String(saleData.rewardPointsEarned)) > 0) {
+        await SunmiModule.printText(formatter.twoCols("Points Earned:", `+${symbol}${parseFloat(String(saleData.rewardPointsEarned)).toFixed(2)}`));
+        if (saleData.memberRewardBalance && parseFloat(String(saleData.memberRewardBalance)) > 0) {
+          await SunmiModule.printText(formatter.twoCols("Member Credit:", `${symbol}${parseFloat(String(saleData.memberRewardBalance)).toFixed(2)}`));
+        }
+        await SunmiModule.printText(formatter.divider("-"));
+      }
+
       if (saleData.isCheckout) {
         await SunmiModule.printText(formatter.center("PAYMENT STATUS: PENDING"));
       } else {

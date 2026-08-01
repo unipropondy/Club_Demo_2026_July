@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { format } from "date-fns";
@@ -4701,7 +4701,7 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.border,
     marginVertical: 12,
   },
-  itemsList: { maxHeight: 220 },
+  itemsList: { maxHeight: 320 },
   orderItemRow: {
     flexDirection: "row",
     alignItems: "center",

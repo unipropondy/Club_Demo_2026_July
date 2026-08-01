@@ -601,7 +601,6 @@ router.get("/receivables/aging", async (req, res) => {
       LEFT JOIN BillBalances b ON m.MemberId = b.MemberId
       WHERE m.IsActive = 1
       GROUP BY m.MemberId, m.Name, m.Phone, m.CustomerType
-      HAVING ISNULL(SUM(b.NetOutstanding), 0) > 0
       ORDER BY m.Name
     `;
     

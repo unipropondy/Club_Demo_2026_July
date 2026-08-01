@@ -59,6 +59,16 @@ export default function ArtistBonusMasterScreen() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
 
+  // Custom Confirm Dialog States
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText: string;
+    isDestructive?: boolean;
+  } | null>(null);
+
   const fetchRules = useCallback(async () => {
     try {
       setLoading(true);
@@ -173,20 +183,14 @@ export default function ArtistBonusMasterScreen() {
       }
     };
 
-    if (Platform.OS === "web") {
-      if (window.confirm(`${title}\n\n${msg}`)) {
-        executeChange();
-      }
-    } else {
-      Alert.alert(title, msg, [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: rule.IsActive ? "Deactivate" : "Activate",
-          style: rule.IsActive ? "destructive" : "default",
-          onPress: executeChange,
-        },
-      ]);
-    }
+    setConfirmConfig({
+      title,
+      message: msg,
+      onConfirm: executeChange,
+      confirmText: rule.IsActive ? "Deactivate" : "Activate",
+      isDestructive: rule.IsActive,
+    });
+    setShowConfirmModal(true);
   };
 
   const previewRows = (threshold: number, bonus: number, isRepeating: boolean) => {
@@ -382,6 +386,46 @@ export default function ArtistBonusMasterScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Custom Confirmation Modal */}
+      <Modal visible={showConfirmModal} transparent animationType="fade" onRequestClose={() => setShowConfirmModal(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.alertCard}>
+            <View style={[styles.alertIconBg, confirmConfig?.isDestructive && { backgroundColor: "rgba(220,38,38,0.15)" }]}>
+              <Ionicons
+                name={confirmConfig?.isDestructive ? "close-circle" : "checkmark-circle"}
+                size={36}
+                color={confirmConfig?.isDestructive ? "#DC2626" : "#16A34A"}
+              />
+            </View>
+            <Text style={styles.alertTitle}>{confirmConfig?.title}</Text>
+            <Text style={styles.alertMessage}>{confirmConfig?.message}</Text>
+
+            <View style={styles.alertActions}>
+              <TouchableOpacity
+                style={[styles.alertBtn, styles.cancelBtn]}
+                onPress={() => setShowConfirmModal(false)}
+              >
+                <Text style={styles.btnLabel}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.alertBtn,
+                  confirmConfig?.isDestructive ? styles.confirmDeleteBtn : { backgroundColor: "#16A34A" },
+                ]}
+                onPress={() => {
+                  setShowConfirmModal(false);
+                  confirmConfig?.onConfirm();
+                }}
+              >
+                <Text style={[styles.btnLabel, { color: "#FFF" }]}>
+                  {confirmConfig?.confirmText}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -464,4 +508,15 @@ const styles = StyleSheet.create({
   cancelBtnText: { fontFamily: Fonts.bold, fontSize: 15, color: Theme.textSecondary },
   saveBtn: { flex: 2, paddingVertical: 14, borderRadius: 12, backgroundColor: Theme.primary, alignItems: "center" },
   saveBtnText: { fontFamily: Fonts.bold, fontSize: 15, color: "#fff" },
+
+  // Alert Dialog Styles
+  pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "center", alignItems: "center" },
+  alertCard: { width: "90%", maxWidth: 360, backgroundColor: Theme.bgCard, borderRadius: 24, padding: 30, alignItems: "center", borderWidth: 1, borderColor: Theme.border },
+  alertIconBg: { width: 80, height: 80, borderRadius: 40, backgroundColor: "rgba(22,163,74,0.15)", justifyContent: "center", alignItems: "center", marginBottom: 20 },
+  alertTitle: { fontSize: 20, fontFamily: Fonts.black, color: Theme.textPrimary, marginBottom: 10 },
+  alertMessage: { fontSize: 14, fontFamily: Fonts.medium, color: Theme.textSecondary, textAlign: "center", lineHeight: 22, marginBottom: 25 },
+  alertActions: { flexDirection: "row", gap: 12, width: "100%" },
+  alertBtn: { flex: 1, height: 50, borderRadius: 14, justifyContent: "center", alignItems: "center" },
+  confirmDeleteBtn: { backgroundColor: Theme.danger },
+  btnLabel: { fontSize: 14, fontFamily: Fonts.bold, color: Theme.textPrimary },
 });

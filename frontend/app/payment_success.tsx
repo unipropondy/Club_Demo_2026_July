@@ -192,6 +192,8 @@ export default function PaymentSuccess() {
         subTotal: computedSubTotal,
         serviceCharge: parseFloat(serviceCharge) || 0,
         takeawayCharge: parseFloat(takeawayCharge) || 0,
+        rewardPointsEarned: params.rewardPointsEarned || "0",
+        memberRewardBalance: params.memberRewardBalance || "0",
       };
 
       await UniversalPrinter.smartPrint(saleData, userId, {}, discountInfo);
@@ -248,6 +250,20 @@ export default function PaymentSuccess() {
               <Text style={styles.label}>Amount Paid</Text>
               <Text style={styles.value}>{currencySymbol}{paid}</Text>
             </View>
+
+            {parseFloat(String(params.rewardPointsEarned || "0")) > 0 ? (
+              <View style={[styles.row, { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: Theme.warningBg, borderRadius: 8, borderColor: Theme.warningBorder, borderWidth: 1, marginTop: 4, marginBottom: 4 }]}>
+                <Text style={[styles.label, { color: Theme.warning, fontFamily: Fonts.bold }]}>Points Earned</Text>
+                <Text style={[styles.value, { color: Theme.warning }]}>+${parseFloat(String(params.rewardPointsEarned)).toFixed(2)}</Text>
+              </View>
+            ) : null}
+
+            {parseFloat(String(params.memberRewardBalance || "0")) > 0 ? (
+              <View style={styles.row}>
+                <Text style={styles.label}>Available Member Credit</Text>
+                <Text style={[styles.value, { color: Theme.success }]}>${parseFloat(String(params.memberRewardBalance)).toFixed(2)}</Text>
+              </View>
+            ) : null}
 
             <View style={[styles.row, styles.changeRow]}>
               <Text style={styles.label}>Change Due</Text>

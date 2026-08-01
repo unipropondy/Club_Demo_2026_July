@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -21,6 +21,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { formatToSingaporeTime, formatToSingaporeDateTime } from "../../utils/timezoneHelper";
 
 import * as Print from "expo-print";
 
@@ -143,7 +144,7 @@ export default function ArtistBonusPaymentsScreen() {
         
         // Track local settled session history
         setSettledToday(prev => [
-          { artistName: t.ArtistName, amount: t.pendingBonus, date: new Date().toLocaleTimeString(), method: payMethod },
+          { artistName: t.ArtistName, amount: t.pendingBonus, date: formatToSingaporeTime(new Date()), method: payMethod },
           ...prev
         ]);
       }
@@ -158,7 +159,7 @@ export default function ArtistBonusPaymentsScreen() {
       setReceiptData({
         artistName: settledNames.join(", "),
         amount: batchTotal,
-        date: new Date().toLocaleString(),
+        date: formatToSingaporeDateTime(new Date()),
         method: payMethod,
         refNo: `BATCH-${Date.now().toString().slice(-6)}`,
       });
@@ -200,14 +201,14 @@ export default function ArtistBonusPaymentsScreen() {
         });
 
         setSettledToday(prev => [
-          { artistName: singleTxn.ArtistName, amount: amt, date: new Date().toLocaleTimeString(), method: payMethod },
+          { artistName: singleTxn.ArtistName, amount: amt, date: formatToSingaporeTime(new Date()), method: payMethod },
           ...prev
         ]);
 
         setReceiptData({
           artistName: singleTxn.ArtistName,
           amount: amt,
-          date: new Date().toLocaleString(),
+          date: formatToSingaporeDateTime(new Date()),
           method: payMethod,
           refNo: res.data.paymentId ? res.data.paymentId.slice(-8).toUpperCase() : `TX-${Date.now().toString().slice(-6)}`,
         });
@@ -228,8 +229,14 @@ export default function ArtistBonusPaymentsScreen() {
     if (!receiptData) return;
     const html = `
       <html>
-      <body style="font-family: monospace; padding: 20px; width: 300px;">
-        <h3 style="text-align: center;">ARTIST BONUS RECEIPT</h3>
+      <head>
+        <style>
+          @page { size: auto; margin: 0mm; }
+          body { font-family: monospace; padding: 20px; width: 280px; margin: 0; }
+        </style>
+      </head>
+      <body>
+        <h3 style="text-align: center; margin-top: 10px;">ARTIST BONUS RECEIPT</h3>
         <hr/>
         <p><b>Date:</b> ${receiptData.date}</p>
         <p><b>Ref:</b> ${receiptData.refNo}</p>
@@ -238,7 +245,7 @@ export default function ArtistBonusPaymentsScreen() {
         <hr/>
         <h2 style="text-align: center;">TOTAL: $${receiptData.amount.toFixed(2)}</h2>
         <hr/>
-        <p style="text-align: center; font-size: 10px;">Thank you for your performance!</p>
+        <p style="text-align: center; font-size: 10px; margin-bottom: 10px;">Thank you for your performance!</p>
       </body>
       </html>
     `;
@@ -443,6 +450,7 @@ export default function ArtistBonusPaymentsScreen() {
               onChangeText={setPayAmount}
               keyboardType="decimal-pad"
               placeholder="Enter amount"
+              placeholderTextColor={Theme.textMuted}
             />
             <View style={styles.quickAmtRow}>
               <TouchableOpacity style={styles.quickAmtBtn} onPress={() => setPayAmount(String(singleTxn?.pendingBonus || 0))}>
@@ -472,6 +480,7 @@ export default function ArtistBonusPaymentsScreen() {
               value={payRemarks}
               onChangeText={setPayRemarks}
               placeholder="e.g. Settle shift bonus"
+              placeholderTextColor={Theme.textMuted}
             />
 
             <View style={styles.modalFooter}>
@@ -569,30 +578,30 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary, textAlign: "center" },
 
   // Modals
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", justifyContent: "flex-end" },
   modalBox: { backgroundColor: Theme.bgCard, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 16 },
-  modalTitle: { fontFamily: Fonts.black, fontSize: 18 },
-  modalSubtitle: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textSecondary, marginTop: 2 },
+  modalTitle: { fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary },
+  modalSubtitle: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary, marginTop: 2, opacity: 0.8 },
   closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Theme.bgMuted, justifyContent: "center", alignItems: "center" },
   modalSummary: { backgroundColor: Theme.bgMuted, padding: 12, borderRadius: 12, marginBottom: 16 },
   modalSumRow: { flexDirection: "row", justifyContent: "space-between", marginVertical: 4 },
-  modalSumLabel: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary },
-  modalSumVal: { fontFamily: Fonts.bold, fontSize: 13 },
+  modalSumLabel: { fontFamily: Fonts.medium, fontSize: 12, color: Theme.textPrimary, opacity: 0.8 },
+  modalSumVal: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary },
   sumDivider: { height: 1, backgroundColor: Theme.border, marginVertical: 6 },
   fieldLabel: { fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary, marginBottom: 8, marginTop: 12 },
-  input: { backgroundColor: Theme.bgInput, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: Theme.border },
+  input: { backgroundColor: Theme.bgInput, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: Theme.border, color: Theme.textPrimary },
   quickAmtRow: { flexDirection: "row", gap: 8, marginTop: 6 },
   quickAmtBtn: { flex: 1, backgroundColor: Theme.bgMuted, padding: 8, borderRadius: 8, alignItems: "center", borderWidth: 1, borderColor: Theme.border },
-  quickAmtText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textSecondary },
+  quickAmtText: { fontFamily: Fonts.bold, fontSize: 11, color: Theme.textPrimary },
   methodRow: { flexDirection: "row", gap: 8, marginTop: 6 },
   methodBtn: { flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: Theme.border, alignItems: "center", backgroundColor: Theme.bgMuted },
   methodBtnActive: { backgroundColor: "#DC2626", borderColor: "#DC2626" },
-  methodText: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary },
+  methodText: { fontFamily: Fonts.bold, fontSize: 12, color: Theme.textPrimary },
   methodTextActive: { color: "#fff" },
   modalFooter: { flexDirection: "row", gap: 12, marginTop: 24 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: Theme.bgMuted, alignItems: "center" },
-  cancelBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: Theme.textSecondary },
+  cancelBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: Theme.textPrimary },
   confirmBtn: { flex: 2, paddingVertical: 12, borderRadius: 12, backgroundColor: "#16A34A", alignItems: "center" },
   confirmBtnText: { fontFamily: Fonts.bold, fontSize: 14, color: "#fff" },
 

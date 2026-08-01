@@ -169,6 +169,11 @@ const TableItemComponent = React.memo(
         Number(item.isHoldOvertime) === 1);
 
     let ui = getStatusUI(status);
+    
+    // For Takeaway section orders, change display label from "ACTIVE" to "PREPARING"
+    if (status === 1 && (activeTab === "TAKEAWAY" || item.DiningSection === 4)) {
+      ui = { ...ui, text: "PREPARING" };
+    }
 
     // Dynamic Overtime: If occupied (Dining/Hold) and flagged as overtime, override UI
     if ((status === 1 || status === 3) && isOvertime) {
@@ -3130,6 +3135,30 @@ export default function Category() {
                       <Text style={styles.subMenuItemText}>Receivables</Text>
                     </TouchableOpacity>
                   )}
+
+                  {canAccessMembers() && (
+                    <TouchableOpacity
+                      style={styles.subMenuItem}
+                      onPress={() => {
+                        setIsMenuVisible(false);
+                        router.push("/menu/rewardMaster");
+                      }}
+                    >
+                      <View
+                        style={[
+                          styles.menuIconContainer,
+                          { backgroundColor: Theme.danger + "10" },
+                        ]}
+                      >
+                        <Ionicons
+                          name="gift-outline"
+                          size={18}
+                          color={Theme.danger}
+                        />
+                      </View>
+                      <Text style={styles.subMenuItemText}>Reward Points Master</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
 
@@ -3603,7 +3632,7 @@ export default function Category() {
           {isTablet && (
             <View style={styles.legend}>
               {[
-                { color: "#22c55e", label: "Dining" },
+                { color: "#22c55e", label: "Active" },
                 { color: "#3b82f6", label: "Hold" },
                 { color: "#f59e0b", label: "Checkout" },
                 { color: "#ef4444", label: "Reserved" },
@@ -3762,6 +3791,7 @@ export default function Category() {
                 setGuestPaxInput(text.replace(/[^0-9]/g, ""))
               }
               keyboardType="numeric"
+              maxLength={3}
             />
 
             <View

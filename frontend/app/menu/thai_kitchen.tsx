@@ -1481,39 +1481,39 @@ export default function MenuScreen() {
               </View>
 
               <View style={styles.modalBody}>
-                <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+                <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: Theme.textSecondary, fontSize: 13, fontFamily: Fonts.bold, marginBottom: 4 }}>Amount</Text>
+                    <Text style={{ color: Theme.textSecondary, fontSize: 13, fontFamily: Fonts.bold, marginBottom: 6 }}>Amount</Text>
                     <TextInput
                       placeholder="Enter Amount"
                       value={splitAmount}
-                      onChangeText={setSplitAmount}
+                      onChangeText={(text) => setSplitAmount(text.replace(/[^0-9]/g, ""))}
                       keyboardType="numeric"
                       placeholderTextColor={Theme.textMuted}
-                      style={[styles.customInput, { height: 40, borderRadius: 8, fontSize: 14, paddingHorizontal: 10 }]}
+                      style={styles.customInput}
                     />
                   </View>
                   <View style={{ flex: 1.5 }}>
-                    <Text style={{ color: Theme.textSecondary, fontSize: 13, fontFamily: Fonts.bold, marginBottom: 4 }}>Song Name</Text>
+                    <Text style={{ color: Theme.textSecondary, fontSize: 13, fontFamily: Fonts.bold, marginBottom: 6 }}>Song Name</Text>
                     <TextInput
                       placeholder="Enter Song Name"
                       value={songName}
                       onChangeText={setSongName}
                       placeholderTextColor={Theme.textMuted}
-                      style={[styles.customInput, { height: 40, borderRadius: 8, fontSize: 14, paddingHorizontal: 10 }]}
+                      style={styles.customInput}
                     />
                   </View>
                 </View>
 
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textSecondary }}>Select Members</Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <Text style={{ fontSize: 14, fontFamily: Fonts.bold, color: Theme.textPrimary }}>Select Members</Text>
                   <TouchableOpacity
                     onPress={() => {
                       const allSelected = splitMembers.every(x => x.IsSelected);
                       const updated = splitMembers.map(x => ({ ...x, IsSelected: !allSelected }));
                       setSplitMembers(updated);
                     }}
-                    style={{ padding: 4 }}
+                    style={{ paddingVertical: 2, paddingHorizontal: 6 }}
                   >
                     <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.primary }}>
                       {splitMembers.every(x => x.IsSelected) ? "Deselect All" : "Select All"}
@@ -1523,8 +1523,9 @@ export default function MenuScreen() {
 
                 {/* Scrollable List */}
                 <ScrollView
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, maxHeight: 300 }}
                   showsVerticalScrollIndicator={true}
+                  contentContainerStyle={{ gap: 8, paddingRight: 4 }}
                 >
                   {splitMembers.map((item, index) => (
                     <TouchableOpacity
@@ -1538,7 +1539,7 @@ export default function MenuScreen() {
                       }}
                       style={[
                         styles.modifierRow,
-                        { padding: 8, marginBottom: 6 },
+                        { marginHorizontal: 1, marginBottom: 0 },
                         item.IsSelected && styles.modifierRowSelected,
                       ]}
                     >

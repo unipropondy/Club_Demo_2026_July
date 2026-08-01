@@ -1,4 +1,4 @@
-﻿import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import React, { useEffect, useMemo, useState } from "react";
@@ -400,10 +400,11 @@ export default function SummaryScreen() {
         params: {
           mobileNo: loyaltyPhone ? `${selectedCountry.code} ${loyaltyPhone.trim()}` : "",
           customerName: loyaltyName || "",
+          rewardMemberId: rewardMember?.MemberId || "",
         },
       });
     }
-  }, [params.autoPay, context, loyaltyPhone, selectedCountry, loyaltyName]);
+  }, [params.autoPay, context, loyaltyPhone, selectedCountry, loyaltyName, rewardMember]);
 
   const settings = useCompanySettingsStore((state: any) => state.settings);
   const currencySymbol = settings.currencySymbol || "$";
@@ -1935,8 +1936,8 @@ export default function SummaryScreen() {
                   return (
                     <View
                       style={{
-                        backgroundColor: "#FFF7ED",
-                        borderColor: "#A855F7",
+                        backgroundColor: Theme.bgInput,
+                        borderColor: Theme.border,
                         borderWidth: 1,
                         borderRadius: 10,
                         padding: 12,
@@ -1945,7 +1946,7 @@ export default function SummaryScreen() {
                       }}
                     >
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Ionicons name="gift" size={16} color="#A855F7" />
+                        <Ionicons name="gift" size={16} color={Theme.primary} />
                         <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary, flex: 1 }}>
                           Reward Member: {rewardMember.Name}
                         </Text>
@@ -1954,9 +1955,9 @@ export default function SummaryScreen() {
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 22, marginVertical: 4 }}>
                         <TouchableOpacity
                           onPress={() => setShowRewardModal(true)}
-                          style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "#FFEDD5" }}
+                          style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: Theme.bgCard, borderWidth: 1, borderColor: Theme.border }}
                         >
-                          <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: "#A855F7" }}>Change</Text>
+                          <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.primary }}>Change</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={() => {
@@ -1969,9 +1970,9 @@ export default function SummaryScreen() {
                             }
                             setRewardMember(null);
                           }}
-                          style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: "#FEE2E2" }}
+                          style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: Theme.dangerBg, borderWidth: 1, borderColor: Theme.dangerBorder }}
                         >
-                          <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: "#DC2626" }}>Remove</Text>
+                          <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.danger }}>Remove</Text>
                         </TouchableOpacity>
                       </View>
 
@@ -1979,7 +1980,7 @@ export default function SummaryScreen() {
                         Phone: {rewardMember.Phone}
                       </Text>
 
-                      <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: "#D97706", marginLeft: 22 }}>
+                      <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.primary, marginLeft: 22 }}>
                         Reward Balance: {currencySymbol}{rewardCreditVal.toFixed(2)}
                       </Text>
 
@@ -1989,7 +1990,7 @@ export default function SummaryScreen() {
                             marginTop: 8,
                             marginLeft: 22,
                             backgroundColor: Theme.warningBg,
-                            borderColor: "#FDE68A",
+                            borderColor: Theme.warningBorder,
                             borderWidth: 1,
                             borderRadius: 8,
                             paddingVertical: 6,
@@ -2024,8 +2025,8 @@ export default function SummaryScreen() {
                             });
                           }}
                         >
-                          <Ionicons name="pricetag" size={14} color="#D97706" />
-                          <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: "#D97706" }}>
+                          <Ionicons name="pricetag" size={14} color={Theme.warning} />
+                          <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.warning }}>
                             Redeem Reward Discount
                           </Text>
                         </TouchableOpacity>
