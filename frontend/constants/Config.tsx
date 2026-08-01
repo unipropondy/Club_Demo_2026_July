@@ -18,10 +18,14 @@ const getLocalBackendIP = (): string => {
 
 const localIP = getLocalBackendIP();
 
+const PRODUCTION_BACKEND = "https://clubdemo2026july-production.up.railway.app";
+
 export const API_URL =
   (Platform.OS === "web" && typeof window !== "undefined")
-    ? `http://${window.location.hostname}:3000`
-    : (__DEV__ ? `http://${localIP}:3000` : "https://clubdemo2026july-production.up.railway.app");
+    ? (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+        ? `http://localhost:3000`           // local web dev
+        : PRODUCTION_BACKEND)              // Cloudflare / any cloud → Railway HTTPS
+    : (__DEV__ ? `http://${localIP}:3000` : PRODUCTION_BACKEND);
 
 if (__DEV__) {
   console.log(`🌐 [Config] API_URL: ${API_URL} | Platform: ${Platform.OS}`);

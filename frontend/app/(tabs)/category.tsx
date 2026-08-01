@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   Platform,
   ScrollView,
@@ -795,6 +796,33 @@ export default function Category() {
       ? s.settings.enableGuestDetailsPopup
       : true,
   );
+
+  const [licenseInfo, setLicenseInfo] = useState<{
+    CompanyName: string;
+    Address: string;
+    CompanyLogoUrl: string;
+    FromDate: string | null;
+    ToDate: string | null;
+  } | null>(null);
+
+  const fetchLicenseInfo = async () => {
+    if (!user?.userId) return;
+    try {
+      const res = await fetch(`${API_URL}/api/auth/license/${user.userId}`);
+      const data = await res.json();
+      if (data.success && data.license) {
+        setLicenseInfo(data.license);
+      }
+    } catch (err) {
+      console.warn("Failed to fetch license info:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.userId) {
+      fetchLicenseInfo();
+    }
+  }, [user?.userId]);
 
   const activeOrders = useActiveOrdersStore((s) => s.activeOrders);
   const readyItemsCount = useMemo(() => {
@@ -3670,7 +3698,7 @@ export default function Category() {
         contentContainerStyle={{
           gap: GAP,
           paddingHorizontal: PADDING,
-          paddingBottom: 50,
+          paddingBottom: 125,
           paddingTop: 8,
         }}
         showsVerticalScrollIndicator={false}
@@ -3965,6 +3993,74 @@ export default function Category() {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* License Info Card (Bottom-Left Corner) */}
+      <View
+        style={[
+          styles.licenseCardContainer,
+          {
+            bottom: Math.max(insets.bottom, 12) + 12,
+            left: Math.max(insets.left, 12) + 12,
+          },
+        ]}
+      >
+        <View style={styles.licenseLogoContainer}>
+          {licenseInfo?.CompanyLogoUrl ? (
+            <Image
+              source={{ uri: licenseInfo.CompanyLogoUrl }}
+              style={styles.licenseLogo}
+              resizeMode="cover"
+            />
+          ) : (
+            <Ionicons name="restaurant-outline" size={18} color={Theme.primary} />
+          )}
+        </View>
+
+        <View style={styles.licenseTextContainer}>
+          <Text style={styles.licenseCompanyName} numberOfLines={1}>
+            {licenseInfo?.CompanyName || "Smart POS"}
+          </Text>
+          <Text style={styles.licenseAddress} numberOfLines={2}>
+            {licenseInfo?.Address || "Shop Address"}
+          </Text>
+          {licenseInfo && (() => {
+            const today = new Date();
+            const fromDateStr = licenseInfo.FromDate ? licenseInfo.FromDate.split("T")[0] : null;
+            const toDateStr = licenseInfo.ToDate ? licenseInfo.ToDate.split("T")[0] : null;
+            
+            let isExpired = false;
+            if (toDateStr) {
+              const toDateObj = new Date(toDateStr);
+              today.setHours(0, 0, 0, 0);
+              toDateObj.setHours(0, 0, 0, 0);
+              isExpired = today > toDateObj;
+            }
+
+            if (isExpired) {
+              return (
+                <View style={styles.licenseRow}>
+                  <Ionicons name="alert-circle-outline" size={12} color="#EF4444" style={{ marginRight: 3 }} />
+                  <Text style={[styles.licenseDateText, { color: "#EF4444", fontWeight: "bold" }]}>
+                    License Expired
+                  </Text>
+                </View>
+              );
+            }
+
+            return (
+              <View style={styles.licenseRow}>
+                <Ionicons name="checkmark-circle-outline" size={12} color="#22C55E" style={{ marginRight: 3 }} />
+                <Text style={styles.licenseDateText}>
+                  License: <Text style={styles.licenseDatesHighlighted}>{fromDateStr || ""} to {toDateStr || ""}</Text>
+                </Text>
+              </View>
+            );
+          })()}
+          <Text style={styles.licenseCopyright}>
+            @ 2026 UNIPRO . All rights reserved.
+          </Text>
+        </View>
+      </View>
     </SafeAreaView>
   );
 }
@@ -4389,5 +4485,74 @@ const styles = StyleSheet.create({
     padding: 2,
     zIndex: 10,
     ...Theme.shadowSm,
+  },
+  licenseCardContainer: {
+    position: "absolute",
+    backgroundColor: "#11102E",                 // App's deep dark card base
+    borderWidth: 1.5,
+    borderColor: "#A855F7",                     // Bright neon violet border
+    borderRadius: 14,
+    padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    maxWidth: 360,                              // Increased slightly to prevent tight wrapping
+    minWidth: 320,                              // Increased slightly to prevent tight wrapping
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 9999,
+  },
+  licenseLogoContainer: {
+    width: 52,                                  // Increased to match reference image proportions
+    height: 52,                                 // Increased to match reference image proportions
+    borderRadius: 12,
+    backgroundColor: "#18163A",
+    borderWidth: 1,
+    borderColor: "#3D3875",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  licenseLogo: {
+    width: "100%",
+    height: "100%",
+  },
+  licenseTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  licenseCompanyName: {
+    fontSize: 13.5,                             // Well-balanced font size
+    fontFamily: Fonts.black,
+    color: "#FFFFFF",
+  },
+  licenseAddress: {
+    fontSize: 9.5,                              // Well-balanced font size
+    fontFamily: Fonts.medium,
+    color: "#9B8EC4",
+    lineHeight: 13,
+  },
+  licenseRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 1,
+  },
+  licenseDateText: {
+    fontSize: 9.5,                              // Well-balanced font size
+    fontFamily: Fonts.bold,
+    color: "#F0EEFF",
+  },
+  licenseDatesHighlighted: {
+    color: "#10B981",
+    fontWeight: "bold",
+  },
+  licenseCopyright: {
+    fontSize: 8.5,                              // Well-balanced font size
+    fontFamily: Fonts.medium,
+    color: "#5A5080",
+    marginTop: 1.5,
   },
 });

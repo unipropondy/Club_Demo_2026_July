@@ -303,4 +303,43 @@ router.get("/permissions/:userGroupCode", async (req, res) => {
   }
 });
 
+/* ================= AUTH - LICENSE DETAILS ================= */
+router.get("/license/:userId", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const { userId } = req.params;
+    const result = await pool.request()
+      .input("UserId", userId)
+      .query(`
+        SELECT 
+          (SELECT TOP 1 CompanyName FROM CompanySettings) AS CompanyName,
+          (SELECT TOP 1 Address FROM CompanySettings) AS Address,
+          (SELECT TOP 1 CompanyLogoUrl FROM CompanySettings) AS CompanyLogoUrl,
+          FromDate,
+          ToDate
+        FROM [dbo].[UserMaster]
+        WHERE CAST(UserId AS NVARCHAR(100)) = CAST(@UserId AS NVARCHAR(100))
+      `);
+    if (result.recordset.length > 0) {
+      res.json({ success: true, license: result.recordset[0] });
+    } else {
+      const compRes = await pool.request().query("SELECT TOP 1 CompanyName, Address, CompanyLogoUrl FROM CompanySettings");
+      const comp = compRes.recordset[0] || {};
+      res.json({
+        success: true,
+        license: {
+          CompanyName: comp.CompanyName || "Smart POS",
+          Address: comp.Address || "",
+          CompanyLogoUrl: comp.CompanyLogoUrl || "",
+          FromDate: null,
+          ToDate: null
+        }
+      });
+    }
+  } catch (err) {
+    console.error("LICENSE FETCH ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
