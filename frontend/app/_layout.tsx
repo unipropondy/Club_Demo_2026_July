@@ -60,6 +60,13 @@ SplashScreen.preventAutoHideAsync();
 
 import { useGlobalSocketSync } from "@/hooks/useGlobalSocketSync";
 import { API_URL } from "@/constants/Config";
+import { setApiUrl } from "@/stores/paymentSettingsStore";
+
+// 🔗 Sync the shared customer-display package's API_URL with the frontend's
+// runtime URL (localhost in dev, Railway in prod). Without this, all store
+// fetches (payment-methods, settings) hit the production server instead of
+// the local backend — bypassing the global fetch auth interceptor entirely.
+setApiUrl(API_URL);
 
 // 🌐 GLOBAL FETCH RETRY & IDEMPOTENCY ENGINE
 const originalFetch = global.fetch;

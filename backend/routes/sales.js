@@ -1,7 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
-router.use(authenticateToken);
+router.use((req, res, next) => {
+  // /payment-methods is public — pay mode names/icons are not sensitive
+  if (req.path === "/payment-methods") return next();
+  return authenticateToken(req, res, next);
+});
 
 const { poolPromise } = require("../config/db");
 
@@ -1459,7 +1463,8 @@ router.post("/save", async (req, res) => {
       totalAmount, paymentMethod, items, subTotal, taxAmount,
       discountAmount, discountType, roundOff, orderId, orderType, tableNo, section, memberId, cashierId, tableId,
       serverId, serverName, isSplit,
-      discountId, discountPercentage, discountRemarks, orderDiscountAmount, itemDiscountAmount, payments
+      discountId, discountPercentage, discountRemarks, orderDiscountAmount, itemDiscountAmount, payments,
+      isVIP, vipDiscountAmount
     } = req.body;
 
     const validationError = validateSalePayload({ totalAmount, paymentMethod, items, payments });
@@ -1767,18 +1772,22 @@ router.post("/save", async (req, res) => {
       .input("GuestName", sql.NVarChar(9), req.body.customerName ? req.body.customerName.trim().substring(0, 9) : null)
       .input("Pax", sql.Int, req.body.pax ? parseInt(req.body.pax) : null)
       .input("startDate", sql.Date, formattedStartDate)
+      .input("IsVIP", sql.Bit, isVIP !== undefined ? (isVIP ? 1 : 0) : 0)
+      .input("VIPDiscountAmount", sql.Decimal(18, 2), vipDiscountAmount || 0)
       .query(`
         -- 1. Insert into SettlementHeader
         INSERT INTO SettlementHeader (
           SettlementID, LastSettlementDate, LastDayEndDate, SubTotal, TotalTax, DiscountAmount, DiscountType, 
           BillNo, OrderType, TableNo, Section, MemberId, CashierID, BusinessUnitId, 
           SysAmount, ManualAmount, CreatedBy, CreatedOn, SER_NAME, MobileNo, 
-          VoidItemQty, VoidItemAmount, RoundedBy, ServiceCharge, GuestName, Pax, TakeawayCharge, start_date
+          VoidItemQty, VoidItemAmount, RoundedBy, ServiceCharge, GuestName, Pax, TakeawayCharge, start_date,
+          IsVIP, VIPDiscountAmount
         ) VALUES (
           @SettlementID, GETDATE(), GETDATE(), @SubTotal, @TotalTax, @DiscountAmount, @DiscountType, 
           @BillNo, @OrderType, @TableNo, @Section, @MemberId, @CashierID, @BusinessUnitId, 
           @SysAmount, @ManualAmount, @CreatedBy, GETDATE(), @SER_NAME, @MobileNo, 
-          @VoidItemQty, @VoidItemAmount, @RoundedBy, @ServiceCharge, @GuestName, @Pax, @TakeawayCharge, @startDate
+          @VoidItemQty, @VoidItemAmount, @RoundedBy, @ServiceCharge, @GuestName, @Pax, @TakeawayCharge, @startDate,
+          @IsVIP, @VIPDiscountAmount
         );
 
         -- 2. Insert into RestaurantInvoice (Perfect Sync)
@@ -1940,13 +1949,15 @@ router.post("/save", async (req, res) => {
           insertReq.input(`Oil_${idx}`, sql.NVarChar(50), item.oil || "");
           insertReq.input(`Sugar_${idx}`, sql.NVarChar(50), item.sugar || "");
           insertReq.input(`OrderDetailId_${idx}`, sql.UniqueIdentifier, toGuidOrNull(item.lineItemId));
+          insertReq.input(`VIPDiscountAmount_${idx}`, sql.Decimal(18, 2), parseFloat(item.vipDiscountAmount) || 0);
+          insertReq.input(`VIPRuleID_${idx}`, sql.UniqueIdentifier, toGuidOrNull(item.vipRuleId));
           
           const comboJSON = item.comboSelections ? JSON.stringify(item.comboSelections) : null;
           insertReq.input(`ComboDetailsJSON_${idx}`, sql.NVarChar(sql.MAX), comboJSON);
           
           insertQueries.push(`
-            INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, SongName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar, OrderDetailId, ComboDetailsJSON, start_date)
-            VALUES (@SettlementID, @DishId_${idx}, @DishGroupId_${idx}, @DishGroupId_${idx}, @CategoryId_${idx}, @DishName_${idx}, @SongName_${idx}, @Qty_${idx}, @Price_${idx}, GETDATE(), @CategoryName_${idx}, @SubCategoryName_${idx}, @ItemDiscountAmount_${idx}, @ItemDiscountType_${idx}, @Status_${idx}, @Spicy_${idx}, @Salt_${idx}, @Oil_${idx}, @Sugar_${idx}, @OrderDetailId_${idx}, @ComboDetailsJSON_${idx}, @startDate);
+            INSERT INTO SettlementItemDetail (SettlementID, DishId, DishGroupId, SubCategoryId, CategoryId, DishName, SongName, Qty, Price, OrderDateTime, CategoryName, SubCategoryName, DiscountAmount, DiscountType, Status, Spicy, Salt, Oil, Sugar, OrderDetailId, ComboDetailsJSON, start_date, VIPDiscountAmount, VIPRuleID)
+            VALUES (@SettlementID, @DishId_${idx}, @DishGroupId_${idx}, @DishGroupId_${idx}, @CategoryId_${idx}, @DishName_${idx}, @SongName_${idx}, @Qty_${idx}, @Price_${idx}, GETDATE(), @CategoryName_${idx}, @SubCategoryName_${idx}, @ItemDiscountAmount_${idx}, @ItemDiscountType_${idx}, @Status_${idx}, @Spicy_${idx}, @Salt_${idx}, @Oil_${idx}, @Sugar_${idx}, @OrderDetailId_${idx}, @ComboDetailsJSON_${idx}, @startDate, @VIPDiscountAmount_${idx}, @VIPRuleID_${idx});
           `);
         });
         
@@ -2490,67 +2501,127 @@ router.post("/save", async (req, res) => {
       }
 
       // 🏆 REWARD POINTS ACCRUAL FLOW
-      // If a member is selected, earn points based on the active config rule
+      // If a member is selected, earn points based on the active config rule (if reward points feature is ON)
       if (memberId && customerType === "MEMBER") {
         try {
-          console.log(`[REWARD POINTS] Starting accrual calculation for member: ${memberId}...`);
-          
-          // 1. Fetch the active Reward Master earn rule ratio
-          const ruleRes = await transaction.request().query(`
-            SELECT TOP 1 SpendAmount, CreditAmount 
-            FROM RewardMaster 
-            WHERE IsActive = 1 
-            ORDER BY Id DESC
+          const settingsCheck = await transaction.request().query(`
+            SELECT TOP 1 ShowRewardPoints FROM AppSettings
           `);
+          const showRewardPoints = settingsCheck.recordset.length > 0 ? (settingsCheck.recordset[0].ShowRewardPoints !== false && settingsCheck.recordset[0].ShowRewardPoints !== 0) : true;
 
-          if (ruleRes.recordset.length > 0) {
-            const rule = ruleRes.recordset[0];
-            const spendRule = parseFloat(rule.SpendAmount) || 100;
-            const creditRule = parseFloat(rule.CreditAmount) || 1;
+          if (showRewardPoints) {
+            console.log(`[REWARD POINTS] Starting accrual calculation for member: ${memberId}...`);
             
-            // Points are earned based on subtotal or net after discount
-            const finalBillAmount = parseFloat(totalAmount) || 0;
-            
-            // Calculate reward credits to award: (BillAmount / SpendAmount) * CreditAmount
-            const pointsEarned = (finalBillAmount / spendRule) * creditRule;
-            const pointsAwarded = Math.round(pointsEarned * 10000) / 10000; // 4 decimals precision
+            // 1. Fetch the active Reward Master earn rule ratio
+            const ruleRes = await transaction.request().query(`
+              SELECT TOP 1 SpendAmount, CreditAmount 
+              FROM RewardMaster 
+              WHERE IsActive = 1 
+              ORDER BY Id DESC
+            `);
 
-            if (pointsAwarded > 0) {
-              console.log(`[REWARD POINTS] Awarding ${pointsAwarded} credits on bill ${finalBillNo} (Amount: ${finalBillAmount}) using rule $${spendRule} -> $${creditRule}`);
-              rewardPointsEarned = pointsAwarded;
+            if (ruleRes.recordset.length > 0) {
+              const rule = ruleRes.recordset[0];
+              const spendRule = parseFloat(rule.SpendAmount) || 100;
+              const creditRule = parseFloat(rule.CreditAmount) || 1;
+              
+              // Points are earned based on subtotal or net after discount
+              const finalBillAmount = parseFloat(totalAmount) || 0;
+              
+              // Calculate reward credits to award: (BillAmount / SpendAmount) * CreditAmount
+              const pointsEarned = (finalBillAmount / spendRule) * creditRule;
+              const pointsAwarded = Math.round(pointsEarned * 10000) / 10000; // 4 decimals precision
 
-              // 2. Add points to MemberMaster RewardCredit balance
-              const balanceRes = await transaction.request()
-                .input("MemberId", sql.UniqueIdentifier, toGuidOrNull(memberId))
-                .input("PointsAwarded", sql.Decimal(18, 4), pointsAwarded)
-                .query(`
-                  UPDATE MemberMaster 
-                  SET RewardCredit = ISNULL(RewardCredit, 0) + @PointsAwarded,
-                      ModifiedDate = GETDATE()
-                  OUTPUT INSERTED.RewardCredit
-                  WHERE MemberId = @MemberId
-                `);
+              if (pointsAwarded > 0) {
+                console.log(`[REWARD POINTS] Awarding ${pointsAwarded} credits on bill ${finalBillNo} (Amount: ${finalBillAmount}) using rule $${spendRule} -> $${creditRule}`);
+                rewardPointsEarned = pointsAwarded;
 
-              if (balanceRes.recordset && balanceRes.recordset.length > 0) {
-                memberRewardBalance = parseFloat(balanceRes.recordset[0].RewardCredit) || 0;
+                // 2. Add points to MemberMaster RewardCredit balance
+                const balanceRes = await transaction.request()
+                  .input("MemberId", sql.UniqueIdentifier, toGuidOrNull(memberId))
+                  .input("PointsAwarded", sql.Decimal(18, 4), pointsAwarded)
+                  .query(`
+                    UPDATE MemberMaster 
+                    SET RewardCredit = ISNULL(RewardCredit, 0) + @PointsAwarded,
+                        ModifiedDate = GETDATE()
+                    OUTPUT INSERTED.RewardCredit
+                    WHERE MemberId = @MemberId
+                  `);
+
+                if (balanceRes.recordset && balanceRes.recordset.length > 0) {
+                  memberRewardBalance = parseFloat(balanceRes.recordset[0].RewardCredit) || 0;
+                }
+
+                // 3. Log to RewardPointDetails audit ledger
+                await transaction.request()
+                  .input("MemberId", sql.UniqueIdentifier, toGuidOrNull(memberId))
+                  .input("SettlementId", sql.UniqueIdentifier, toGuidOrNull(settlementId))
+                  .input("BillNo", sql.NVarChar(100), finalBillNo)
+                  .input("BillAmount", sql.Decimal(18, 4), finalBillAmount)
+                  .input("PointsEarned", sql.Decimal(18, 4), pointsAwarded)
+                  .input("Remarks", sql.NVarChar(255), `Points earned from bill ${finalBillNo}`)
+                  .query(`
+                    INSERT INTO RewardPointDetails (Id, MemberId, SettlementId, BillNo, BillAmount, PointsEarned, PointsUsed, TransType, PayMode, Remarks, CreatedOn)
+                    VALUES (NEWID(), @MemberId, @SettlementId, @BillNo, @BillAmount, @PointsEarned, 0, 'EARN', 'SALE', @Remarks, GETDATE())
+                  `);
               }
-
-              // 3. Log to RewardPointDetails audit ledger
-              await transaction.request()
-                .input("MemberId", sql.UniqueIdentifier, toGuidOrNull(memberId))
-                .input("SettlementId", sql.UniqueIdentifier, toGuidOrNull(settlementId))
-                .input("BillNo", sql.NVarChar(100), finalBillNo)
-                .input("BillAmount", sql.Decimal(18, 4), finalBillAmount)
-                .input("PointsEarned", sql.Decimal(18, 4), pointsAwarded)
-                .input("Remarks", sql.NVarChar(255), `Points earned from bill ${finalBillNo}`)
-                .query(`
-                  INSERT INTO RewardPointDetails (Id, MemberId, SettlementId, BillNo, BillAmount, PointsEarned, PointsUsed, TransType, PayMode, Remarks, CreatedOn)
-                  VALUES (NEWID(), @MemberId, @SettlementId, @BillNo, @BillAmount, @PointsEarned, 0, 'EARN', 'SALE', @Remarks, GETDATE())
-                `);
             }
+          } else {
+            console.log(`[REWARD POINTS] Accrual skipped because ShowRewardPoints setting is OFF.`);
           }
         } catch (rewardErr) {
           console.error("❌ [REWARD POINTS ERROR] Failed to calculate/accrue reward points:", rewardErr.message);
+        }
+
+        // VIP LIFETIME SPEND & AUTO UPGRADE FLOW
+        try {
+          console.log(`[VIP UPGRADE] Checking lifetime spend for member: ${memberId}...`);
+          
+          // 1. Add current bill amount (totalAmount) to member's LifetimeSpend
+          const billAmt = parseFloat(totalAmount) || 0;
+          await transaction.request()
+            .input("MemberId", sql.UniqueIdentifier, toGuidOrNull(memberId))
+            .input("BillAmount", sql.Decimal(18, 2), billAmt)
+            .query(`
+              UPDATE MemberMaster 
+              SET LifetimeSpend = ISNULL(LifetimeSpend, 0) + @BillAmount,
+                  ModifiedDate = GETDATE()
+              WHERE MemberId = @MemberId
+            `);
+
+          // 2. Fetch updated member info and current VIPThreshold
+          const memberInfoRes = await transaction.request()
+            .input("MemberId", sql.UniqueIdentifier, toGuidOrNull(memberId))
+            .query(`
+              SELECT MemberId, IsVIP, LifetimeSpend, Name
+              FROM MemberMaster 
+              WHERE MemberId = @MemberId
+            `);
+            
+          const settingsRes = await transaction.request().query(`
+            SELECT TOP 1 VIPThreshold FROM AppSettings
+          `);
+
+          if (memberInfoRes.recordset.length > 0) {
+            const memberInfo = memberInfoRes.recordset[0];
+            const currentLifetimeSpend = parseFloat(memberInfo.LifetimeSpend) || 0;
+            const threshold = settingsRes.recordset.length > 0 ? (parseFloat(settingsRes.recordset[0].VIPThreshold) || 5000.00) : 5000.00;
+            
+            console.log(`[VIP UPGRADE] Member: ${memberInfo.Name} | LifetimeSpend: ${currentLifetimeSpend} | VIPThreshold: ${threshold} | Current IsVIP: ${memberInfo.IsVIP}`);
+            
+            if (currentLifetimeSpend >= threshold && (memberInfo.IsVIP === false || memberInfo.IsVIP === 0)) {
+              console.log(`[VIP UPGRADE] Member ${memberInfo.Name} qualified for Auto VIP! Upgrading...`);
+              await transaction.request()
+                .input("MemberId", sql.UniqueIdentifier, toGuidOrNull(memberId))
+                .query(`
+                  UPDATE MemberMaster 
+                  SET IsVIP = 1, VIPType = 'Automatic', VIPSince = GETDATE(), ModifiedDate = GETDATE()
+                  WHERE MemberId = @MemberId
+                `);
+            }
+          }
+        } catch (vipUpgradeErr) {
+          console.error("❌ [VIP UPGRADE ERROR] Failed to calculate lifetime spend or auto upgrade:", vipUpgradeErr.message);
         }
       }
 

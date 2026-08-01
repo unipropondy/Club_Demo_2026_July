@@ -20,6 +20,13 @@ export interface GeneralSettings {
   showLoyalty: boolean;
   showRewardPoints: boolean;
   showPromoCode: boolean;
+  vipThreshold: number;
+  vipRuleEnabled: boolean;
+  vipRuleTargetType: "DISH" | "GROUP" | null;
+  vipRuleDishId: string | null;
+  vipRuleDishGroupId: string | null;
+  vipRuleDiscountType: "PERCENTAGE" | "AMOUNT" | null;
+  vipRuleDiscountValue: number;
 }
 
 interface GeneralSettingsState {
@@ -48,6 +55,13 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
         showLoyalty: true,
         showRewardPoints: true,
         showPromoCode: true,
+        vipThreshold: 5000,
+        vipRuleEnabled: false,
+        vipRuleTargetType: null,
+        vipRuleDishId: null,
+        vipRuleDishGroupId: null,
+        vipRuleDiscountType: null,
+        vipRuleDiscountValue: 0,
       },
       loading: false,
 
@@ -76,6 +90,13 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
                 showLoyalty: data.ShowLoyalty !== undefined ? (String(data.ShowLoyalty) === "true" || data.ShowLoyalty === 1 || data.ShowLoyalty === true) : true,
                 showRewardPoints: data.ShowRewardPoints !== undefined ? (String(data.ShowRewardPoints) === "true" || data.ShowRewardPoints === 1 || data.ShowRewardPoints === true) : true,
                 showPromoCode: data.ShowPromoCode !== undefined ? (String(data.ShowPromoCode) === "true" || data.ShowPromoCode === 1 || data.ShowPromoCode === true) : true,
+                vipThreshold: data.VIPThreshold !== undefined ? Number(data.VIPThreshold) : 5000,
+                vipRuleEnabled: data.VipRuleEnabled !== undefined ? (String(data.VipRuleEnabled) === "true" || data.VipRuleEnabled === 1 || data.VipRuleEnabled === true) : false,
+                vipRuleTargetType: data.VipRuleTargetType || null,
+                vipRuleDishId: data.VipRuleDishId || null,
+                vipRuleDishGroupId: data.VipRuleDishGroupId || null,
+                vipRuleDiscountType: data.VipRuleDiscountType || null,
+                vipRuleDiscountValue: data.VipRuleDiscountValue !== undefined ? Number(data.VipRuleDiscountValue) : 0,
               },
             }));
           }
@@ -125,6 +146,13 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
             showLoyalty: updatedSettings.showLoyalty !== undefined ? (String(updatedSettings.showLoyalty) === "true" || updatedSettings.showLoyalty === true) : true,
             showRewardPoints: updatedSettings.showRewardPoints !== undefined ? (String(updatedSettings.showRewardPoints) === "true" || updatedSettings.showRewardPoints === true) : true,
             showPromoCode: updatedSettings.showPromoCode !== undefined ? (String(updatedSettings.showPromoCode) === "true" || updatedSettings.showPromoCode === true) : true,
+            vipThreshold: updatedSettings.vipThreshold,
+            vipRuleEnabled: updatedSettings.vipRuleEnabled,
+            vipRuleTargetType: updatedSettings.vipRuleTargetType,
+            vipRuleDishId: updatedSettings.vipRuleDishId,
+            vipRuleDishGroupId: updatedSettings.vipRuleDishGroupId,
+            vipRuleDiscountType: updatedSettings.vipRuleDiscountType,
+            vipRuleDiscountValue: updatedSettings.vipRuleDiscountValue,
           };
 
           console.log("📦 [GeneralSettingsStore] Payload:", JSON.stringify(payload));

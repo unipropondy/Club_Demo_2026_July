@@ -30,7 +30,7 @@ router.get("/", async (req, res) => {
 router.post("/add", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const { name, phone, email, creditLimit, currentBalance, balance, address, isActive, userId, promocode, promoamount } = req.body;
+    const { name, phone, email, creditLimit, currentBalance, balance, address, isActive, userId, promocode, promoamount, isVIP, vipType } = req.body;
     const result = await pool.request()
       .input("Name", sql.NVarChar, name)
       .input("Phone", sql.NVarChar, phone)
@@ -43,10 +43,12 @@ router.post("/add", async (req, res) => {
       .input("CreatedBy", sql.UniqueIdentifier, userId || null)
       .input("Promocode", sql.NVarChar, promocode || null)
       .input("Promoamount", sql.Decimal(18, 2), parseFloat(promoamount) || 0)
+      .input("IsVIP", sql.Bit, isVIP !== undefined ? isVIP : 0)
+      .input("VIPType", sql.VarChar(20), vipType || 'Manual')
       .query(`
         DECLARE @newId UNIQUEIDENTIFIER = NEWID();
-        INSERT INTO MemberMaster (MemberId, Name, Phone, Email, Address, IsActive, CreditLimit, CurrentBalance, Balance, CreatedBy, Promocode, Promoamount)
-        VALUES (@newId, @Name, @Phone, @Email, @Address, @IsActive, @CreditLimit, @CurrentBalance, @Balance, @CreatedBy, @Promocode, @Promoamount);
+        INSERT INTO MemberMaster (MemberId, Name, Phone, Email, Address, IsActive, CreditLimit, CurrentBalance, Balance, CreatedBy, Promocode, Promoamount, IsVIP, VIPType, VIPSince, LifetimeSpend)
+        VALUES (@newId, @Name, @Phone, @Email, @Address, @IsActive, @CreditLimit, @CurrentBalance, @Balance, @CreatedBy, @Promocode, @Promoamount, @IsVIP, @VIPType, CASE WHEN @IsVIP = 1 THEN GETDATE() ELSE NULL END, 0);
         SELECT @newId AS MemberId;
       `);
     
@@ -61,7 +63,9 @@ router.post("/add", async (req, res) => {
         CurrentBalance: parseFloat(currentBalance) || 0,
         IsActive: isActive !== undefined ? isActive : 1,
         Promocode: promocode || null,
-        Promoamount: parseFloat(promoamount) || 0
+        Promoamount: parseFloat(promoamount) || 0,
+        IsVIP: isVIP !== undefined ? isVIP : 0,
+        VIPType: vipType || 'Manual'
       }
     });
   } catch (err) {
@@ -73,7 +77,7 @@ router.post("/add", async (req, res) => {
 router.post("/update", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const { memberId, name, phone, email, creditLimit, currentBalance, balance, address, isActive, userId, promocode, promoamount } = req.body;
+    const { memberId, name, phone, email, creditLimit, currentBalance, balance, address, isActive, userId, promocode, promoamount, isVIP, vipType } = req.body;
     await pool.request()
       .input("Id", sql.UniqueIdentifier, memberId)
       .input("Name", sql.NVarChar, name)
@@ -87,12 +91,16 @@ router.post("/update", async (req, res) => {
       .input("ModifiedBy", sql.UniqueIdentifier, userId || null)
       .input("Promocode", sql.NVarChar, promocode || null)
       .input("Promoamount", sql.Decimal(18, 2), parseFloat(promoamount) || 0)
+      .input("IsVIP", sql.Bit, isVIP !== undefined ? isVIP : 0)
+      .input("VIPType", sql.VarChar(20), vipType || 'Manual')
       .query(`
         UPDATE MemberMaster SET 
           Name = @Name, Phone = @Phone, Email = @Email, Address = @Address, IsActive = @IsActive,
           CreditLimit = @CreditLimit, CurrentBalance = @CurrentBalance, Balance = @Balance,
           ModifiedBy = @ModifiedBy, ModifiedDate = GETDATE(),
-          Promocode = @Promocode, Promoamount = @Promoamount
+          Promocode = @Promocode, Promoamount = @Promoamount,
+          IsVIP = @IsVIP, VIPType = @VIPType,
+          VIPSince = CASE WHEN @IsVIP = 1 AND IsVIP = 0 THEN GETDATE() WHEN @IsVIP = 0 THEN NULL ELSE VIPSince END
         WHERE MemberId = @Id
       `);
     res.json({ success: true });
@@ -758,7 +766,70 @@ router.post("/deductSale", async (req, res) => {
 
 });
 
-// Unused credit customer/receivables endpoints removed
+// ─────────────────────────────────────────────
+// VIP DISCOUNT RULES ENDPOINTS
+// ─────────────────────────────────────────────
+
+router.get("/vip-rules", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+      SELECT 
+        r.VIPRuleID, r.RuleName, r.DishID, r.DishGroupID, r.DiscountType, r.DiscountValue, r.Priority, r.IsActive, r.CreatedDate,
+        d.Name AS DishName, dg.DishGroupName
+      FROM VIPDiscountRule r
+      LEFT JOIN DishMaster d ON r.DishID = d.DishId
+      LEFT JOIN DishGroupMaster dg ON r.DishGroupID = dg.DishGroupId
+      ORDER BY r.Priority ASC, r.RuleName ASC
+    `);
+    res.json(result.recordset);
+  } catch (err) {
+    console.error("[VIP RULES GET ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/vip-rules/add", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const { ruleName, dishId, dishGroupId, discountType, discountValue, priority } = req.body;
+    if (!ruleName || !discountType || discountValue === undefined) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    await pool.request()
+      .input("RuleName", sql.NVarChar(100), ruleName)
+      .input("DishID", sql.UniqueIdentifier, toGuidOrNull(dishId))
+      .input("DishGroupID", sql.UniqueIdentifier, toGuidOrNull(dishGroupId))
+      .input("DiscountType", sql.VarChar(20), discountType)
+      .input("DiscountValue", sql.Decimal(18, 2), parseFloat(discountValue))
+      .input("Priority", sql.Int, parseInt(priority) || 1)
+      .query(`
+        INSERT INTO VIPDiscountRule (RuleName, DishID, DishGroupID, DiscountType, DiscountValue, Priority, IsActive)
+        VALUES (@RuleName, @DishID, @DishGroupID, @DiscountType, @DiscountValue, @Priority, 1)
+      `);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[VIP RULES ADD ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/vip-rules/delete", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const { ruleId } = req.body;
+    if (!ruleId) {
+      return res.status(400).json({ error: "ruleId is required" });
+    }
+    await pool.request()
+      .input("VIPRuleID", sql.UniqueIdentifier, ruleId)
+      .query("DELETE FROM VIPDiscountRule WHERE VIPRuleID = @VIPRuleID");
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[VIP RULES DELETE ERROR]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;
 

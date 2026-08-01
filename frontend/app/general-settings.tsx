@@ -102,6 +102,7 @@ export default function GeneralSettingsScreen() {
   const [showRewardPoints, setShowRewardPoints] = useState(settings.showRewardPoints !== undefined ? settings.showRewardPoints : true);
   const [showPromoCode, setShowPromoCode] = useState(settings.showPromoCode !== undefined ? settings.showPromoCode : true);
 
+
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [passwordValue, setPasswordValue] = useState("");
@@ -126,6 +127,7 @@ export default function GeneralSettingsScreen() {
     setShowLoyalty(settings.showLoyalty !== undefined ? settings.showLoyalty : true);
     setShowRewardPoints(settings.showRewardPoints !== undefined ? settings.showRewardPoints : true);
     setShowPromoCode(settings.showPromoCode !== undefined ? settings.showPromoCode : true);
+
 
     let initialCheckoutFlow = settings.enableCheckoutFlow;
     let initialDirectProcess = settings.enableDirectProcessToPay;
@@ -223,6 +225,7 @@ export default function GeneralSettingsScreen() {
       showLoyalty,
       showRewardPoints,
       showPromoCode,
+
     });
     setSaving(false);
 
@@ -389,6 +392,8 @@ export default function GeneralSettingsScreen() {
             </View>
           ))}
         </View>
+
+
       </ScrollView>
 
       {/* Footer */}
@@ -767,4 +772,5 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: "#fff",
   },
+
 });

@@ -1731,14 +1731,21 @@ class UniversalPrinter {
             : `-${symbol}${effectiveDisc.toFixed(2)}`;
         text += `[L]      Discount: ${discStr}\n`;
       }
+
+      // VIP Discount
+      const vipDiscAmt = Number(item.vipDiscountAmount || 0);
+      if (vipDiscAmt > 0) {
+        text += `[L]      VIP Discount: -${symbol}${(vipDiscAmt).toFixed(2)}\n`;
+      }
     });
 
     text += "[L]------------------------------------------------\n";
 
     // Totals
-    // Calculate item-level discounts and gross total
+    // Calculate item-level discounts, VIP discounts and gross total
     let grossTotal = 0;
     let totalItemDiscount = 0;
+    let totalVipDiscount = parseFloat(String(saleData.vipDiscountAmount || 0)) || 0;
     (saleData.items || []).forEach((item: any) => {
       if (item.status === "VOIDED") return;
       const qtyNum = parseInt(String(item.qty || item.quantity || 1)) || 1;
@@ -1757,6 +1764,9 @@ class UniversalPrinter {
       }
       grossTotal += baseTotal;
       totalItemDiscount += itemDiscount;
+      if (!saleData.vipDiscountAmount && item.vipDiscountAmount > 0) {
+        totalVipDiscount += parseFloat(String(item.vipDiscountAmount));
+      }
     });
 
     const finalDiscountInfo =
@@ -1778,7 +1788,7 @@ class UniversalPrinter {
           : null);
 
     const orderDiscount = finalDiscountInfo?.amount || 0;
-    const hasAnyDiscount = totalItemDiscount > 0 || orderDiscount > 0;
+    const hasAnyDiscount = totalItemDiscount > 0 || orderDiscount > 0 || totalVipDiscount > 0;
     let currentSubtotal = grossTotal;
 
     text += this.formatTwoCols48("Sub Total:", `${symbol}${grossTotal.toFixed(2)}`);
@@ -1795,6 +1805,11 @@ class UniversalPrinter {
           : "Discount:";
       text += this.formatTwoCols48(discLabel, `-${symbol}${orderDiscount.toFixed(2)}`);
       currentSubtotal -= orderDiscount;
+    }
+
+    if (totalVipDiscount > 0) {
+      text += this.formatTwoCols48("VIP Discount Savings:", `-${symbol}${totalVipDiscount.toFixed(2)}`);
+      currentSubtotal -= totalVipDiscount;
     }
 
     if (hasAnyDiscount) {

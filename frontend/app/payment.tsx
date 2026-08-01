@@ -126,6 +126,16 @@ export default function PaymentScreen() {
   const isLedgerCollection = !!memberId;
   const rewardMemberId = params.rewardMemberId as string | undefined;
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "cancelled" | "failed">("idle");
+  const [allDishes, setAllDishes] = useState<any[]>([]);
+  const vipOffer = useMemo(() => {
+    if (!params.vipOffer) return null;
+    try {
+      return JSON.parse(params.vipOffer as string);
+    } catch (e) {
+      console.warn("Failed to parse vipOffer parameter:", e);
+      return null;
+    }
+  }, [params.vipOffer]);
   const [paymentMessage, setPaymentMessage] = useState("");
   const allocationsParam = useMemo(() => {
     if (!params.allocations) return null;
@@ -152,6 +162,13 @@ export default function PaymentScreen() {
   const { width, height } = useWindowDimensions();
 
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/menu/dishes/all`)
+      .then((res) => res.json())
+      .then((data) => setAllDishes(Array.isArray(data) ? data : []))
+      .catch((err) => console.error("Error fetching all dishes inside payment:", err));
+  }, []);
 
   useEffect(() => {
     if (memberId) {
@@ -537,8 +554,9 @@ export default function PaymentScreen() {
 
   useEffect(() => {
     const fetchDishLoyaltyRewards = async () => {
+      const showRewardPoints = useGeneralSettingsStore.getState().settings?.showRewardPoints !== false;
       const phone = loyaltyPhone ? loyaltyPhone.trim() : "";
-      if (!phone || finalItemsRaw.length === 0 || isLedgerCollection) {
+      if (!showRewardPoints || !phone || finalItemsRaw.length === 0 || isLedgerCollection) {
         setLoyaltyDiscountItems([]);
         setLoyaltyDiscountAmount(0);
         return;
@@ -591,17 +609,15 @@ export default function PaymentScreen() {
   useEffect(() => {
     const init = async () => {
       const store = usePaymentSettingsStore.getState();
-      if (!store.hasLoadedMethods) {
-        setLoadingMethods(true);
-        try {
-          await Promise.all([
-            store.fetchSettings(),
-            store.fetchPaymentMethods()
-          ]);
-        } catch (err) {
-          if (__DEV__) {
-            console.error("Failed to fetch settings/methods on payment screen mount:", err);
-          }
+      setLoadingMethods(true);
+      try {
+        await Promise.all([
+          store.fetchSettings(),
+          store.fetchPaymentMethods()
+        ]);
+      } catch (err) {
+        if (__DEV__) {
+          console.error("Failed to fetch settings/methods on payment screen mount:", err);
         }
       }
       applyPaymentMethodsFromCache();
@@ -644,30 +660,36 @@ export default function PaymentScreen() {
     subtotal,
     grossTotal: payGrossTotal,
     totalItemDiscount: payItemDiscount,
+    vipDiscountAmount,
     scEligibleSubtotal,
     calcTakeawayChargeAmt,
     takeawayQty,
+    calculatedItems,
   } = useMemo(() => {
     if (isLedgerCollection) {
       return {
         grossTotal: collectAmount || 0,
         totalItemDiscount: 0,
+        vipDiscountAmount: 0,
         subtotal: collectAmount || 0,
         scEligibleSubtotal: 0,
         calcTakeawayChargeAmt: 0,
         takeawayQty: 0,
+        calculatedItems: [],
       };
     }
+    const isVip = selectedMember?.IsVIP === true || selectedMember?.IsVIP === 1;
     const nonVoided = finalItems.filter((i: any) => i.status !== "VOIDED");
+    
     return nonVoided.reduce(
       (acc: any, item: any) => {
         const baseTotal = (item.price || 0) * (item.qty || 0);
+        const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
+        const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
         let itemDiscount = 0;
         const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
         const discType = item.discountType || "percentage";
         if (discAmt > 0) {
-          const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
-          const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
           const isFixed = discType === "fixed" || (discType === "percentage" && !item.discount && item.discountAmount > 0);
           if (isFixed) {
             itemDiscount = Math.min(discAmt, discountBasis) * (item.qty || 0);
@@ -675,31 +697,70 @@ export default function PaymentScreen() {
             itemDiscount = baseTotal * (discAmt / 100);
           }
         }
-        const itemSubtotal = baseTotal - itemDiscount;
+
+        // Calculate VIP Discount
+        let vipItemDiscount = 0;
+        let matchedRuleId = null;
+
+        if (isVip && vipOffer) {
+          const itemDishId = item.id || item.DishId;
+          const itemDishGroupId = allDishes.find((d: any) => String(d.DishId).toLowerCase() === String(itemDishId).toLowerCase())?.DishGroupId;
+
+          let matchesOffer = false;
+          if (vipOffer.targetType === "DISH" && vipOffer.dishId && String(vipOffer.dishId).toLowerCase() === String(itemDishId).toLowerCase()) {
+            matchesOffer = true;
+          } else if (vipOffer.targetType === "GROUP" && vipOffer.dishGroupId && itemDishGroupId && String(vipOffer.dishGroupId).toLowerCase() === String(itemDishGroupId).toLowerCase()) {
+            matchesOffer = true;
+          }
+
+          if (matchesOffer) {
+            matchedRuleId = "DYNAMIC";
+            const remainingBasis = Math.max(0, discountBasis - (itemDiscount / (item.qty || 1)));
+
+            if (vipOffer.discountType === "PERCENTAGE") {
+              vipItemDiscount = remainingBasis * (vipOffer.discountValue / 100) * (item.qty || 1);
+            } else {
+              vipItemDiscount = Math.min(vipOffer.discountValue, remainingBasis) * (item.qty || 1);
+            }
+          }
+        }
+
+        const itemSubtotal = baseTotal - itemDiscount - vipItemDiscount;
         const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
         const isSC =
           !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
         const itemTWCharge = isTakeawayItem ? (item.qty || 1) * takeawayCharges : 0;
+
+        acc.calculatedItems.push({
+          ...item,
+          vipDiscountAmount: vipItemDiscount,
+          vipRuleId: matchedRuleId,
+        });
+
         return {
           grossTotal: acc.grossTotal + baseTotal,
           totalItemDiscount: acc.totalItemDiscount + itemDiscount,
+          vipDiscountAmount: acc.vipDiscountAmount + vipItemDiscount,
           subtotal: acc.subtotal + itemSubtotal,
           scEligibleSubtotal:
             acc.scEligibleSubtotal + (isSC ? itemSubtotal : 0),
           calcTakeawayChargeAmt: acc.calcTakeawayChargeAmt + itemTWCharge,
           takeawayQty: acc.takeawayQty + (isTakeawayItem ? (item.qty || 1) : 0),
+          calculatedItems: acc.calculatedItems,
         };
       },
       {
         grossTotal: 0,
         totalItemDiscount: 0,
+        vipDiscountAmount: 0,
         subtotal: 0,
         scEligibleSubtotal: 0,
         calcTakeawayChargeAmt: 0,
         takeawayQty: 0,
+        calculatedItems: [],
       },
     );
-  }, [finalItems, isLedgerCollection, collectAmount, takeawayCharges]);
+  }, [finalItems, isLedgerCollection, collectAmount, takeawayCharges, vipOffer, allDishes, selectedMember]);
 
   const allItemsHaveSC = useMemo(() => {
     const activeItems = finalItems.filter(
@@ -1333,7 +1394,7 @@ export default function PaymentScreen() {
           ? context?.takeawayNo
           : context?.tableNo,
       section: context?.section,
-      items: finalItems.map((item: any) => ({
+      items: calculatedItems.map((item: any) => ({
         lineItemId: item.lineItemId,
         dishId: item.dishId || item.DishId || item.id,
         name: item.name,
@@ -1348,12 +1409,15 @@ export default function PaymentScreen() {
         rewardDishId: item.rewardDishId || null,
         modifiers: item.modifiers || null,
         comboSelections: item.comboSelections || null,
+        vipDiscountAmount: item.vipDiscountAmount || 0,
+        vipRuleId: item.vipRuleId || null,
       })),
       subTotal: subtotal,
       taxAmount: displayedTax,
       serviceCharge: displayedServiceCharge,
       takeawayCharge: currentTakeawayCharge,
       discountAmount: discountAmount + payItemDiscount,
+      vipDiscountAmount: vipDiscountAmount || 0,
       discountType: discount?.type || "fixed",
       totalAmount: total,
       paymentMethod: payments && payments.length > 0 ? "SPLIT" : method.trim(),
@@ -1441,7 +1505,7 @@ export default function PaymentScreen() {
                 ? { ...discount, amount: discountAmount, subtotal }
                 : {},
             ),
-            items: JSON.stringify(finalItems || []),
+            items: JSON.stringify(calculatedItems || finalItems || []),
             roundOff: displayedRoundOff.toFixed(2),
             serviceCharge: displayedServiceCharge.toFixed(2),
             takeawayCharge: currentTakeawayCharge.toFixed(2),
@@ -1450,6 +1514,7 @@ export default function PaymentScreen() {
             rewardPointsEarned: String(result.rewardPointsEarned || "0"),
             memberRewardBalance: String(result.memberRewardBalance || "0"),
             mobileNo: loyaltyPhone || "",
+            vipDiscountAmount: (vipDiscountAmount || 0).toFixed(2),
           },
         });
         // Snapshot context/splitItems before the delayed cleanup
@@ -2972,27 +3037,50 @@ export default function PaymentScreen() {
                         </Text>
                       </View>
 
-                      {discountAmount + payItemDiscount > 0 && (
+                      {(discountAmount + payItemDiscount + vipDiscountAmount) > 0 && (
                         <>
-                          <View style={styles.breakRow}>
-                            <Text
-                              style={[
-                                styles.breakLabel,
-                                { color: Theme.danger },
-                              ]}
-                            >
-                              Discount
-                            </Text>
-                            <Text
-                              style={[
-                                styles.breakValue,
-                                { color: Theme.danger },
-                              ]}
-                            >
-                              -{currencySymbol}
-                              {(discountAmount + payItemDiscount).toFixed(2)}
-                            </Text>
-                          </View>
+                          {(discountAmount + payItemDiscount) > 0 && (
+                            <View style={styles.breakRow}>
+                              <Text
+                                style={[
+                                  styles.breakLabel,
+                                  { color: Theme.danger },
+                                ]}
+                              >
+                                Discount
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.breakValue,
+                                  { color: Theme.danger },
+                                ]}
+                              >
+                                -{currencySymbol}
+                                {(discountAmount + payItemDiscount).toFixed(2)}
+                              </Text>
+                            </View>
+                          )}
+                          {vipDiscountAmount > 0 && (
+                            <View style={styles.breakRow}>
+                              <Text
+                                style={[
+                                  styles.breakLabel,
+                                  { color: "#A855F7", fontFamily: Fonts.black },
+                                ]}
+                              >
+                                ✨ VIP Discount Savings
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.breakValue,
+                                  { color: "#A855F7", fontFamily: Fonts.black },
+                                ]}
+                              >
+                                -{currencySymbol}
+                                {vipDiscountAmount.toFixed(2)}
+                              </Text>
+                            </View>
+                          )}
                           <View style={styles.receiptDivider} />
                           <View style={styles.breakRow}>
                             <Text style={styles.breakLabel}>Net Amount</Text>

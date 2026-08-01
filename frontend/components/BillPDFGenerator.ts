@@ -297,9 +297,10 @@ private static escapeHtml(str: string): string {
     let finalTotal = saleData.total || saleData.totalAmount || 0;
     const currencySymbol = company.currencySymbol || '$';
 
-    // Calculate item-level discounts and gross total
+    // Calculate item-level discounts, VIP discounts and gross total
     let grossTotal = 0;
     let totalItemDiscount = 0;
+    let totalVipDiscount = parseFloat(String(saleData.vipDiscountAmount || 0)) || 0;
     (saleData.items || []).forEach((item: any) => {
       if (item.status === 'VOIDED') return;
       const qtyNum = parseInt(String(item.qty || item.quantity || 1)) || 1;
@@ -318,12 +319,15 @@ private static escapeHtml(str: string): string {
       }
       grossTotal += baseTotal;
       totalItemDiscount += itemDiscount;
+      if (!saleData.vipDiscountAmount && item.vipDiscountAmount > 0) {
+        totalVipDiscount += parseFloat(String(item.vipDiscountAmount));
+      }
     });
 
     const orderDiscount = finalDiscountInfo?.amount || 0;
-    const currentSubtotal = grossTotal - totalItemDiscount - orderDiscount;
+    const currentSubtotal = grossTotal - totalItemDiscount - orderDiscount - totalVipDiscount;
     const hasOrderDiscount = finalDiscountInfo?.applied && finalDiscountInfo.amount > 0;
-    const hasAnyDiscount = totalItemDiscount > 0 || hasOrderDiscount;
+    const hasAnyDiscount = totalItemDiscount > 0 || hasOrderDiscount || totalVipDiscount > 0;
     const originalSubTotal = grossTotal;
 
     const activeItems = (saleData.items || []).filter((i: any) => i.status !== 'VOIDED' && i.statusCode !== 0);
@@ -356,7 +360,8 @@ private static escapeHtml(str: string): string {
             itemDiscount = Math.min(discAmt, discountBasis) * qtyNum;
           }
         }
-        const itemSubtotal = baseTotal - itemDiscount;
+        const itemVipDisc = parseFloat(String(item.vipDiscountAmount || 0)) || 0;
+        const itemSubtotal = baseTotal - itemDiscount - itemVipDisc;
         const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
         const isSC = !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
         if (isSC) {
@@ -365,7 +370,7 @@ private static escapeHtml(str: string): string {
       });
       let scEligibleNet = scEligibleSubtotal;
       if (grossTotal > 0 && orderDiscount > 0) {
-        const subtotalPostItemDisc = grossTotal - totalItemDiscount;
+        const subtotalPostItemDisc = grossTotal - totalItemDiscount - totalVipDiscount;
         if (subtotalPostItemDisc > 0) {
           const proportion = scEligibleSubtotal / subtotalPostItemDisc;
           scEligibleNet = Math.max(0, scEligibleSubtotal - proportion * orderDiscount);
@@ -451,15 +456,20 @@ private static escapeHtml(str: string): string {
                     ${comboSelectionsHTML}
                     ${(() => {
                       const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+                      let outStr = '';
                       if (discAmt > 0) {
                         const discType = item.discountType || 'percentage';
                         const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
                         const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
                         const effectiveDisc = discType === 'percentage' ? discAmt : Math.min(discAmt, discountBasis);
                         const discStr = discType === 'percentage' ? `-${discAmt}%` : `-${currencySymbol}${effectiveDisc.toFixed(2)}`;
-                        return `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">Discount: ${discStr}</div>`;
+                        outStr += `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">Discount: ${discStr}</div>`;
                       }
-                      return '';
+                      const vipDiscAmt = parseFloat(String(item.vipDiscountAmount || 0)) || 0;
+                      if (vipDiscAmt > 0) {
+                        outStr += `<div style="font-size: 8.5px; color: #A855F7; font-style: italic; margin-top: 0.5mm;">VIP Discount: -${currencySymbol}${vipDiscAmt.toFixed(2)}</div>`;
+                      }
+                      return outStr;
                     })()}
                 </td>
                 <td class="item-qty">${item.qty || item.quantity}</td>
@@ -806,6 +816,12 @@ private static escapeHtml(str: string): string {
             <div class="total-row">
               <span>Discount${finalDiscountInfo?.type === 'percentage' ? ` (${finalDiscountInfo?.value}%)` : ''}:</span>
               <span>-${currencySymbol}${finalDiscountInfo?.amount.toFixed(2)}</span>
+            </div>
+            ` : ''}
+            ${totalVipDiscount > 0 ? `
+            <div class="total-row" style="color: #A855F7; font-weight: bold;">
+              <span>VIP Discount Savings:</span>
+              <span>-${currencySymbol}${totalVipDiscount.toFixed(2)}</span>
             </div>
             ` : ''}
             <div class="total-row" style="margin-top: 1.5mm; border-top: 1px dashed #ccc; padding-top: 1.5mm;">

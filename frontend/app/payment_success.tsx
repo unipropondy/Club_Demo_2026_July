@@ -18,6 +18,7 @@ import BillPrompt from "../components/BillPrompt";
 import UniversalPrinter from "../components/UniversalPrinter";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
+import { useGeneralSettingsStore } from "../stores/generalSettingsStore";
 import { CustomerDisplaySync } from "../utils/CustomerDisplaySync";
 import CashDrawerService from "../services/CashDrawerService";
 
@@ -33,6 +34,8 @@ export default function PaymentSuccess() {
   const params = useLocalSearchParams();
   const settings = useCompanySettingsStore((state: any) => state.settings);
   const currencySymbol = settings.currencySymbol || "$";
+  const generalSettings = useGeneralSettingsStore((state: any) => state.settings);
+  const showRewardPoints = generalSettings?.showRewardPoints !== false;
 
   const total = String(params.total ?? "0");
   const paid = String(params.paidNum ?? "0");
@@ -50,6 +53,7 @@ export default function PaymentSuccess() {
   const paymentsRaw = String(params.payments ?? "[]");
   const serviceCharge = String(params.serviceCharge ?? "0");
   const takeawayCharge = String(params.takeawayCharge ?? "0");
+  const vipDiscountAmountRaw = String(params.vipDiscountAmount ?? "0");
   const payments = React.useMemo(() => {
     try {
       return JSON.parse(paymentsRaw);
@@ -192,6 +196,7 @@ export default function PaymentSuccess() {
         subTotal: computedSubTotal,
         serviceCharge: parseFloat(serviceCharge) || 0,
         takeawayCharge: parseFloat(takeawayCharge) || 0,
+        vipDiscountAmount: parseFloat(vipDiscountAmountRaw) || 0,
         rewardPointsEarned: params.rewardPointsEarned || "0",
         memberRewardBalance: params.memberRewardBalance || "0",
       };
@@ -251,14 +256,14 @@ export default function PaymentSuccess() {
               <Text style={styles.value}>{currencySymbol}{paid}</Text>
             </View>
 
-            {parseFloat(String(params.rewardPointsEarned || "0")) > 0 ? (
+            {showRewardPoints && parseFloat(String(params.rewardPointsEarned || "0")) > 0 ? (
               <View style={[styles.row, { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: Theme.warningBg, borderRadius: 8, borderColor: Theme.warningBorder, borderWidth: 1, marginTop: 4, marginBottom: 4 }]}>
                 <Text style={[styles.label, { color: Theme.warning, fontFamily: Fonts.bold }]}>Points Earned</Text>
                 <Text style={[styles.value, { color: Theme.warning }]}>+${parseFloat(String(params.rewardPointsEarned)).toFixed(2)}</Text>
               </View>
             ) : null}
 
-            {parseFloat(String(params.memberRewardBalance || "0")) > 0 ? (
+            {showRewardPoints && parseFloat(String(params.memberRewardBalance || "0")) > 0 ? (
               <View style={styles.row}>
                 <Text style={styles.label}>Available Member Credit</Text>
                 <Text style={[styles.value, { color: Theme.success }]}>${parseFloat(String(params.memberRewardBalance)).toFixed(2)}</Text>

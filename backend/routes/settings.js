@@ -66,6 +66,44 @@ router.get("/", async (req, res) => {
       BEGIN
         ALTER TABLE AppSettings ADD ShowPromoCode BIT DEFAULT 1 WITH VALUES;
       END
+
+      IF NOT EXISTS (
+        SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'VIPThreshold'
+      )
+      BEGIN
+        ALTER TABLE AppSettings ADD VIPThreshold DECIMAL(18, 2) DEFAULT 5000.00 WITH VALUES;
+      END
+
+      IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'VipRuleEnabled')
+      BEGIN
+        ALTER TABLE AppSettings ADD VipRuleEnabled BIT DEFAULT 0 WITH VALUES;
+      END
+
+      IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'VipRuleTargetType')
+      BEGIN
+        ALTER TABLE AppSettings ADD VipRuleTargetType NVARCHAR(50) NULL;
+      END
+
+      IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'VipRuleDishId')
+      BEGIN
+        ALTER TABLE AppSettings ADD VipRuleDishId NVARCHAR(100) NULL;
+      END
+
+      IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'VipRuleDishGroupId')
+      BEGIN
+        ALTER TABLE AppSettings ADD VipRuleDishGroupId NVARCHAR(100) NULL;
+      END
+
+      IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'VipRuleDiscountType')
+      BEGIN
+        ALTER TABLE AppSettings ADD VipRuleDiscountType NVARCHAR(50) NULL;
+      END
+
+      IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'VipRuleDiscountValue')
+      BEGIN
+        ALTER TABLE AppSettings ADD VipRuleDiscountValue DECIMAL(18, 2) DEFAULT 0.00 WITH VALUES;
+      END
     `).catch(err => console.warn("Failed self-healing AppSettings column:", err.message));
 
     const settings = await getAppSettings();
@@ -81,7 +119,13 @@ router.get("/", async (req, res) => {
 // 🔹 UPDATE Settings
 router.post("/update", async (req, res) => {
   try {
-    const { upiId, shopName, qrCodeUrl, enableKOT, enableKDS, enableCheckoutBill, enableCheckoutFlow, enableDirectProcessToPay, customerSideDisplay, enableGuestDetailsPopup, enableCashDrawer, SVCIdentification, enableKDSPrint, enableCombo, showBillTime, showLoyalty, showRewardPoints, showPromoCode } = req.body;
+    const { 
+      upiId, shopName, qrCodeUrl, enableKOT, enableKDS, enableCheckoutBill, enableCheckoutFlow, 
+      enableDirectProcessToPay, customerSideDisplay, enableGuestDetailsPopup, enableCashDrawer, 
+      SVCIdentification, enableKDSPrint, enableCombo, showBillTime, showLoyalty, showRewardPoints, 
+      showPromoCode, vipThreshold,
+      vipRuleEnabled, vipRuleTargetType, vipRuleDishId, vipRuleDishGroupId, vipRuleDiscountType, vipRuleDiscountValue
+    } = req.body;
     const pool = await poolPromise;
 
     // Use an UPSERT logic (Update if exists, Insert if not)
@@ -104,6 +148,13 @@ router.post("/update", async (req, res) => {
       .input("ShowLoyalty", sql.Bit, showLoyalty !== undefined ? showLoyalty : 1)
       .input("ShowRewardPoints", sql.Bit, showRewardPoints !== undefined ? showRewardPoints : 1)
       .input("ShowPromoCode", sql.Bit, showPromoCode !== undefined ? showPromoCode : 1)
+      .input("VIPThreshold", sql.Decimal(18, 2), vipThreshold !== undefined ? parseFloat(vipThreshold) : 5000.00)
+      .input("VipRuleEnabled", sql.Bit, vipRuleEnabled !== undefined ? vipRuleEnabled : 0)
+      .input("VipRuleTargetType", sql.NVarChar(50), vipRuleTargetType || null)
+      .input("VipRuleDishId", sql.NVarChar(100), vipRuleDishId || null)
+      .input("VipRuleDishGroupId", sql.NVarChar(100), vipRuleDishGroupId || null)
+      .input("VipRuleDiscountType", sql.NVarChar(50), vipRuleDiscountType || null)
+      .input("VipRuleDiscountValue", sql.Decimal(18, 2), vipRuleDiscountValue !== undefined ? parseFloat(vipRuleDiscountValue) : 0.00)
       .query(`
         IF EXISTS (SELECT 1 FROM AppSettings)
         BEGIN
@@ -127,12 +178,31 @@ router.post("/update", async (req, res) => {
             ShowLoyalty = @ShowLoyalty,
             ShowRewardPoints = @ShowRewardPoints,
             ShowPromoCode = @ShowPromoCode,
+            VIPThreshold = @VIPThreshold,
+            VipRuleEnabled = @VipRuleEnabled,
+            VipRuleTargetType = @VipRuleTargetType,
+            VipRuleDishId = @VipRuleDishId,
+            VipRuleDishGroupId = @VipRuleDishGroupId,
+            VipRuleDiscountType = @VipRuleDiscountType,
+            VipRuleDiscountValue = @VipRuleDiscountValue,
             UpdatedOn = GETDATE()
         END
         ELSE
         BEGIN
-          INSERT INTO AppSettings (UPI_ID, ShopName, PayNow_QR_Url, EnableKOT, EnableKDS, EnableCheckoutBill, EnableCheckoutFlow, EnableDirectProcessToPay, CustomerSideDisplay, EnableGuestDetailsPopup, EnableCashDrawer, EnableKDSPrint, SVCIdentification, EnableCombo, ShowBillTime, ShowLoyalty, ShowRewardPoints, ShowPromoCode, UpdatedOn)
-          VALUES (@UPI, @Shop, @QR, @EnableKOT, @EnableKDS, @EnableCheckoutBill, @EnableCheckoutFlow, @EnableDirectProcessToPay, @CustomerSideDisplay, @EnableGuestDetailsPopup, @EnableCashDrawer, @EnableKDSPrint, @SVCIdentification, @EnableCombo, @ShowBillTime, @ShowLoyalty, @ShowRewardPoints, @ShowPromoCode, GETDATE())
+          INSERT INTO AppSettings (
+            UPI_ID, ShopName, PayNow_QR_Url, EnableKOT, EnableKDS, EnableCheckoutBill, EnableCheckoutFlow, 
+            EnableDirectProcessToPay, CustomerSideDisplay, EnableGuestDetailsPopup, EnableCashDrawer, 
+            EnableKDSPrint, SVCIdentification, EnableCombo, ShowBillTime, ShowLoyalty, ShowRewardPoints, 
+            ShowPromoCode, VIPThreshold, VipRuleEnabled, VipRuleTargetType, VipRuleDishId, VipRuleDishGroupId, 
+            VipRuleDiscountType, VipRuleDiscountValue, UpdatedOn
+          )
+          VALUES (
+            @UPI, @Shop, @QR, @EnableKOT, @EnableKDS, @EnableCheckoutBill, @EnableCheckoutFlow, 
+            @EnableDirectProcessToPay, @CustomerSideDisplay, @EnableGuestDetailsPopup, @EnableCashDrawer, 
+            @EnableKDSPrint, @SVCIdentification, @EnableCombo, @ShowBillTime, @ShowLoyalty, @ShowRewardPoints, 
+            @ShowPromoCode, @VIPThreshold, @VipRuleEnabled, @VipRuleTargetType, @VipRuleDishId, @VipRuleDishGroupId, 
+            @VipRuleDiscountType, @VipRuleDiscountValue, GETDATE()
+          )
         END
       `);
 

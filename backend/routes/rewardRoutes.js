@@ -99,7 +99,8 @@ router.get("/members/search", async (req, res) => {
           MemberId, Name, Phone, 
           ISNULL(RewardCredit, 0) AS RewardCredit,
           AvailableCredit,
-          CreditLimit, CurrentBalance, IsActive
+          CreditLimit, CurrentBalance, IsActive,
+          ISNULL(IsVIP, 0) AS IsVIP, VIPType, VIPSince, ISNULL(LifetimeSpend, 0) AS LifetimeSpend
         FROM MemberMaster
         WHERE IsActive = 1
           AND (Name LIKE @query OR Phone LIKE @query)

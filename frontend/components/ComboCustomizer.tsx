@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -853,15 +853,15 @@ const styles = StyleSheet.create({
   groupTitle: {
     fontSize: 15,
     fontFamily: Fonts.bold,
-    color: "#2C3E50",
+    color: Theme.textPrimary,
     letterSpacing: 0.3,
   },
   groupRules: {
     marginLeft: 8,
     fontSize: 11,
     fontFamily: Fonts.semiBold,
-    color: "#95A5A6",
-    backgroundColor: "#F2F4F4",
+    color: Theme.primary,
+    backgroundColor: Theme.primary + "15",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 12,
@@ -874,32 +874,24 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     width: 125,
-    backgroundColor: Theme.bgCard,
+    backgroundColor: Theme.bgInput || "#1E1B4B",
     borderWidth: 1.5,
-    borderColor: "#EAECEE",
+    borderColor: Theme.border,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 8,
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
-    // Premium soft card shadows
-    shadowColor: "#17202A",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 2,
   },
   optionCardSelected: {
     borderColor: Theme.primary,
-    backgroundColor: "#FFF5EB",
-    shadowColor: Theme.primary,
-    shadowOpacity: 0.08,
+    backgroundColor: Theme.primary + "20",
   },
   optionName: {
     fontSize: 13,
     fontFamily: Fonts.semiBold,
-    color: "#2C3E50",
+    color: Theme.textPrimary,
     textAlign: "center",
     paddingHorizontal: 12,
   },
@@ -908,14 +900,14 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     color: Theme.primary,
     marginTop: 4,
-    backgroundColor: "#FFEEDB",
+    backgroundColor: Theme.primary + "30",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
     overflow: "hidden",
   },
   optionTextSelected: {
-    color: Theme.primary,
+    color: "#FFFFFF",
   },
   checkmarkWrap: {
     position: "absolute",
@@ -926,7 +918,7 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 15,
     borderTopWidth: 1,
-    borderTopColor: "#EAECEE",
+    borderTopColor: Theme.border,
     paddingTop: 20,
     paddingBottom: 10,
   },
@@ -936,11 +928,6 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: Theme.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
   },
   confirmButtonText: {
     color: "#FFF",
@@ -956,9 +943,9 @@ const styles = StyleSheet.create({
   },
   modifierCard: {
     width: "48%",
-    backgroundColor: "#FAF9F6",
+    backgroundColor: Theme.bgInput || "#1E1B4B",
     borderWidth: 1.5,
-    borderColor: "#EAECEE",
+    borderColor: Theme.border,
     borderRadius: 14,
     paddingVertical: 14,
     paddingHorizontal: 10,
@@ -969,23 +956,23 @@ const styles = StyleSheet.create({
   },
   modifierCardSelected: {
     borderColor: Theme.primary,
-    backgroundColor: "#FFF5EB",
+    backgroundColor: Theme.primary + "20",
   },
   modifierCardName: {
     fontSize: 13,
     fontFamily: Fonts.bold,
-    color: "#2C3E50",
+    color: Theme.textPrimary,
     textAlign: "center",
   },
   modifierCardTextSelected: {
-    color: Theme.primary,
+    color: "#FFFFFF",
   },
   modifierCardPrice: {
     fontSize: 11,
     fontFamily: Fonts.bold,
     color: Theme.primary,
     marginTop: 4,
-    backgroundColor: "#FFEEDB",
+    backgroundColor: Theme.primary + "30",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 8,
@@ -1001,7 +988,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#F2F4F4",
+    backgroundColor: Theme.primary + "15",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
@@ -1011,11 +998,11 @@ const styles = StyleSheet.create({
   modifierGroupName: {
     fontSize: 14,
     fontFamily: Fonts.bold,
-    color: "#2C3E50",
+    color: Theme.textPrimary,
   },
   modifierGroupLimits: {
     fontSize: 11,
     fontFamily: Fonts.bold,
-    color: "#7F8C8D",
+    color: Theme.textSecondary,
   },
 });

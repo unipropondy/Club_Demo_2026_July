@@ -165,6 +165,51 @@ export default function SummaryScreen() {
   const [rewardSearchResults, setRewardSearchResults] = useState<any[]>([]);
   const [isSearchingRewards, setIsSearchingRewards] = useState(false);
 
+  // 💎 DYNAMIC VIP OFFER STATES
+  const [vipOffer, setVipOffer] = useState<{
+    targetType: "DISH" | "GROUP";
+    dishId: string | null;
+    dishGroupId: string | null;
+    discountType: "PERCENTAGE" | "FIXED";
+    discountValue: number;
+  } | null>(null);
+  const [showVipOfferModal, setShowVipOfferModal] = useState(false);
+  const [dishGroupsList, setDishGroupsList] = useState<any[]>([]);
+
+  // Fetch settings on mount
+  useEffect(() => {
+    useGeneralSettingsStore.getState().fetchSettings();
+  }, []);
+
+  // 💎 VIP AUTOMATIC RULE AUTO-APPLIER
+  useEffect(() => {
+    if (!rewardMember) {
+      setVipOffer(null);
+      return;
+    }
+
+    const isVip = rewardMember.IsVIP === 1 || rewardMember.IsVIP === true;
+    const settings = useGeneralSettingsStore.getState().settings;
+
+    if (isVip && settings.vipRuleEnabled) {
+      console.log("💎 [VIP RULE] Auto-applying pre-configured VIP offer rule:", settings);
+      setVipOffer({
+        targetType: settings.vipRuleTargetType || "DISH",
+        dishId: settings.vipRuleDishId || null,
+        dishGroupId: settings.vipRuleDishGroupId || null,
+        discountType: settings.vipRuleDiscountType === "AMOUNT" ? "FIXED" : "PERCENTAGE",
+        discountValue: Number(settings.vipRuleDiscountValue) || 0
+      });
+    }
+  }, [rewardMember]);
+
+  // Offer form inputs
+  const [offerTargetType, setOfferTargetType] = useState<"DISH" | "GROUP">("DISH");
+  const [selectedOfferDishId, setSelectedOfferDishId] = useState("");
+  const [selectedOfferGroupId, setSelectedOfferGroupId] = useState("");
+  const [offerDiscountType, setOfferDiscountType] = useState<"PERCENTAGE" | "FIXED">("PERCENTAGE");
+  const [offerDiscountValue, setOfferDiscountValue] = useState("");
+
   const tableState = context?.tableId
     ? useTableStatusStore.getState().tableMap[context.tableId.toLowerCase()]
     : null;
@@ -401,6 +446,7 @@ export default function SummaryScreen() {
           mobileNo: loyaltyPhone ? `${selectedCountry.code} ${loyaltyPhone.trim()}` : "",
           customerName: loyaltyName || "",
           rewardMemberId: rewardMember?.MemberId || "",
+          vipOffer: vipOffer ? JSON.stringify(vipOffer) : "",
         },
       });
     }
@@ -505,6 +551,12 @@ export default function SummaryScreen() {
       .then((res) => res.json())
       .then((data) => setAllDishes(Array.isArray(data) ? data : []))
       .catch((err) => console.error("Error fetching all dishes:", err));
+
+    // 5. Fetch Dish Groups for VIP Offer Group dropdown
+    fetch(`${API_URL}/api/menu/dishgroups/all`)
+      .then((res) => res.json())
+      .then((data) => setDishGroupsList(Array.isArray(data) ? data : []))
+      .catch((err) => console.warn("Failed to fetch dish groups inside summary:", err));
   }, [activeOrder]);
 
    const user = useAuthStore((s: any) => s.user);
@@ -1190,10 +1242,15 @@ export default function SummaryScreen() {
 
   const takeawayCharges = settings.takeawayCharges || 0;
 
-  const { grossTotal, totalItemDiscount, scEligibleSubtotal, calcTakeawayChargeAmt, takeawayQty } = useMemo(() => {
+  const { grossTotal, totalItemDiscount, vipDiscountAmount, scEligibleSubtotal, calcTakeawayChargeAmt, takeawayQty, calculatedItems } = useMemo(() => {
+    const isVip = rewardMember?.IsVIP === true || rewardMember?.IsVIP === 1;
+
     return finalItems.reduce((acc: any, item: any) => {
       const isVoided = (item as any).status === "VOIDED";
-      if (isVoided) return acc;
+      if (isVoided) {
+        acc.calculatedItems.push(item);
+        return acc;
+      }
       
       const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
       const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
@@ -1210,22 +1267,57 @@ export default function SummaryScreen() {
         }
       }
 
-      const itemSubtotal = baseTotal - itemDiscount;
+      // Calculate VIP Discount
+      let vipItemDiscount = 0;
+      let matchedRuleId = null;
+
+      if (isVip && vipOffer) {
+        const itemDishId = item.id || item.DishId;
+        const itemDishGroupId = allDishes.find((d: any) => String(d.DishId).toLowerCase() === String(itemDishId).toLowerCase())?.DishGroupId;
+
+        let matchesOffer = false;
+        if (vipOffer.targetType === "DISH" && vipOffer.dishId && String(vipOffer.dishId).toLowerCase() === String(itemDishId).toLowerCase()) {
+          matchesOffer = true;
+        } else if (vipOffer.targetType === "GROUP" && vipOffer.dishGroupId && itemDishGroupId && String(vipOffer.dishGroupId).toLowerCase() === String(itemDishGroupId).toLowerCase()) {
+          matchesOffer = true;
+        }
+
+        if (matchesOffer) {
+          matchedRuleId = "DYNAMIC";
+          const remainingBasis = Math.max(0, discountBasis - (itemDiscount / item.qty));
+
+          if (vipOffer.discountType === "PERCENTAGE") {
+            vipItemDiscount = remainingBasis * (vipOffer.discountValue / 100) * item.qty;
+          } else {
+            vipItemDiscount = Math.min(vipOffer.discountValue, remainingBasis) * item.qty;
+          }
+        }
+      }
+
+      const itemSubtotal = baseTotal - itemDiscount - vipItemDiscount;
       const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
       const isSC = !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
       const itemTWCharge = isTakeawayItem ? item.qty * takeawayCharges : 0;
 
+      acc.calculatedItems.push({
+        ...item,
+        vipDiscountAmount: vipItemDiscount,
+        vipRuleId: matchedRuleId
+      });
+
       return {
         grossTotal: acc.grossTotal + baseTotal,
         totalItemDiscount: acc.totalItemDiscount + itemDiscount,
+        vipDiscountAmount: acc.vipDiscountAmount + vipItemDiscount,
         scEligibleSubtotal: acc.scEligibleSubtotal + (isSC ? itemSubtotal : 0),
         calcTakeawayChargeAmt: acc.calcTakeawayChargeAmt + itemTWCharge,
         takeawayQty: acc.takeawayQty + (isTakeawayItem ? item.qty : 0),
+        calculatedItems: acc.calculatedItems
       };
-    }, { grossTotal: 0, totalItemDiscount: 0, scEligibleSubtotal: 0, calcTakeawayChargeAmt: 0, takeawayQty: 0 });
-  }, [finalItems, takeawayCharges]);
+    }, { grossTotal: 0, totalItemDiscount: 0, vipDiscountAmount: 0, scEligibleSubtotal: 0, calcTakeawayChargeAmt: 0, takeawayQty: 0, calculatedItems: [] });
+  }, [finalItems, takeawayCharges, rewardMember, vipOffer, allDishes]);
 
-  const subtotal = useMemo(() => grossTotal - totalItemDiscount, [grossTotal, totalItemDiscount]);
+  const subtotal = useMemo(() => grossTotal - totalItemDiscount - vipDiscountAmount, [grossTotal, totalItemDiscount, vipDiscountAmount]);
   const allItemsHaveSC = useMemo(() => {
     const activeItems = finalItems.filter((i: any) => i.status !== "VOIDED" && i.statusCode !== 0);
     return activeItems.length > 0 && activeItems.every((item: any) => {
@@ -1417,6 +1509,39 @@ export default function SummaryScreen() {
               ]}
             >
               Reward Points
+            </Text>
+          )}
+        </TouchableOpacity>
+      )}
+
+      {/* Fallback "Member" button when Reward Points is OFF - still needed for VIP offer assignment */}
+      {!showRewardPoints && (
+        <TouchableOpacity
+          style={[
+            styles.actionBtn,
+            {
+              backgroundColor: rewardMember ? Theme.primary + "15" : Theme.bgCard,
+              borderColor: rewardMember ? Theme.primary : Theme.border,
+              borderWidth: 1,
+            },
+            !isTablet && isLandscape && { height: 32, paddingHorizontal: 8 },
+          ]}
+          onPress={() => setShowRewardModal(true)}
+        >
+          <Ionicons
+            name={rewardMember ? "person" : "person-outline"}
+            size={!isTablet && isLandscape ? 16 : 18}
+            color={rewardMember ? Theme.primary : Theme.textSecondary}
+          />
+          {isLandscape && (
+            <Text
+              style={[
+                styles.actionBtnText,
+                { color: rewardMember ? Theme.primary : Theme.textSecondary },
+                !isTablet && isLandscape && { fontSize: 10 },
+              ]}
+            >
+              {rewardMember ? rewardMember.Name.split(" ")[0] : "Member"}
             </Text>
           )}
         </TouchableOpacity>
@@ -1956,8 +2081,14 @@ export default function SummaryScreen() {
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                         <Ionicons name="gift" size={16} color={Theme.primary} />
                         <Text style={{ fontSize: 13, fontFamily: Fonts.black, color: Theme.textPrimary, flex: 1 }}>
-                          Reward Member: {rewardMember.Name}
+                          {showRewardPoints ? `Reward Member: ${rewardMember.Name}` : rewardMember.Name}
                         </Text>
+                        {Boolean(rewardMember.IsVIP) && (
+                          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#A855F7", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 4 }}>
+                            <Ionicons name="sparkles" size={10} color="#fff" />
+                            <Text style={{ fontSize: 9, fontFamily: Fonts.black, color: "#fff", textTransform: "uppercase" }}>VIP</Text>
+                          </View>
+                        )}
                       </View>
 
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 22, marginVertical: 4 }}>
@@ -1977,6 +2108,7 @@ export default function SummaryScreen() {
                               if (ctx) updateOrderDiscount(ctx, cleared);
                             }
                             setRewardMember(null);
+                            setVipOffer(null);
                           }}
                           style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: Theme.dangerBg, borderWidth: 1, borderColor: Theme.dangerBorder }}
                         >
@@ -1988,11 +2120,62 @@ export default function SummaryScreen() {
                         Phone: {rewardMember.Phone}
                       </Text>
 
-                      <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.primary, marginLeft: 22 }}>
-                        Reward Balance: {currencySymbol}{rewardCreditVal.toFixed(2)}
-                      </Text>
+                      {showRewardPoints && (
+                        <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.primary, marginLeft: 22 }}>
+                          Reward Balance: {currencySymbol}{rewardCreditVal.toFixed(2)}
+                        </Text>
+                      )}
 
-                      {rewardCreditVal > 0 && (
+                      {Boolean(rewardMember.IsVIP) && (
+                        <>
+                          <TouchableOpacity
+                            onPress={() => {
+                              setOfferTargetType(vipOffer?.targetType || "DISH");
+                              setSelectedOfferDishId(vipOffer?.dishId || "");
+                              setSelectedOfferGroupId(vipOffer?.dishGroupId || "");
+                              setOfferDiscountType(vipOffer?.discountType || "PERCENTAGE");
+                              setOfferDiscountValue(vipOffer ? String(vipOffer.discountValue) : "");
+                              setShowVipOfferModal(true);
+                            }}
+                            style={{
+                              marginTop: 8,
+                              marginLeft: 22,
+                              backgroundColor: vipOffer ? "#10B981" : "#A855F7",
+                              borderRadius: 8,
+                              paddingVertical: 8,
+                              paddingHorizontal: 12,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexDirection: "row",
+                              gap: 6
+                            }}
+                          >
+                            <Ionicons name="sparkles" size={14} color="#fff" />
+                            <Text style={{ fontSize: 12, fontFamily: Fonts.black, color: "#fff" }}>
+                              {vipOffer ? "Edit VIP Offer" : "Apply VIP Offer"}
+                            </Text>
+                            {vipOffer && (
+                              <TouchableOpacity
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  setVipOffer(null);
+                                }}
+                                style={{ marginLeft: 8, padding: 2 }}
+                              >
+                                <Ionicons name="close-circle" size={14} color="#fff" />
+                              </TouchableOpacity>
+                            )}
+                          </TouchableOpacity>
+
+                          {vipOffer && (
+                            <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: "#10B981", marginLeft: 22, marginTop: 4 }}>
+                              Applied: {vipOffer.discountType === "PERCENTAGE" ? `${vipOffer.discountValue}%` : `${currencySymbol}${vipOffer.discountValue}`} Off {vipOffer.targetType === "DISH" ? "Selected Dish" : "Selected Group"}
+                            </Text>
+                          )}
+                        </>
+                      )}
+
+                      {showRewardPoints && rewardCreditVal > 0 && (
                         <TouchableOpacity
                           style={{
                             marginTop: 8,
@@ -2069,35 +2252,67 @@ export default function SummaryScreen() {
                   </Text>
                 </View>
 
-                {(discountAmount + totalItemDiscount) > 0 && (
+                {(discountAmount + totalItemDiscount + vipDiscountAmount) > 0 && (
                   <>
-                    <View
-                      style={[
-                        styles.summaryRow,
-                        ((isLandscape && !isTablet) ||
-                          (isPhone && !isLandscape)) && { marginBottom: 6 },
-                      ]}
-                    >
-                      <Text
+                    {(discountAmount + totalItemDiscount) > 0 && (
+                      <View
                         style={[
-                          styles.summaryLabel,
-                          { color: Theme.danger },
-                          isPhone && !isLandscape && { fontSize: 13 },
+                          styles.summaryRow,
+                          ((isLandscape && !isTablet) ||
+                            (isPhone && !isLandscape)) && { marginBottom: 6 },
                         ]}
                       >
-                        Discount
-                      </Text>
-                      <Text
+                        <Text
+                          style={[
+                            styles.summaryLabel,
+                            { color: Theme.danger },
+                            isPhone && !isLandscape && { fontSize: 13 },
+                          ]}
+                        >
+                          Discount
+                        </Text>
+                        <Text
+                          style={[
+                            styles.summaryValue,
+                            { color: Theme.danger },
+                            isPhone && !isLandscape && { fontSize: 13 },
+                          ]}
+                        >
+                          -{currencySymbol}
+                          {(discountAmount + totalItemDiscount).toFixed(2)}
+                        </Text>
+                      </View>
+                    )}
+
+                    {vipDiscountAmount > 0 && (
+                      <View
                         style={[
-                          styles.summaryValue,
-                          { color: Theme.danger },
-                          isPhone && !isLandscape && { fontSize: 13 },
+                          styles.summaryRow,
+                          ((isLandscape && !isTablet) ||
+                            (isPhone && !isLandscape)) && { marginBottom: 6 },
                         ]}
                       >
-                        -{currencySymbol}
-                        {(discountAmount + totalItemDiscount).toFixed(2)}
-                      </Text>
-                    </View>
+                        <Text
+                          style={[
+                            styles.summaryLabel,
+                            { color: "#A855F7", fontFamily: Fonts.black },
+                            isPhone && !isLandscape && { fontSize: 13 },
+                          ]}
+                        >
+                          ✨ VIP Discount Savings
+                        </Text>
+                        <Text
+                          style={[
+                            styles.summaryValue,
+                            { color: "#A855F7", fontFamily: Fonts.black },
+                            isPhone && !isLandscape && { fontSize: 13 },
+                          ]}
+                        >
+                          -{currencySymbol}
+                          {vipDiscountAmount.toFixed(2)}
+                        </Text>
+                      </View>
+                    )}
 
                     <View
                       style={[
@@ -2478,6 +2693,7 @@ export default function SummaryScreen() {
                         mobileNo: loyaltyPhone ? `${selectedCountry.code} ${loyaltyPhone.trim()}` : "",
                         customerName: loyaltyName || "",
                         rewardMemberId: rewardMember?.MemberId || "",
+                        vipOffer: vipOffer ? JSON.stringify(vipOffer) : "",
                       },
                     });
                   }}
@@ -2907,7 +3123,7 @@ export default function SummaryScreen() {
         }}
       />
 
-      {/* 🏆 REWARD POINTS MEMBER LOOKUP MODAL */}
+      {/* 🏆 REWARD POINTS / MEMBER LOOKUP MODAL */}
       <Modal
         visible={showRewardModal}
         transparent
@@ -2919,14 +3135,16 @@ export default function SummaryScreen() {
             <TouchableWithoutFeedback>
               <View style={[styles.modalContent, { maxWidth: 450, maxHeight: "85%" }]}>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Reward Member Lookup</Text>
+                  <Text style={styles.modalTitle}>{showRewardPoints ? "Reward Member Lookup" : "Select Member"}</Text>
                   <TouchableOpacity onPress={() => setShowRewardModal(false)}>
                     <Ionicons name="close" size={24} color={Theme.textPrimary} />
                   </TouchableOpacity>
                 </View>
 
                 <Text style={styles.modalDesc}>
-                  Link a member number or name to award reward wallet points.
+                  {showRewardPoints
+                    ? "Link a member number or name to award reward wallet points."
+                    : "Attach a member to this bill. VIP members will receive an offer button on checkout."}
                 </Text>
 
                 <TextInput
@@ -2991,9 +3209,11 @@ export default function SummaryScreen() {
                             </Text>
                           </View>
                           <View style={{ alignItems: "flex-end" }}>
-                            <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: "#D97706" }}>
-                              {currencySymbol}{(parseFloat(item.RewardCredit) || 0).toFixed(2)} Rewards
-                            </Text>
+                            {showRewardPoints && (
+                              <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: "#D97706" }}>
+                                {currencySymbol}{(parseFloat(item.RewardCredit) || 0).toFixed(2)} Rewards
+                              </Text>
+                            )}
                             <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textSecondary, marginTop: 2 }}>
                               Credit: {currencySymbol}{(parseFloat(item.AvailableCredit) || 0).toFixed(2)}
                             </Text>
@@ -3016,8 +3236,9 @@ export default function SummaryScreen() {
                       borderColor: Theme.dangerBorder
                     }}
                     onPress={() => {
-                      setRewardMember(null);
-                      setShowRewardModal(false);
+                       setRewardMember(null);
+                       setVipOffer(null);
+                       setShowRewardModal(false);
                     }}
                   >
                     <Text style={{ fontFamily: Fonts.bold, color: Theme.danger, fontSize: 14 }}>
@@ -3641,6 +3862,7 @@ export default function SummaryScreen() {
                     params: {
                       mobileNo: loyaltyPhone ? `${selectedCountry.code} ${loyaltyPhone.trim()}` : "",
                       customerName: loyaltyName || "",
+                      vipOffer: vipOffer ? JSON.stringify(vipOffer) : "",
                     },
                   });
                 }}
@@ -3649,6 +3871,204 @@ export default function SummaryScreen() {
                 <Text style={styles.proceedText}>Pay Separate Amount</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* VIP DYNAMIC OFFER MODAL */}
+      <Modal transparent visible={showVipOfferModal} animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: "80%", width: SCREEN_W > 800 ? 450 : "90%" }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>✨ Apply VIP Offer</Text>
+              <TouchableOpacity onPress={() => setShowVipOfferModal(false)}>
+                <Ionicons name="close" size={24} color={Theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 20 }} showsVerticalScrollIndicator={false}>
+              {/* TARGET TYPE TOGGLE */}
+              <View style={{ marginBottom: 15 }}>
+                <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textSecondary, marginBottom: 6, textTransform: "uppercase" }}>Target Type</Text>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TouchableOpacity
+                    style={[{ flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.bgInput }, offerTargetType === "DISH" && { backgroundColor: Theme.primary, borderColor: Theme.primary }]}
+                    onPress={() => setOfferTargetType("DISH")}
+                  >
+                    <Text style={[{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textSecondary }, offerTargetType === "DISH" && { color: "#fff" }]}>Specific Dish</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[{ flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.bgInput }, offerTargetType === "GROUP" && { backgroundColor: Theme.primary, borderColor: Theme.primary }]}
+                    onPress={() => setOfferTargetType("GROUP")}
+                  >
+                    <Text style={[{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textSecondary }, offerTargetType === "GROUP" && { color: "#fff" }]}>Dish Group</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* TARGET SELECTION DROPDOWN */}
+              {offerTargetType === "DISH" ? (
+                <View style={{ marginBottom: 15 }}>
+                  <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textSecondary, marginBottom: 6, textTransform: "uppercase" }}>Select Dish</Text>
+                  <View style={{ width: "100%", height: 42, backgroundColor: Theme.bgInput, borderWidth: 1, borderColor: Theme.border, borderRadius: 8, overflow: "hidden" }}>
+                    <select
+                      style={{ width: "100%", height: "100%", backgroundColor: "#1E1B4B", color: "#FFFFFF", border: "none", paddingLeft: 10, paddingRight: 10, fontFamily: Fonts.bold, fontSize: 14, cursor: "pointer" } as any}
+                      value={selectedOfferDishId}
+                      onChange={(e: any) => setSelectedOfferDishId(e.target.value)}
+                    >
+                      <option value="" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>-- Select Dish --</option>
+                      {(() => {
+                        const cartDishIds = cart.map((item: any) => String(item.id || item.DishId).toLowerCase());
+                        const filteredDishes = allDishes.filter((dish: any) => cartDishIds.includes(String(dish.DishId).toLowerCase()));
+                        return [...filteredDishes].sort((a: any, b: any) => (a.Name || "").localeCompare(b.Name || "")).map((dish: any) => (
+                          <option key={dish.DishId} value={dish.DishId} style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>
+                            {dish.Name} (${(dish.Price || 0).toFixed(2)})
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                  </View>
+                </View>
+              ) : (
+                <View style={{ marginBottom: 15 }}>
+                  <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textSecondary, marginBottom: 6, textTransform: "uppercase" }}>Select Dish Group</Text>
+                  <View style={{ width: "100%", height: 42, backgroundColor: Theme.bgInput, borderWidth: 1, borderColor: Theme.border, borderRadius: 8, overflow: "hidden" }}>
+                    <select
+                      style={{ width: "100%", height: "100%", backgroundColor: "#1E1B4B", color: "#FFFFFF", border: "none", paddingLeft: 10, paddingRight: 10, fontFamily: Fonts.bold, fontSize: 14, cursor: "pointer" } as any}
+                      value={selectedOfferGroupId}
+                      onChange={(e: any) => setSelectedOfferGroupId(e.target.value)}
+                    >
+                      <option value="" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>-- Select Group --</option>
+                      {dishGroupsList.map((group: any) => (
+                        <option key={group.DishGroupId} value={group.DishGroupId} style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>
+                          {group.DishGroupName}
+                        </option>
+                      ))}
+                    </select>
+                  </View>
+                </View>
+              )}
+
+              {/* DISCOUNT TYPE TOGGLE */}
+              <View style={{ marginBottom: 15 }}>
+                <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textSecondary, marginBottom: 6, textTransform: "uppercase" }}>Discount Type</Text>
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TouchableOpacity
+                    style={[{ flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.bgInput }, offerDiscountType === "PERCENTAGE" && { backgroundColor: Theme.success, borderColor: Theme.success }]}
+                    onPress={() => setOfferDiscountType("PERCENTAGE")}
+                  >
+                    <Text style={[{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textSecondary }, offerDiscountType === "PERCENTAGE" && { color: "#fff" }]}>Percentage (%)</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[{ flex: 1, paddingVertical: 10, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.bgInput }, offerDiscountType === "FIXED" && { backgroundColor: Theme.success, borderColor: Theme.success }]}
+                    onPress={() => setOfferDiscountType("FIXED")}
+                  >
+                    <Text style={[{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textSecondary }, offerDiscountType === "FIXED" && { color: "#fff" }]}>Fixed Value ({currencySymbol})</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* VALUE INPUT & PRESETS */}
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textSecondary, marginBottom: 6, textTransform: "uppercase" }}>Discount Value</Text>
+                <TextInput
+                  style={{
+                    backgroundColor: Theme.bgInput,
+                    borderWidth: 1,
+                    borderColor: Theme.border,
+                    borderRadius: 8,
+                    padding: 10,
+                    fontSize: 16,
+                    fontFamily: Fonts.bold,
+                    color: Theme.textPrimary,
+                    marginBottom: 10
+                  }}
+                  keyboardType="numeric"
+                  placeholder="Enter discount value..."
+                  placeholderTextColor={Theme.textMuted}
+                  value={offerDiscountValue}
+                  onChangeText={setOfferDiscountValue}
+                />
+                
+                {/* Preset Options */}
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {[10, 20, 50, 100].map((preset) => (
+                    <TouchableOpacity
+                      key={preset}
+                      onPress={() => {
+                        setOfferDiscountValue(String(preset));
+                      }}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 8,
+                        borderRadius: 6,
+                        backgroundColor: Theme.bgCard,
+                        borderWidth: 1,
+                        borderColor: Theme.border,
+                        alignItems: "center",
+                        justifyContent: "center"
+                      }}
+                    >
+                      <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                        {preset}{offerDiscountType === "PERCENTAGE" ? "%" : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* BUTTONS */}
+              <View style={{ flexDirection: "row", gap: 12, marginTop: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setShowVipOfferModal(false)}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, borderColor: Theme.border, backgroundColor: Theme.bgInput, alignItems: "center", justifyContent: "center" }}
+                >
+                  <Text style={{ fontSize: 14, fontFamily: Fonts.bold, color: Theme.textSecondary }}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  onPress={() => {
+                    const parsedVal = parseFloat(offerDiscountValue);
+                    if (isNaN(parsedVal) || parsedVal <= 0) {
+                      if (Platform.OS === 'web') {
+                        alert("Please enter a valid discount value greater than 0.");
+                      } else {
+                        Alert.alert("Invalid Value", "Please enter a valid discount value greater than 0.");
+                      }
+                      return;
+                    }
+                    if (offerTargetType === "DISH" && !selectedOfferDishId) {
+                      if (Platform.OS === 'web') {
+                        alert("Please choose a target dish.");
+                      } else {
+                        Alert.alert("Selection Required", "Please choose a target dish.");
+                      }
+                      return;
+                    }
+                    if (offerTargetType === "GROUP" && !selectedOfferGroupId) {
+                      if (Platform.OS === 'web') {
+                        alert("Please choose a target dish group.");
+                      } else {
+                        Alert.alert("Selection Required", "Please choose a target dish group.");
+                      }
+                      return;
+                    }
+
+                    setVipOffer({
+                      targetType: offerTargetType,
+                      dishId: offerTargetType === "DISH" ? selectedOfferDishId : null,
+                      dishGroupId: offerTargetType === "GROUP" ? selectedOfferGroupId : null,
+                      discountType: offerDiscountType,
+                      discountValue: parsedVal
+                    });
+                    setShowVipOfferModal(false);
+                  }}
+                  style={{ flex: 2, paddingVertical: 12, borderRadius: 8, backgroundColor: Theme.primary, alignItems: "center", justifyContent: "center" }}
+                >
+                  <Text style={{ fontSize: 14, fontFamily: Fonts.black, color: "#fff" }}>Apply VIP Offer</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>

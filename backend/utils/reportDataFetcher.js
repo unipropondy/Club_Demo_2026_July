@@ -55,7 +55,9 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       sh.IsCancelled,
       sh.CancellationReason,
       sh.RoundedBy as RoundedBy,
-      ISNULL(cct_sale.OutstandingAmount, 0) AS OutstandingAmount
+      ISNULL(cct_sale.OutstandingAmount, 0) AS OutstandingAmount,
+      ISNULL(sh.IsVIP, 0) as IsVIP,
+      ISNULL(sh.VIPDiscountAmount, 0) as VIPDiscountAmount
     FROM SettlementHeader sh
     LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
     LEFT JOIN CustomerCreditTransactions cct_sale ON sh.SettlementID = cct_sale.SettlementId AND cct_sale.TransactionType = 'CREDIT_SALE'
@@ -86,7 +88,9 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       0 AS IsCancelled,
       NULL AS CancellationReason,
       0 AS RoundedBy,
-      0 AS OutstandingAmount
+      0 AS OutstandingAmount,
+      0 AS IsVIP,
+      0 AS VIPDiscountAmount
     FROM CustomerCreditTransactions cct
     LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
     LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
@@ -110,6 +114,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
   let cancelledAmount = 0;
   let memberPaymentsCollected = 0;
   let creditPaymentsCollected = 0;
+  let totalVIPDiscount = 0;
 
   const breakdown = {};
   const breakdownCounts = {};
@@ -163,6 +168,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       totalItems += (s.ReceiptCount || 0);
       totalVoids += s.VoidQty || 0;
       totalVoidAmount += s.VoidAmount || 0;
+      totalVIPDiscount += s.VIPDiscountAmount || 0;
     }
 
     const rawMode = String(s.RawPayMode || "").toUpperCase().trim();
@@ -508,6 +514,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
     voidAmount: totalVoidAmount,
     cancelledCount,
     cancelledAmount,
+    totalVIPDiscount,
 
     // Payment Breakdown
     paymentBreakdown: breakdown,
