@@ -182,16 +182,22 @@ export default function PaymentScreen() {
       const fetchMemberDetails = async () => {
         try {
           const endpoint = isMember
-            ? `${API_URL}/api/members/search?query=${encodeURIComponent(memberPhone || memberId)}`
+            ? `${API_URL}/api/members/validate/${memberId}`
             : `${API_URL}/api/credit-customers/search?query=${encodeURIComponent(memberPhone || memberId)}`;
           const res = await fetch(endpoint, {
             headers: useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {},
           });
           const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const match = data.find((m: any) => m.MemberId === memberId);
-            if (match) {
-              setSelectedMember(match);
+          if (isMember) {
+            if (data.success && data.member) {
+              setSelectedMember(data.member);
+            }
+          } else {
+            if (Array.isArray(data) && data.length > 0) {
+              const match = data.find((m: any) => m.MemberId === memberId);
+              if (match) {
+                setSelectedMember(match);
+              }
             }
           }
         } catch (err) {
@@ -202,15 +208,12 @@ export default function PaymentScreen() {
     } else if (rewardMemberId) {
       const fetchRewardMemberDetails = async () => {
         try {
-          const res = await fetch(`${API_URL}/api/members/search?query=${encodeURIComponent(rewardMemberId)}`, {
+          const res = await fetch(`${API_URL}/api/members/validate/${rewardMemberId}`, {
             headers: useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {},
           });
           const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            const match = data.find((m: any) => m.MemberId.toLowerCase() === rewardMemberId.toLowerCase());
-            if (match) {
-              setSelectedMember(match);
-            }
+          if (data.success && data.member) {
+            setSelectedMember(data.member);
           }
         } catch (err) {
           console.error("Failed to load details for reward customer in payment screen:", err);

@@ -284,7 +284,9 @@ router.get("/all", async (req, res) => {
              ISNULL(cct_sale.OutstandingAmount, 0) AS OutstandingAmount,
              COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name, cb.ArtistName) AS CustomerName,
              sh.GuestName as GuestName,
-             sh.Pax as Pax
+             sh.Pax as Pax,
+             ISNULL(sh.IsVIP, 0) as IsVIP,
+             ISNULL(sh.VIPDiscountAmount, 0) as VIPDiscountAmount
            FROM SettlementHeader sh
            LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
            LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
@@ -333,7 +335,9 @@ router.get("/all", async (req, res) => {
             0 AS OutstandingAmount,
             COALESCE(mm.Name, m.Name) AS CustomerName,
             NULL AS GuestName,
-            NULL AS Pax
+            NULL AS Pax,
+            0 as IsVIP,
+            0 as VIPDiscountAmount
           FROM CustomerCreditTransactions cct
           LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
           LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
@@ -378,7 +382,9 @@ router.get("/all", async (req, res) => {
              ISNULL(cct_sale.OutstandingAmount, 0) AS OutstandingAmount,
              COALESCE(mm.Name, ccm.Name, mm_sale.Name, ccm_sale.Name) AS CustomerName,
              sh.GuestName as GuestName,
-             sh.Pax as Pax
+             sh.Pax as Pax,
+             ISNULL(sh.IsVIP, 0) as IsVIP,
+             ISNULL(sh.VIPDiscountAmount, 0) as VIPDiscountAmount
            FROM SettlementHeader sh
            LEFT JOIN SettlementTotalSales sts ON sh.SettlementID = sts.SettlementID
            LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
@@ -424,7 +430,9 @@ router.get("/all", async (req, res) => {
             0 AS OutstandingAmount,
             COALESCE(mm.Name, m.Name) AS CustomerName,
             NULL AS GuestName,
-            NULL AS Pax
+            NULL AS Pax,
+            0 as IsVIP,
+            0 as VIPDiscountAmount
           FROM CustomerCreditTransactions cct
           LEFT JOIN CreditCustomerMaster m ON cct.MemberId = m.CustomerId
           LEFT JOIN MemberMaster mm ON cct.MemberId = mm.MemberId
@@ -1149,6 +1157,7 @@ router.get("/day-end-summary", async (req, res) => {
           SUM(ISNULL(sh.SysAmount, 0)) as TotalSales,
           SUM(ISNULL(sh.TotalTax, 0)) as TotalTax,
           SUM(ISNULL(sh.DiscountAmount, 0)) as TotalDiscount,
+          SUM(ISNULL(sh.VIPDiscountAmount, 0)) as TotalVipDiscount,
           SUM(ISNULL(sh.ServiceCharge, 0)) as TotalServiceCharge,
           SUM(ISNULL(sh.RoundedBy, 0)) as TotalRoundOff,
           SUM(ISNULL(sh.TakeawayCharge, 0)) as TotalTakeawayCharge,
@@ -1164,7 +1173,7 @@ router.get("/day-end-summary", async (req, res) => {
       `);
  
     const analysis = analysisRes.recordset[0] || { 
-      BaseSales: 0, TotalSales: 0, TotalTax: 0, TotalDiscount: 0, TotalServiceCharge: 0, 
+      BaseSales: 0, TotalSales: 0, TotalTax: 0, TotalDiscount: 0, TotalVipDiscount: 0, TotalServiceCharge: 0, 
       TotalRoundOff: 0, TotalTakeawayCharge: 0, TotalBills: 0, VoidQty: 0, VoidAmount: 0
     };
 
@@ -1365,6 +1374,7 @@ router.get("/day-end-summary", async (req, res) => {
         totalSales,
         totalTax: analysis.TotalTax || 0,
         totalDiscount: analysis.TotalDiscount || 0,
+        totalVipDiscount: analysis.TotalVipDiscount || 0,
         totalServiceCharge: analysis.TotalServiceCharge || 0,
         takeawayCharge: analysis.TotalTakeawayCharge || 0,
         roundOff: analysis.TotalRoundOff || 0,
@@ -1739,7 +1749,7 @@ router.post("/save", async (req, res) => {
       .input("LastSettlementDate", sql.DateTime, now)
       .input("SubTotal", sql.Money, subTotal || 0)
       .input("TotalTax", sql.Money, taxAmount || 0)
-      .input("DiscountAmount", sql.Money, orderDiscountAmount || 0)
+      .input("DiscountAmount", sql.Money, (orderDiscountAmount || 0) + (vipDiscountAmount || 0))
       .input("DiscountType", sql.NVarChar(50), discountType || "fixed")
       .input("BillNo", sql.NVarChar(50), finalBillNo)
       .input("OrderType", sql.NVarChar(50), orderType || "DINE-IN")
@@ -1765,7 +1775,7 @@ router.post("/save", async (req, res) => {
       .input("DiscountId", sql.UniqueIdentifier, toGuidOrNull(discountId))
       .input("DiscountPercentage", sql.Decimal(18, 2), discountPercentage || null)
       .input("DiscountRemarks", sql.NVarChar(1000), discountRemarks || null)
-      .input("TotalDiscountAmount", sql.Decimal(18, 2), discountAmount || 0)
+      .input("TotalDiscountAmount", sql.Decimal(18, 2), (discountAmount || 0) + (vipDiscountAmount || 0))
       .input("TotalLineItemDiscountAmount", sql.Decimal(18, 2), itemDiscountAmount || 0)
       .input("MergeCount", sql.Numeric, mergeCount)
       .input("SplitCount", sql.Numeric, splitIndexValue)

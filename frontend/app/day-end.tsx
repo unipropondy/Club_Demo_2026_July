@@ -534,6 +534,10 @@ export default function DayEndScreen() {
               <Text style={styles.analysisValue}>{formatCurrency(analysis?.totalDiscount || 0)}</Text>
             </View>
             <View style={styles.analysisRow}>
+              <Text style={styles.analysisLabel}>VIP Discount</Text>
+              <Text style={[styles.analysisValue, { color: "#a855f7" }]}>{formatCurrency(analysis?.totalVipDiscount || 0)}</Text>
+            </View>
+            <View style={styles.analysisRow}>
               <Text style={styles.analysisLabel}>Service Charge</Text>
               <Text style={styles.analysisValue}>{formatCurrency(analysis?.totalServiceCharge || 0)}</Text>
             </View>

@@ -1194,7 +1194,11 @@ const fetchDayHistory = async () => {
                 </tr>
                 <tr>
                   <td>Discount</td>
-                  <td class="right">${formatCurrency(totalSales.DiscountAmount)}</td>
+                  <td class="right">${formatCurrency((parseFloat(totalSales.DiscountAmount) || 0) - (parseFloat(totalSales.VIPDiscountAmount) || 0))}</td>
+                </tr>
+                <tr>
+                  <td>VIP Discount</td>
+                  <td class="right">${formatCurrency(totalSales.VIPDiscountAmount)}</td>
                 </tr>
                 <tr>
                   <td>Service Charge</td>
@@ -1301,7 +1305,8 @@ const fetchDayHistory = async () => {
             text += "[C]<B>SALES SUMMARY</B>\n";
             text += "[C]========================================\n";
             text += formatTwoCols48("Gross Sales:", formatCurrency(totalSales.SubTotal));
-            text += formatTwoCols48("Discount:", formatCurrency(totalSales.DiscountAmount));
+            text += formatTwoCols48("Discount:", formatCurrency((parseFloat(totalSales.DiscountAmount) || 0) - (parseFloat(totalSales.VIPDiscountAmount) || 0)));
+            text += formatTwoCols48("VIP Discount:", formatCurrency(totalSales.VIPDiscountAmount));
             text += formatTwoCols48("Service Charge:", formatCurrency(totalSales.ServiceCharge));
             text += formatTwoCols48("GST Collected:", formatCurrency(totalSales.TotalTax));
             text += formatTwoCols48("Tips:", formatCurrency(totalSales.Tips));
@@ -1373,7 +1378,8 @@ const fetchDayHistory = async () => {
             await SunmiModule.printText("         SALES SUMMARY\n");
             await SunmiModule.printText("================================\n");
             await SunmiModule.printText(formatTwoCols32("Gross Sales:", formatCurrency(totalSales.SubTotal)));
-            await SunmiModule.printText(formatTwoCols32("Discount:", formatCurrency(totalSales.DiscountAmount)));
+            await SunmiModule.printText(formatTwoCols32("Discount:", formatCurrency((parseFloat(totalSales.DiscountAmount) || 0) - (parseFloat(totalSales.VIPDiscountAmount) || 0))));
+            await SunmiModule.printText(formatTwoCols32("VIP Discount:", formatCurrency(totalSales.VIPDiscountAmount)));
             await SunmiModule.printText(formatTwoCols32("Service Charge:", formatCurrency(totalSales.ServiceCharge)));
             await SunmiModule.printText(formatTwoCols32("GST Collected:", formatCurrency(totalSales.TotalTax)));
             await SunmiModule.printText(formatTwoCols32("Tips:", formatCurrency(totalSales.Tips)));
@@ -1780,7 +1786,11 @@ const fetchDayHistory = async () => {
                   </View>
                   <View style={styles.row}>
                     <Text style={styles.rowLabel}>Total Discount</Text>
-                    <Text style={styles.rowValue}>{formatCurrency(totalSales.DiscountAmount)}</Text>
+                    <Text style={styles.rowValue}>{formatCurrency((parseFloat(totalSales.DiscountAmount) || 0) - (parseFloat(totalSales.VIPDiscountAmount) || 0))}</Text>
+                  </View>
+                  <View style={styles.row}>
+                    <Text style={[styles.rowLabel, { color: '#a855f7' }]}>VIP Discount</Text>
+                    <Text style={[styles.rowValue, { color: '#a855f7' }]}>{formatCurrency(totalSales.VIPDiscountAmount)}</Text>
                   </View>
                   <View style={styles.row}>
                     <Text style={styles.rowLabel}>Service Charge</Text>

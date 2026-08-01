@@ -21,17 +21,16 @@ router.get("/total-sales/:terminal", async (req, res) => {
     console.log("🔥🔥🔥 TOTAL SALES ROUTE HIT NEW FILE,toDate", toDate);
     const result = await request.query(`
       SELECT
-        ISNULL(SUM(TotalLineItemAmount),0) AS SubTotal,
-        ISNULL(SUM(TotalDiscountAmount),0) AS DiscountAmount,
+        ISNULL(SUM(SubTotal),0) AS SubTotal,
+        ISNULL(SUM(DiscountAmount),0) AS DiscountAmount,
+        ISNULL(SUM(VIPDiscountAmount),0) AS VIPDiscountAmount,
         ISNULL(SUM(ServiceCharge),0) AS ServiceCharge,
-        ISNULL(SUM(AdditionalServiceCharge),0) AS AdditionalServiceCharge,
         ISNULL(SUM(TotalTax),0) AS TotalTax,
         ISNULL(SUM(RoundedBy),0) AS RoundedBy,
-        ISNULL(SUM(Tips),0) AS Tips,
         COUNT(*) AS InvoiceCount,
-        ISNULL(SUM(TotalAmount),0) AS NetTotal
-      FROM RestaurantInvoiceCur
-      WHERE ${dateFilter}
+        ISNULL(SUM(SysAmount),0) AS NetTotal
+      FROM SettlementHeader
+      WHERE IsCancelled = 0 AND ${dateFilter}
     `);
     const data = result.recordset[0] || {};
     console.log("🔥 TOTAL SALES API =>", data);

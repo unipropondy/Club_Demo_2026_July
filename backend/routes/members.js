@@ -138,7 +138,7 @@ router.get("/search", async (req, res) => {
     const result = await pool.request()
       .input("query", sql.NVarChar, `%${query || ""}%`)
       .query(`
-        SELECT MemberId, Name, Phone, CreditLimit, CurrentBalance, IsActive, Promocode, Promoamount 
+        SELECT MemberId, Name, Phone, CreditLimit, CurrentBalance, IsActive, Promocode, Promoamount, IsVIP 
         FROM MemberMaster 
         WHERE (Name LIKE @query OR Phone LIKE @query)
         ORDER BY Name
@@ -240,7 +240,7 @@ router.get("/validate/:memberId", async (req, res) => {
     const result = await pool.request()
       .input("MemberId", sql.UniqueIdentifier, memberId)
       .query(`
-        SELECT MemberId, Name, Phone, CreditLimit, CurrentBalance, IsActive 
+        SELECT MemberId, Name, Phone, CreditLimit, CurrentBalance, IsActive, IsVIP 
         FROM MemberMaster 
         WHERE MemberId = @MemberId
       `);

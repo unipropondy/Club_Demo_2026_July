@@ -1134,6 +1134,7 @@ export default function SalesReport() {
           acc.TotalItems += (s.ReceiptCount || 0);
           acc.TotalVoids += s.VoidQty || 0;
           acc.TotalVoidAmount += s.VoidAmount || 0;
+          acc.TotalVIPDiscount += s.VIPDiscountAmount || 0;
           acc.ServiceCharge += Number(s.ServiceCharge) || 0;
           acc.TotalTax += Number(s.TotalTax) || 0;
         }
@@ -1171,6 +1172,7 @@ export default function SalesReport() {
         CashBoxEntry: 0,
         TotalVoids: 0,
         TotalVoidAmount: 0,
+        TotalVIPDiscount: 0,
         CancelledCount: 0,
         CancelledAmount: 0,
         MemberPaymentsCollected: 0,
@@ -2313,6 +2315,12 @@ export default function SalesReport() {
           `${filteredMetrics.CancelledCount} (${formatCurrency(filteredMetrics.CancelledAmount)})`,
           "close-circle-outline",
           Theme.danger,
+        )}
+        {renderMetricTile(
+          "VIP Discount Savings",
+          formatCurrency(filteredMetrics.TotalVIPDiscount),
+          "gift-outline",
+          "#a855f7",
         )}
       </View>
 

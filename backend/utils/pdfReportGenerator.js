@@ -643,6 +643,7 @@ const generateSalesReportPdf = async (reportData) => {
     ['Dine-In Share',          `${(Number(orderTypes.dineInPct)||0).toFixed(0)}%`, T.blue],
     ['Takeaway Share',         `${(Number(orderTypes.takeawayPct)||0).toFixed(0)}%`, T.purple],
     ['Credit Outstanding',     fmt(reconciliation.creditOutstanding||0), T.red],
+    ['VIP Discount Savings',   fmt(totalVIPDiscount), T.purple],
     ['Net Collections',        fmt(totalCollections), T.green],
   ];
 
