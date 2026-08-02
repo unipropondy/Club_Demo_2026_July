@@ -1512,6 +1512,7 @@ export default function SalesReport() {
         status: item.Status || "NORMAL",
         discountAmount: item.DiscountAmount || 0,
         discountType: item.DiscountType || "fixed",
+        vipDiscountAmount: item.VIPDiscountAmount || 0,
         modifiers: item.modifiers || [],
       }));
 
@@ -1539,6 +1540,7 @@ export default function SalesReport() {
         roundOff: Number(selectedOrder.RoundedBy ?? 0),
         date: selectedOrder.SettlementDate || new Date(),
         isReprint: true,
+        vipDiscountAmount: Number(selectedOrder.VIPDiscountAmount ?? 0),
         // Sunmi template details
         discountAmount: Number(selectedOrder.DiscountAmount ?? 0),
         discountType: selectedOrder.DiscountType || null,

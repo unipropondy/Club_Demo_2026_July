@@ -324,9 +324,12 @@ private static escapeHtml(str: string): string {
       }
     });
 
-    const orderDiscount = finalDiscountInfo?.amount || 0;
+    let orderDiscount = finalDiscountInfo?.amount || 0;
+    if (totalVipDiscount > 0) {
+      orderDiscount = Math.max(0, orderDiscount - totalVipDiscount);
+    }
     const currentSubtotal = grossTotal - totalItemDiscount - orderDiscount - totalVipDiscount;
-    const hasOrderDiscount = finalDiscountInfo?.applied && finalDiscountInfo.amount > 0;
+    const hasOrderDiscount = orderDiscount > 0;
     const hasAnyDiscount = totalItemDiscount > 0 || hasOrderDiscount || totalVipDiscount > 0;
     const originalSubTotal = grossTotal;
 
@@ -813,10 +816,10 @@ private static escapeHtml(str: string): string {
             </div>
             ` : ''}
             ${hasOrderDiscount ? `
-            <div class="total-row">
-              <span>Discount${finalDiscountInfo?.type === 'percentage' ? ` (${finalDiscountInfo?.value}%)` : ''}:</span>
-              <span>-${currencySymbol}${finalDiscountInfo?.amount.toFixed(2)}</span>
-            </div>
+             <div class="total-row">
+               <span>Discount${finalDiscountInfo?.type === 'percentage' ? ` (${finalDiscountInfo?.value}%)` : ''}:</span>
+               <span>-${currencySymbol}${orderDiscount.toFixed(2)}</span>
+             </div>
             ` : ''}
             ${totalVipDiscount > 0 ? `
             <div class="total-row" style="color: #A855F7; font-weight: bold;">
@@ -872,7 +875,7 @@ private static escapeHtml(str: string): string {
                 <span class="payment-label" style="font-size: 14px;">PAYMENT STATUS: PENDING</span>
               </div>
             ` : `
-              ${saleData.payments && Array.isArray(saleData.payments) && saleData.payments.length > 0 ? `
+              ${saleData.payments && Array.isArray(saleData.payments) && saleData.payments.length > 1 ? `
                 <div style="font-weight: bold; border-top: 1px dashed #ccc; margin-top: 2mm; padding-top: 2mm; font-size: 10px; text-align: left; text-transform: uppercase; margin-bottom: 1.5mm;">PAYMENT DETAILS</div>
                 ${saleData.payments.map((p: any) => `
                   <div class="payment-row" style="font-size: 10px; font-weight: 700; display: flex; justify-content: space-between;">
@@ -883,18 +886,16 @@ private static escapeHtml(str: string): string {
               ` : `
                 <div class="payment-row">
                   <span>PAYMENT:</span>
-                  <span>${saleData.paymentMethod || 'Cash'}</span>
+                  <span>${(saleData.payments && saleData.payments.length === 1 ? saleData.payments[0].payMode || saleData.payments[0].payModeName : saleData.paymentMethod) || 'CASH'}</span>
                 </div>
-                ${saleData.cashPaid ? `
                 <div class="payment-row">
                   <span>PAID:</span>
-                  <span>${currencySymbol}${saleData.cashPaid.toFixed(2)}</span>
+                  <span>${currencySymbol}${(saleData.cashPaid || (saleData.payments && saleData.payments.length === 1 ? parseFloat(saleData.payments[0].amount) : finalTotal)).toFixed(2)}</span>
                 </div>
                 <div class="payment-row">
                   <span>CHANGE:</span>
                   <span>${currencySymbol}${(saleData.change || 0).toFixed(2)}</span>
                 </div>
-                ` : ''}
               `}
             `}
           </div>

@@ -51,6 +51,7 @@ type MemberType = {
   Promoamount?: number;
   IsVIP?: boolean | number;
   VIPType?: string;
+  LifetimeSpend?: number;
 };
 
 const formatMoney = (amount: number) => {
@@ -690,6 +691,26 @@ export default function MembersScreen() {
             </Text>
           </View>
         </View>
+
+        {/* ── VIP Progress Block ── */}
+        {!(item.IsVIP === true || item.IsVIP === 1) && (
+          <View style={styles.vipProgressContainer}>
+            <View style={styles.vipProgressHeader}>
+              <Text style={styles.vipProgressLabel}>VIP PROGRESS ({formatMoney(item.LifetimeSpend || 0)} / {formatMoney(settings.vipThreshold || 5000)})</Text>
+              <Text style={styles.vipProgressRemaining}>
+                {formatMoney(Math.max(0, (settings.vipThreshold || 5000) - (item.LifetimeSpend || 0)))} away
+              </Text>
+            </View>
+            <View style={styles.vipProgressBarBg}>
+              <View 
+                style={[
+                  styles.vipProgressBarFill, 
+                  { width: `${Math.min(100, (((item.LifetimeSpend || 0) / (settings.vipThreshold || 5000)) * 100))}%` }
+                ]} 
+              />
+            </View>
+          </View>
+        )}
       </View>
     );
   });
@@ -1693,7 +1714,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     marginTop: 2,
   },
-  deleteRuleBtn: {
+   deleteRuleBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,
@@ -1701,5 +1722,41 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 10,
+  },
+  vipProgressContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 12,
+    backgroundColor: '#A855F7' + '08',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A855F7' + '20',
+  },
+  vipProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  vipProgressLabel: {
+    fontSize: 11,
+    fontFamily: Fonts.bold,
+    color: Theme.textSecondary,
+  },
+  vipProgressRemaining: {
+    fontSize: 11,
+    fontFamily: Fonts.black,
+    color: '#A855F7',
+  },
+  vipProgressBarBg: {
+    height: 6,
+    backgroundColor: Theme.border + '50',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  vipProgressBarFill: {
+    height: '100%',
+    backgroundColor: '#A855F7',
+    borderRadius: 3,
   },
 });
