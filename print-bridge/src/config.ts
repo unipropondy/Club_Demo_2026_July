@@ -85,7 +85,7 @@ if (fs.existsSync(execConfigPath) && isWritable(execConfigPath)) {
 const defaultConfig: BridgeConfig = {
   storeId: 'STORE_001',
   bridgeToken: 'unipro-pos-bridge-token-2026',
-  pollIntervalMs: 2000,
+  pollIntervalMs: 500,
   port: 3050,
   backends: [
     {

@@ -72,6 +72,30 @@ router.get('/pending', authenticateBridge, async (req, res) => {
     console.error('Failed to save bridge heartbeat in database:', dbErr.message);
   }
 
+  // Auto-reset stuck PROCESSING jobs (>30s) back to PENDING so bridge retries them
+  try {
+    await pool.request().query(`
+      UPDATE PrintJobQueue
+      SET Status = 'PENDING', Attempts = 0
+      WHERE Status = 'PROCESSING'
+        AND DATEDIFF(SECOND, ProcessedOn, GETDATE()) > 30
+    `);
+  } catch (e) {
+    console.warn('Failed to reset stuck PROCESSING jobs:', e.message);
+  }
+
+  // Auto-discard stale PENDING jobs older than 5 minutes (queued before bridge was connected)
+  try {
+    await pool.request().query(`
+      UPDATE PrintJobQueue
+      SET Status = 'FAILED', ErrorMessage = 'Discarded: job was stale (>5 min old) when bridge connected'
+      WHERE Status = 'PENDING'
+        AND DATEDIFF(MINUTE, CreatedOn, GETDATE()) > 5
+    `);
+  } catch (e) {
+    console.warn('Failed to discard stale PENDING jobs:', e.message);
+  }
+
   const transaction = new sql.Transaction(pool);
 
   try {
@@ -257,6 +281,21 @@ router.get('/status/:jobId', async (req, res) => {
     res.json({ success: true, status: result.recordset[0].Status, error: result.recordset[0].ErrorMessage });
   } catch (err) {
     console.error('Error fetching print job status:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/print-jobs/cleanup - Manually clear stale jobs (admin use)
+router.post('/cleanup', async (req, res) => {
+  try {
+    const pool = getPool();
+    await pool.request().query(`
+      UPDATE PrintJobQueue
+      SET Status = 'FAILED', ErrorMessage = 'Manually cleared by admin'
+      WHERE Status IN ('PENDING', 'PROCESSING')
+    `);
+    res.json({ success: true, message: 'Cleared all pending and processing jobs' });
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
