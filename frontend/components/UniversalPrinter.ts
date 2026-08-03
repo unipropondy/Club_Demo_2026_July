@@ -1828,10 +1828,8 @@ class UniversalPrinter {
       ? parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2))
       : 0;
 
-    if (!hasAnyDiscount) {
-      text += this.formatTwoCols48("Sub Total:", `${symbol}${currentSubtotal.toFixed(2)}`);
-    }
-
+    // Removed duplicate Sub Total print statement to prevent printing it twice when there is no discount.
+    
     if (hasSC) {
       text += this.formatTwoCols48(allItemsHaveSC ? "Service Charge:" : "Item Service Charge:", `${symbol}${serviceChargeAmount.toFixed(2)}`);
     }

@@ -488,7 +488,13 @@ class SunmiPrinterService {
         totalItemDiscount += itemDiscount;
       });
 
-      const orderDiscount = parseFloat(String(saleData.discountAmount || 0)) || 0;
+      let orderDiscount = parseFloat(String(saleData.discountAmount || 0)) || 0;
+      if (orderDiscount === 0 && saleData.discount) {
+        orderDiscount = parseFloat(String(saleData.discount.amount || 0)) || 0;
+      }
+      const orderDiscountType = saleData.discountType || saleData.discount?.type || "percentage";
+      const orderDiscountValue = saleData.discountValue || saleData.discount?.value || 0;
+
       const hasAnyDiscount = totalItemDiscount > 0 || orderDiscount > 0;
       let currentSubtotal = grossTotal;
 
@@ -500,7 +506,7 @@ class SunmiPrinterService {
       }
 
       if (orderDiscount > 0) {
-        const discLabel = saleData.discountType === "percentage" ? `Discount (${saleData.discountValue}%):` : "Discount:";
+        const discLabel = orderDiscountType === "percentage" ? `Discount (${orderDiscountValue}%):` : "Discount:";
         await SunmiModule.printText(formatter.twoCols(discLabel, `-${symbol}${orderDiscount.toFixed(2)}`));
         currentSubtotal -= orderDiscount;
       }
@@ -580,9 +586,7 @@ class SunmiPrinterService {
         ? parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2))
         : 0;
 
-      if (!hasAnyDiscount) {
-        await SunmiModule.printText(formatter.twoCols("Sub Total:", `${symbol}${currentSubtotal.toFixed(2)}`));
-      }
+      // Removed duplicate Sub Total print statement to prevent printing it twice when there is no discount.
 
       if (hasSC) {
         await SunmiModule.printText(formatter.twoCols(
