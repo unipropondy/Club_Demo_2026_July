@@ -61,7 +61,7 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
 
     let terminalFilter = "";
     if (terminalCode && terminalCode !== "ALL") {
-      terminalFilter = "AND COALESCE(sh.TerminalCode, pd.TerminalCode) = @TerminalCode";
+      terminalFilter = "AND LTRIM(RTRIM(COALESCE(sh.TerminalCode, pd.TerminalCode))) = LTRIM(RTRIM(@TerminalCode))";
     }
 
     const result = await request.query(`
@@ -134,7 +134,7 @@ router.get("/sales-summary/:terminal", async (req, res) => {
 
     let terminalFilter = "";
     if (req.params.terminal && req.params.terminal !== "ALL") {
-      terminalFilter = "AND COALESCE(sh.TerminalCode, pd.TerminalCode) = @TerminalCode";
+      terminalFilter = "AND LTRIM(RTRIM(COALESCE(sh.TerminalCode, pd.TerminalCode))) = LTRIM(RTRIM(@TerminalCode))";
     }
 
     const result = await request.query(`
