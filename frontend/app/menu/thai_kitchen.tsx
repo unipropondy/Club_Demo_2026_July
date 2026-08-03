@@ -936,6 +936,9 @@ export default function MenuScreen() {
         if (targetGroup) {
           const dishesData = await fetchDishes(targetGroup);
           setItems(dishesData);
+
+          // 🔄 Force-refresh modifier cache for the current dish group
+          await useMenuStore.getState().fetchModifiersForGroup(targetGroup);
         }
       }
       showToast({
@@ -952,6 +955,7 @@ export default function MenuScreen() {
       });
     }
   };
+
 
   useEffect(() => {
     const initMenu = async () => {
