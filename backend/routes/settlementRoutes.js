@@ -646,15 +646,15 @@ router.get('/cash-out/:terminal', authenticateToken, async (req, res) => {
     const pool = getPool();
     const request = pool.request();
 
-    let dateFilter = "CAST(CashOutDate as DATE) = CAST(GETDATE() as DATE)";
+    let dateFilter = "COALESCE(start_date, CAST(CashOutDate as DATE)) = CAST(GETDATE() as DATE)";
     if (fromDate && toDate) {
       request.input("fromDate", sql.Date, new Date(fromDate));
       request.input("toDate", sql.Date, new Date(toDate));
-      dateFilter = "CAST(CashOutDate as DATE) BETWEEN @fromDate AND @toDate";
+      dateFilter = "COALESCE(start_date, CAST(CashOutDate as DATE)) BETWEEN @fromDate AND @toDate";
     }
 
     let query = `
-      SELECT CashOutId, CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn 
+      SELECT CashOutId, CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date 
       FROM CashOutEntry 
       WHERE ${dateFilter}
     `;
@@ -682,15 +682,15 @@ router.get('/cash-in/:terminal', authenticateToken, async (req, res) => {
     const pool = getPool();
     const request = pool.request();
 
-    let dateFilter = "CAST(CashInDate as DATE) = CAST(GETDATE() as DATE)";
+    let dateFilter = "COALESCE(start_date, CAST(CashInDate as DATE)) = CAST(GETDATE() as DATE)";
     if (fromDate && toDate) {
       request.input("fromDate", sql.Date, new Date(fromDate));
       request.input("toDate", sql.Date, new Date(toDate));
-      dateFilter = "CAST(CashInDate as DATE) BETWEEN @fromDate AND @toDate";
+      dateFilter = "COALESCE(start_date, CAST(CashInDate as DATE)) BETWEEN @fromDate AND @toDate";
     }
 
     let query = `
-      SELECT CashInId, CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn 
+      SELECT CashInId, CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date 
       FROM CashInEntry 
       WHERE ${dateFilter}
     `;
@@ -738,9 +738,9 @@ router.post('/cash-in', authenticateToken, async (req, res) => {
       .input('CreatedBy', sql.VarChar, createdBy)
       .input('targetDate', sql.Date, targetDate)
       .query(`
-        INSERT INTO CashInEntry (CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn)
+        INSERT INTO CashInEntry (CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date)
         OUTPUT inserted.*
-        VALUES (@CashInNo, @targetDate, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, @targetDate)
+        VALUES (@CashInNo, @targetDate, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, @targetDate, @targetDate)
       `);
 
     res.json({ success: true, data: result.recordset[0] });
@@ -832,9 +832,9 @@ router.post('/cash-out', authenticateToken, async (req, res) => {
       .input('CreatedBy', sql.VarChar, createdBy)
       .input('targetDate', sql.Date, targetDate)
       .query(`
-        INSERT INTO CashOutEntry (CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn)
+        INSERT INTO CashOutEntry (CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date)
         OUTPUT inserted.*
-        VALUES (@CashOutNo, @targetDate, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, @targetDate)
+        VALUES (@CashOutNo, @targetDate, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, @targetDate, @targetDate)
       `);
 
     res.json({ success: true, data: result.recordset[0] });

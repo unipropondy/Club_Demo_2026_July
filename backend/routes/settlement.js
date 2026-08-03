@@ -48,7 +48,8 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
     const pool = await poolPromise;
     const request = pool.request();
 
-    request.input("TerminalCode", sql.VarChar, req.params.terminal);
+    const terminalCode = req.params.terminal;
+    request.input("TerminalCode", sql.VarChar, terminalCode);
     request.input("UserId", sql.VarChar, req.params.userId);
 
     let dateFilter = "start_date = CAST(GETDATE() AS DATE)";
@@ -58,25 +59,21 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
       dateFilter = `start_date BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
     }
 
+    let terminalFilter = "";
+    if (terminalCode && terminalCode !== "ALL") {
+      terminalFilter = "AND TerminalCode = @TerminalCode";
+    }
+
     const result = await request.query(`
-         SELECT
-    ISNULL(Remarks, '') AS PaymodeName,
-    ISNULL(SUM(Amount), 0) AS Amount,
-    COUNT(*) AS PayCount,
-    CAST(PaymentCollectedOn AS DATE) AS PaymentCollectedOn,
-    isSettlement,
-    isDayend,
-    Remarks,
-    TerminalCode
-FROM PaymentDetailCur
-WHERE ${dateFilter}
-GROUP BY 
-    Remarks,
-    CAST(PaymentCollectedOn AS DATE),
-    isSettlement,
-    isDayend,
-    TerminalCode    
-      `);
+      SELECT
+        CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(Remarks, '')))) = 'CAS' THEN 'CASH' ELSE LTRIM(RTRIM(ISNULL(Remarks, ''))) END AS PaymodeName,
+        ISNULL(SUM(Amount), 0) AS Amount,
+        COUNT(*) AS PayCount
+      FROM PaymentDetailCur
+      WHERE ${dateFilter} ${terminalFilter}
+      GROUP BY 
+        CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(Remarks, '')))) = 'CAS' THEN 'CASH' ELSE LTRIM(RTRIM(ISNULL(Remarks, ''))) END
+    `);
 
     res.json(result.recordset || []);
 
@@ -134,16 +131,21 @@ router.get("/sales-summary/:terminal", async (req, res) => {
       dateFilter = `AND start_date BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
     }
 
+    let terminalFilter = "";
+    if (req.params.terminal && req.params.terminal !== "ALL") {
+      terminalFilter = "AND TerminalCode = @TerminalCode";
+    }
+
     const result = await request.query(`
-             SELECT 
-          ISNULL(Paymode,'') AS Paymode,
-          ISNULL(SUM(Amount),0) AS Amount
-        FROM PaymentDetailCur
-        WHERE TerminalCode = @TerminalCode
-        AND isSettlement = 0
-        ${dateFilter}
-        GROUP BY Paymode 
-      `);
+      SELECT 
+        ISNULL(Paymode,'') AS Paymode,
+        ISNULL(SUM(Amount),0) AS Amount
+      FROM PaymentDetailCur
+      WHERE isSettlement = 0
+      ${terminalFilter}
+      ${dateFilter}
+      GROUP BY Paymode 
+    `);
 
     res.json(result.recordset || []);
 
