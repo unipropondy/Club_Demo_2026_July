@@ -659,11 +659,6 @@ router.get('/cash-out/:terminal', authenticateToken, async (req, res) => {
       WHERE ${dateFilter}
     `;
 
-    if (terminal !== 'ALL') {
-      query += ` AND TerminalCode = @TerminalCode`;
-      request.input('TerminalCode', sql.VarChar, terminal);
-    }
-
     query += ` ORDER BY CreatedOn DESC`;
 
     const result = await request.query(query);
@@ -694,11 +689,6 @@ router.get('/cash-in/:terminal', authenticateToken, async (req, res) => {
       FROM CashInEntry 
       WHERE ${dateFilter}
     `;
-
-    if (terminal !== 'ALL') {
-      query += ` AND TerminalCode = @TerminalCode`;
-      request.input('TerminalCode', sql.VarChar, terminal);
-    }
 
     query += ` ORDER BY CreatedOn DESC`;
 
