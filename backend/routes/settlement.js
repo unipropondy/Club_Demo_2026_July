@@ -48,32 +48,24 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
     const pool = await poolPromise;
     const request = pool.request();
 
-    const terminalCode = req.params.terminal;
-    request.input("TerminalCode", sql.VarChar, terminalCode);
     request.input("UserId", sql.VarChar, req.params.userId);
 
-    let dateFilter = "pd.start_date = CAST(GETDATE() AS DATE)";
+    let dateFilter = "start_date = CAST(GETDATE() AS DATE)";
     if (fromDate && toDate) {
       const fDate = fromDate.replace(/[^0-9T:.-]/g, '');
       const tDate = toDate.replace(/[^0-9T:.-]/g, '');
-      dateFilter = `pd.start_date BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
-    }
-
-    let terminalFilter = "";
-    if (terminalCode && terminalCode !== "ALL") {
-      terminalFilter = "AND LTRIM(RTRIM(COALESCE(sh.TerminalCode, pd.TerminalCode))) = LTRIM(RTRIM(@TerminalCode))";
+      dateFilter = `start_date BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
     }
 
     const result = await request.query(`
       SELECT
-        CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(pd.Remarks, '')))) = 'CAS' THEN 'CASH' ELSE LTRIM(RTRIM(ISNULL(pd.Remarks, ''))) END AS PaymodeName,
-        ISNULL(SUM(pd.Amount), 0) AS Amount,
+        CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(Remarks, '')))) = 'CAS' THEN 'CASH' ELSE LTRIM(RTRIM(ISNULL(Remarks, ''))) END AS PaymodeName,
+        ISNULL(SUM(Amount), 0) AS Amount,
         COUNT(*) AS PayCount
-      FROM PaymentDetailCur pd
-      LEFT JOIN SettlementHeader sh ON pd.RestaurantBillId = sh.SettlementID
-      WHERE ${dateFilter} ${terminalFilter}
+      FROM PaymentDetailCur
+      WHERE ${dateFilter}
       GROUP BY 
-        CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(pd.Remarks, '')))) = 'CAS' THEN 'CASH' ELSE LTRIM(RTRIM(ISNULL(pd.Remarks, ''))) END
+        CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(Remarks, '')))) = 'CAS' THEN 'CASH' ELSE LTRIM(RTRIM(ISNULL(Remarks, ''))) END
     `);
 
     res.json(result.recordset || []);
@@ -123,30 +115,22 @@ router.get("/sales-summary/:terminal", async (req, res) => {
     const { fromDate, toDate } = req.query;
     const pool = await poolPromise;
     const request = pool.request();
-    request.input("TerminalCode", sql.VarChar, req.params.terminal);
 
     let dateFilter = "";
     if (fromDate && toDate) {
       const fDate = fromDate.replace(/[^0-9T:.-]/g, '');
       const tDate = toDate.replace(/[^0-9T:.-]/g, '');
-      dateFilter = `AND pd.start_date BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
-    }
-
-    let terminalFilter = "";
-    if (req.params.terminal && req.params.terminal !== "ALL") {
-      terminalFilter = "AND LTRIM(RTRIM(COALESCE(sh.TerminalCode, pd.TerminalCode))) = LTRIM(RTRIM(@TerminalCode))";
+      dateFilter = `AND start_date BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
     }
 
     const result = await request.query(`
       SELECT 
-        ISNULL(pd.Paymode,'') AS Paymode,
-        ISNULL(SUM(pd.Amount),0) AS Amount
-      FROM PaymentDetailCur pd
-      LEFT JOIN SettlementHeader sh ON pd.RestaurantBillId = sh.SettlementID
-      WHERE pd.isSettlement = 0
-      ${terminalFilter}
+        ISNULL(Paymode,'') AS Paymode,
+        ISNULL(SUM(Amount),0) AS Amount
+      FROM PaymentDetailCur
+      WHERE isSettlement = 0
       ${dateFilter}
-      GROUP BY pd.Paymode 
+      GROUP BY Paymode 
     `);
 
     res.json(result.recordset || []);
