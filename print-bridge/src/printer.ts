@@ -1,4 +1,5 @@
 import * as net from 'net';
+import * as fs from 'fs';
 import { logger } from './logger';
 
 /**
@@ -105,6 +106,23 @@ export async function sendToPrinter(ip: string, port: number, content: string, j
     }
 
     console.log(`\n[Print]\nStarted...\n`);
+
+    const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(ip.trim());
+
+    if (!isIp && ip.trim().length > 0) {
+      const sharePath = ip.trim().startsWith('\\\\') ? ip.trim() : `\\\\localhost\\${ip.trim()}`;
+      logger.info(`[Print Bridge] USB/Shared printer detected. Writing to path: ${sharePath}`);
+      fs.writeFile(sharePath, payload, (err: any) => {
+        if (err) {
+          logger.error(`[Print Bridge] USB/Shared print failed: ${err.message}`);
+          reject(err);
+        } else {
+          logger.info(`[Print Bridge] USB/Shared print completed successfully.`);
+          resolve();
+        }
+      });
+      return;
+    }
 
     let resolved = false;
     const connectTimer = setTimeout(() => {

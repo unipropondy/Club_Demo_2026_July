@@ -87,12 +87,20 @@ router.get("/", async (req, res) => {
 
       IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'VipRuleDishId')
       BEGIN
-        ALTER TABLE AppSettings ADD VipRuleDishId NVARCHAR(100) NULL;
+        ALTER TABLE AppSettings ADD VipRuleDishId NVARCHAR(MAX) NULL;
+      END
+      ELSE
+      BEGIN
+        ALTER TABLE AppSettings ALTER COLUMN VipRuleDishId NVARCHAR(MAX) NULL;
       END
 
       IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'VipRuleDishGroupId')
       BEGIN
-        ALTER TABLE AppSettings ADD VipRuleDishGroupId NVARCHAR(100) NULL;
+        ALTER TABLE AppSettings ADD VipRuleDishGroupId NVARCHAR(MAX) NULL;
+      END
+      ELSE
+      BEGIN
+        ALTER TABLE AppSettings ALTER COLUMN VipRuleDishGroupId NVARCHAR(MAX) NULL;
       END
 
       IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'VipRuleDiscountType')
@@ -151,8 +159,8 @@ router.post("/update", async (req, res) => {
       .input("VIPThreshold", sql.Decimal(18, 2), vipThreshold !== undefined ? parseFloat(vipThreshold) : 5000.00)
       .input("VipRuleEnabled", sql.Bit, vipRuleEnabled !== undefined ? vipRuleEnabled : 0)
       .input("VipRuleTargetType", sql.NVarChar(50), vipRuleTargetType || null)
-      .input("VipRuleDishId", sql.NVarChar(100), vipRuleDishId || null)
-      .input("VipRuleDishGroupId", sql.NVarChar(100), vipRuleDishGroupId || null)
+      .input("VipRuleDishId", sql.NVarChar(sql.MAX), vipRuleDishId || null)
+      .input("VipRuleDishGroupId", sql.NVarChar(sql.MAX), vipRuleDishGroupId || null)
       .input("VipRuleDiscountType", sql.NVarChar(50), vipRuleDiscountType || null)
       .input("VipRuleDiscountValue", sql.Decimal(18, 2), vipRuleDiscountValue !== undefined ? parseFloat(vipRuleDiscountValue) : 0.00)
       .query(`

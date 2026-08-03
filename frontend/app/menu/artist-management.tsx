@@ -39,7 +39,7 @@ interface ArtistRow {
 const WALLET_STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   Paid:             { bg: "rgba(16,185,129,0.15)",  text: "#10B981", label: "🟢 Settled" },
   "Partially Paid": { bg: "rgba(245,158,11,0.15)",  text: "#F59E0B", label: "🟠 Partial" },
-  Pending:          { bg: "rgba(239,68,68,0.15)",   text: "#EF4444", label: "🔴 Waiting" },
+  Pending:          { bg: "rgba(239,68,68,0.15)",   text: "#EF4444", label: "🔴 Due" },
   Accruing:         { bg: "rgba(59,130,246,0.15)",  text: "#3B82F6", label: "🔵 Live Day" },
   "No Bonus":      { bg: "rgba(255,255,255,0.06)",  text: "#5A5080", label: "⚪ Empty" },
 };
@@ -145,7 +145,7 @@ export default function ArtistManagementScreen() {
 
   const quickLinks = [
     { title: "Live Sales",   subtitle: "Watch sales progress",      icon: "trending-up",   color: "#3B82F6",  bg: "rgba(59,130,246,0.12)",   route: "/menu/artist-sales" },
-    { title: "Bonus Wallets",subtitle: "Settle money waiting",       icon: "wallet",        color: "#EF4444",  bg: "rgba(239,68,68,0.12)",    route: "/menu/artist-bonus-payments" },
+    { title: "Bonus Wallets",subtitle: "Settle money due",          icon: "wallet",        color: "#EF4444",  bg: "rgba(239,68,68,0.12)",    route: "/menu/artist-bonus-payments" },
     { title: "Bonus Rules",  subtitle: "Setup targets & rewards",    icon: "settings",      color: "#A855F7",  bg: "rgba(168,85,247,0.12)",   route: "/menu/artist-bonus-master" },
     { title: "Reports",      subtitle: "Audit wallets & payments",   icon: "document-text", color: "#5A5080",  bg: "rgba(255,255,255,0.06)",  route: "/menu/artist-reports" },
   ];
@@ -217,9 +217,9 @@ export default function ArtistManagementScreen() {
               <Ionicons name="alert-circle" size={22} color="#DC2626" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.pendingAlertTitle}>💰 Bonus Waiting</Text>
+              <Text style={styles.pendingAlertTitle}>💰 Bonus Due</Text>
               <Text style={styles.pendingAlertSub}>
-                {artistsWithPending.length} Artist{artistsWithPending.length > 1 ? "s" : ""} · ${totalAllTimePending.toFixed(2)} waiting payout
+                {artistsWithPending.length} Artist{artistsWithPending.length > 1 ? "s" : ""} · ${totalAllTimePending.toFixed(2)} due payout
               </Text>
             </View>
             <View style={styles.settleBtn}>
@@ -233,7 +233,7 @@ export default function ArtistManagementScreen() {
           {[
             { label: "Today's Artist Sales", value: `$${cards.totalArtistSales.toFixed(0)}`, icon: "trending-up", color: "#3B82F6" },
             { label: "Today's Bonus Earned", value: `$${cards.totalBonusEarned.toFixed(0)}`, icon: "trophy", color: "#A855F7" },
-            { label: "Bonus Waiting", value: `$${totalAllTimePending.toFixed(0)}`, sub: `${artistsWithPending.length} Artists`, icon: "wallet", color: totalAllTimePending > 0 ? "#EF4444" : "#10B981" },
+            { label: "Bonus Due", value: `$${totalAllTimePending.toFixed(0)}`, sub: `${artistsWithPending.length} Artists`, icon: "wallet", color: totalAllTimePending > 0 ? "#EF4444" : "#10B981" },
             { label: "Last Settlement", value: lastPayment ? `$${lastPayment.amount.toFixed(0)}` : "$0", sub: lastPayment ? lastPayment.date : "None yet", icon: "checkmark-circle", color: "#10B981" },
           ].map(c => (
             <View key={c.label} style={[styles.card, { borderColor: c.color + "40" }, isTablet && { flex: 1 }]}>

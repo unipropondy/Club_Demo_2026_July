@@ -37,7 +37,7 @@ const fmtDate = (raw: string | null) => {
 const WALLET_STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   Paid:             { bg: "#DCFCE7", text: "#16A34A", label: "🟢 Settled" },
   "Partially Paid": { bg: "#FFF7ED", text: "#A855F7", label: "🟠 Partial Payment" },
-  Pending:          { bg: "#FEE2E2", text: "#DC2626", label: "🟡 Waiting Payment" },
+  Pending:          { bg: "#FEE2E2", text: "#DC2626", label: "🟡 Due Payment" },
   "No Bonus":      { bg: "#F5F5F4", text: "#78716C", label: "⚪ Wallet Empty" },
 };
 
@@ -168,7 +168,7 @@ export default function ArtistDetailScreen() {
 
   const openPayModal = () => {
     if (totalOutstanding <= 0) {
-      showToast({ type: "error", message: "No Bonus Waiting", subtitle: "Wallet has no pending balances." });
+      showToast({ type: "error", message: "No Bonus Due", subtitle: "Wallet has no pending balances." });
       return;
     }
     setPayAmount(totalOutstanding.toFixed(2));
@@ -385,12 +385,12 @@ export default function ArtistDetailScreen() {
             {totalOutstanding > 0 ? (
               <TouchableOpacity style={styles.payBtn} onPress={openPayModal}>
                 <Ionicons name="cash" size={20} color="#fff" />
-                <Text style={styles.payBtnText}>Pay Wallet Bonus · ${totalOutstanding.toFixed(2)} waiting</Text>
+                <Text style={styles.payBtnText}>Pay Wallet Bonus · ${totalOutstanding.toFixed(2)} due</Text>
               </TouchableOpacity>
             ) : (
               <View style={styles.disabledPayBtn}>
                 <Ionicons name="checkmark-circle" size={20} color={Theme.textMuted} />
-                <Text style={styles.disabledPayText}>No Bonus Waiting</Text>
+                <Text style={styles.disabledPayText}>No Bonus Due</Text>
               </View>
             )}
           </View>

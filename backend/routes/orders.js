@@ -474,7 +474,7 @@ async function syncToProfessionalTables(
 
     itemRequest.input(p_id, sql.UniqueIdentifier, lineItemId);
     itemRequest.input(p_dish, sql.UniqueIdentifier, finalProdId);
-    itemRequest.input(p_qty, sql.Int, item.qty || 1);
+    itemRequest.input(p_qty, sql.Decimal(18, 3), item.qty || 1);
     itemRequest.input(p_cost, sql.Decimal(18, 2), resolvedUnitPrice);
     itemRequest.input(p_status, sql.Int, currentStatusCode);
     itemRequest.input(p_name, sql.NVarChar(200), dishName);

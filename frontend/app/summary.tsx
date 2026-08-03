@@ -167,7 +167,7 @@ export default function SummaryScreen() {
 
   // 💎 DYNAMIC VIP OFFER STATES
   const [vipOffer, setVipOffer] = useState<{
-    targetType: "DISH" | "GROUP";
+    targetType: "DISH" | "GROUP" | "BOTH";
     dishId: string | null;
     dishGroupId: string | null;
     discountType: "PERCENTAGE" | "FIXED";
@@ -194,7 +194,7 @@ export default function SummaryScreen() {
     if (isVip && settings.vipRuleEnabled) {
       console.log("💎 [VIP RULE] Auto-applying pre-configured VIP offer rule:", settings);
       setVipOffer({
-        targetType: settings.vipRuleTargetType || "DISH",
+        targetType: (settings.vipRuleTargetType as any) || "BOTH",
         dishId: settings.vipRuleDishId || null,
         dishGroupId: settings.vipRuleDishGroupId || null,
         discountType: settings.vipRuleDiscountType === "AMOUNT" ? "FIXED" : "PERCENTAGE",
@@ -204,7 +204,7 @@ export default function SummaryScreen() {
   }, [rewardMember]);
 
   // Offer form inputs
-  const [offerTargetType, setOfferTargetType] = useState<"DISH" | "GROUP">("DISH");
+  const [offerTargetType, setOfferTargetType] = useState<"DISH" | "GROUP" | "BOTH">("DISH");
   const [selectedOfferDishId, setSelectedOfferDishId] = useState("");
   const [selectedOfferGroupId, setSelectedOfferGroupId] = useState("");
   const [offerDiscountType, setOfferDiscountType] = useState<"PERCENTAGE" | "FIXED">("PERCENTAGE");
@@ -1276,20 +1276,63 @@ export default function SummaryScreen() {
         const itemDishGroupId = allDishes.find((d: any) => String(d.DishId).toLowerCase() === String(itemDishId).toLowerCase())?.DishGroupId;
 
         let matchesOffer = false;
-        if (vipOffer.targetType === "DISH" && vipOffer.dishId && String(vipOffer.dishId).toLowerCase() === String(itemDishId).toLowerCase()) {
-          matchesOffer = true;
-        } else if (vipOffer.targetType === "GROUP" && vipOffer.dishGroupId && itemDishGroupId && String(vipOffer.dishGroupId).toLowerCase() === String(itemDishGroupId).toLowerCase()) {
-          matchesOffer = true;
+        let ruleDiscountType: "PERCENTAGE" | "AMOUNT" = "PERCENTAGE";
+        let ruleDiscountValue = 0;
+
+        if (vipOffer.targetType === "DISH" || vipOffer.targetType === "BOTH") {
+          if (vipOffer.dishId) {
+            try {
+              const parsed = JSON.parse(vipOffer.dishId);
+              if (Array.isArray(parsed)) {
+                const match = parsed.find(r => String(r.id).toLowerCase() === String(itemDishId).toLowerCase());
+                if (match) {
+                  matchesOffer = true;
+                  ruleDiscountType = match.discountType === "AMOUNT" ? "AMOUNT" : "PERCENTAGE";
+                  ruleDiscountValue = Number(match.discountValue) || 0;
+                }
+              }
+            } catch (e) {
+              const targetDishIds = vipOffer.dishId.split(",").map((id: string) => id.trim().toLowerCase());
+              if (targetDishIds.includes(String(itemDishId).toLowerCase())) {
+                matchesOffer = true;
+                ruleDiscountType = vipOffer.discountType === "FIXED" ? "AMOUNT" : "PERCENTAGE";
+                ruleDiscountValue = vipOffer.discountValue || 0;
+              }
+            }
+          }
+        }
+
+        if (!matchesOffer && (vipOffer.targetType === "GROUP" || vipOffer.targetType === "BOTH")) {
+          if (vipOffer.dishGroupId && itemDishGroupId) {
+            try {
+              const parsed = JSON.parse(vipOffer.dishGroupId);
+              if (Array.isArray(parsed)) {
+                const match = parsed.find(r => String(r.id).toLowerCase() === String(itemDishGroupId).toLowerCase());
+                if (match) {
+                  matchesOffer = true;
+                  ruleDiscountType = match.discountType === "AMOUNT" ? "AMOUNT" : "PERCENTAGE";
+                  ruleDiscountValue = Number(match.discountValue) || 0;
+                }
+              }
+            } catch (e) {
+              const targetGroupIds = vipOffer.dishGroupId.split(",").map((id: string) => id.trim().toLowerCase());
+              if (targetGroupIds.includes(String(itemDishGroupId).toLowerCase())) {
+                matchesOffer = true;
+                ruleDiscountType = vipOffer.discountType === "FIXED" ? "AMOUNT" : "PERCENTAGE";
+                ruleDiscountValue = vipOffer.discountValue || 0;
+              }
+            }
+          }
         }
 
         if (matchesOffer) {
           matchedRuleId = "DYNAMIC";
           const remainingBasis = Math.max(0, discountBasis - (itemDiscount / item.qty));
 
-          if (vipOffer.discountType === "PERCENTAGE") {
-            vipItemDiscount = remainingBasis * (vipOffer.discountValue / 100) * item.qty;
+          if (ruleDiscountType === "PERCENTAGE") {
+            vipItemDiscount = remainingBasis * (ruleDiscountValue / 100) * item.qty;
           } else {
-            vipItemDiscount = Math.min(vipOffer.discountValue, remainingBasis) * item.qty;
+            vipItemDiscount = Math.min(ruleDiscountValue, remainingBasis) * item.qty;
           }
         }
       }

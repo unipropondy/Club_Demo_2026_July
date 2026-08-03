@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -721,7 +721,7 @@ export default function ArtistReportsScreen() {
               { key: "sales", label: "Sales Log" },
               { key: "bonus", label: "Bonus Earned" },
               { key: "payments", label: "Payout Logs" },
-              { key: "outstanding", label: "Waiting" },
+              { key: "outstanding", label: "Due" },
             ] as const
           ).map((tab) => (
             <TouchableOpacity
@@ -849,7 +849,7 @@ export default function ArtistReportsScreen() {
           </Text>
         </View>
         <View style={styles.stripCell}>
-          <Text style={styles.stripLabel}>Waiting</Text>
+          <Text style={styles.stripLabel}>Due</Text>
           <Text style={[styles.stripVal, { color: "#DC2626" }]}>
             ${summaryStats.totalWaiting.toFixed(0)}
           </Text>
@@ -861,14 +861,36 @@ export default function ArtistReportsScreen() {
         visible={showFromPicker}
         onClose={() => setShowFromPicker(false)}
         selectedDate={parsedFromDate}
-        onApply={(d) => setFromDate(getLocalDateStr(d))}
+        onApply={(d) => {
+          const dStr = getLocalDateStr(d);
+          if (toDate && dStr > toDate) {
+            showToast({
+              type: "warning",
+              message: "Invalid Date Range",
+              subtitle: "Start date cannot be after End date.",
+            });
+            return;
+          }
+          setFromDate(dStr);
+        }}
         title="Select Start Date"
       />
       <CustomDatePicker
         visible={showToPicker}
         onClose={() => setShowToPicker(false)}
         selectedDate={parsedToDate}
-        onApply={(d) => setToDate(getLocalDateStr(d))}
+        onApply={(d) => {
+          const dStr = getLocalDateStr(d);
+          if (fromDate && dStr < fromDate) {
+            showToast({
+              type: "warning",
+              message: "Invalid Date Range",
+              subtitle: "End date cannot be before Start date.",
+            });
+            return;
+          }
+          setToDate(dStr);
+        }}
         title="Select End Date"
       />
     </SafeAreaView>

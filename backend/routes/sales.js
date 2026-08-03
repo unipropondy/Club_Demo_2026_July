@@ -1949,7 +1949,7 @@ router.post("/save", async (req, res) => {
           insertReq.input(`SongName_${idx}`, sql.NVarChar(255), item.songName || item.SongName || "");
           insertReq.input(`CategoryName_${idx}`, sql.NVarChar(255), meta.CategoryName || item.categoryName || "Unmapped");
           insertReq.input(`SubCategoryName_${idx}`, sql.NVarChar(255), meta.DishGroupName || "Unmapped");
-          insertReq.input(`Qty_${idx}`, sql.Int, item.qty || 1);
+          insertReq.input(`Qty_${idx}`, sql.Decimal(18, 3), item.qty || 1);
           insertReq.input(`Price_${idx}`, sql.Decimal(18, 2), item.price || 0);
           insertReq.input(`ItemDiscountAmount_${idx}`, sql.Decimal(18, 2), Number(item.discountAmount) || null);
           insertReq.input(`ItemDiscountType_${idx}`, sql.NVarChar(50), item.discountType || (Number(item.discountAmount) > 0 ? "percentage" : null));
@@ -1996,7 +1996,7 @@ router.post("/save", async (req, res) => {
               .input("dishId", sql.UniqueIdentifier, v.DishId)
               .input("dishName", sql.NVarChar(255), v.DishName)
               .input("songName", sql.NVarChar(255), v.SongName || "")
-              .input("qty", sql.Int, v.Quantity)
+              .input("qty", sql.Decimal(18, 3), v.Quantity)
               .input("price", sql.Decimal(18, 2), v.PricePerUnit)
               .input("catId", sql.UniqueIdentifier, v.CategoryId)
               .input("catName", sql.NVarChar(255), v.CategoryName)

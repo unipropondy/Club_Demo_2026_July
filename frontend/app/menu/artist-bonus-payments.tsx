@@ -330,7 +330,7 @@ export default function ArtistBonusPaymentsScreen() {
         {/* ── WAITING LIST ── */}
         {waitingList.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>🔴 Waiting Payment ({waitingList.length})</Text>
+            <Text style={styles.sectionHeader}>🔴 Due Payment ({waitingList.length})</Text>
             {waitingList.map((t) => (
               <View key={t.Id} style={styles.walletCard}>
                 <TouchableOpacity style={styles.checkWrap} onPress={() => toggleSelect(t.Id)}>
@@ -406,7 +406,7 @@ export default function ArtistBonusPaymentsScreen() {
           <View style={styles.emptyState}>
             <Ionicons name="checkmark-circle" size={56} color="#16A34A" />
             <Text style={styles.emptyTitle}>All Caught Up!</Text>
-            <Text style={styles.emptySubtitle}>No artists are waiting for payments. Everyone has been settled.</Text>
+            <Text style={styles.emptySubtitle}>No artists have due payments. Everyone has been settled.</Text>
           </View>
         )}
       </ScrollView>

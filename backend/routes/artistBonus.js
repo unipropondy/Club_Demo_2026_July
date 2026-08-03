@@ -1344,32 +1344,93 @@ router.get('/reports/performance', async (req, res) => {
     const monthlyFrom = new Date(today.getFullYear(), today.getMonth(), 1);
     const yearlyFrom  = new Date(today.getFullYear(), 0, 1);
 
+    const toLocalIsoDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    const dailyStr   = toLocalIsoDate(dailyFrom);
+    const weeklyStr  = toLocalIsoDate(weeklyFrom);
+    const monthlyStr = toLocalIsoDate(monthlyFrom);
+    const yearlyStr  = toLocalIsoDate(yearlyFrom);
+    const endStr     = toLocalIsoDate(new Date(today.getTime() + 86400000));
+
     const request = pool.request()
-      .input('daily',   sql.DateTime, dailyFrom)
-      .input('weekly',  sql.DateTime, weeklyFrom)
-      .input('monthly', sql.DateTime, monthlyFrom)
-      .input('yearly',  sql.DateTime, yearlyFrom)
-      .input('end',     sql.DateTime, today);
+      .input('daily',   sql.VarChar, dailyStr)
+      .input('weekly',  sql.VarChar, weeklyStr)
+      .input('monthly', sql.VarChar, monthlyStr)
+      .input('yearly',  sql.VarChar, yearlyStr)
+      .input('sgtEnd',  sql.VarChar, endStr);
 
     // Build optional custom range inputs
     const hasCustomRange = !!(fromDate && toDate);
     if (hasCustomRange) {
-      request.input('customFrom', sql.DateTime, new Date(fromDate));
-      request.input('customTo',   sql.DateTime, new Date(new Date(toDate).getTime() + 86400000));
+      request.input('customFrom', sql.VarChar, fromDate);
+      const nextDayOfTo = new Date(new Date(toDate).getTime() + 86400000);
+      request.input('customTo',   sql.VarChar, toLocalIsoDate(nextDayOfTo));
     }
 
-    const customSalesExpr = hasCustomRange
-      ? `ISNULL((SELECT SUM(CAST(sid.Qty*sid.Price AS DECIMAL(18,2)))
+    function getSalesSumSubquery(fromDateParam, toDateParam, isLessThanToDate = true) {
+      const toDateCompare = isLessThanToDate ? `< ${toDateParam}` : `<= ${toDateParam}`;
+      return `(
+        -- 1. App Sales
+        ISNULL((
+          SELECT SUM(CAST(sid.Qty*sid.Price AS DECIMAL(18,2)))
           FROM SettlementItemDetail sid
           INNER JOIN SettlementHeader sh ON sid.SettlementID = sh.SettlementID
           WHERE (sid.DishId = d.DishId OR LTRIM(RTRIM(sid.DishName)) = d.Name)
             AND sh.IsCancelled = 0 AND ISNULL(sid.Status,'NORMAL') <> 'VOIDED'
-            AND sh.LastSettlementDate >= @customFrom AND sh.LastSettlementDate < @customTo), 0)`
+            AND ISNULL(sh.OrderType, '') <> 'CASHBOX'
+            AND (
+              (sh.start_date IS NOT NULL AND sh.start_date >= ${fromDateParam} AND sh.start_date ${toDateCompare})
+              OR
+              (sh.start_date IS NULL AND sh.LastSettlementDate >= ${fromDateParam} AND sh.LastSettlementDate ${toDateCompare})
+            )
+        ), 0) +
+        -- 2. Professional Sales
+        ISNULL((
+          SELECT SUM(CAST(rod.TotalDetailLineAmount AS DECIMAL(18,2)))
+          FROM RestaurantOrderDetail rod
+          INNER JOIN RestaurantOrder ro ON rod.OrderId = ro.OrderId
+          WHERE rod.DishId = d.DishId
+            AND ISNULL(rod.StatusCode, 0) <> 0
+            AND ISNULL(ro.StatusCode, 0) = 3
+            AND (
+              (ro.start_date IS NOT NULL AND ro.start_date >= ${fromDateParam} AND ro.start_date ${toDateCompare})
+              OR
+              (ro.start_date IS NULL AND ro.OrderDateTime >= ${fromDateParam} AND ro.OrderDateTime ${toDateCompare})
+            )
+            AND NOT EXISTS (SELECT 1 FROM SettlementHeader sh_dup WHERE sh_dup.BillNo = ro.OrderNumber)
+        ), 0) +
+        -- 3. CashBox Sales
+        ISNULL((
+          SELECT SUM(Amount)
+          FROM ArtistCashBox acb
+          WHERE LTRIM(RTRIM(acb.ArtistName)) = d.Name
+            AND (
+              (acb.start_date IS NOT NULL AND acb.start_date >= ${fromDateParam} AND acb.start_date ${toDateCompare})
+              OR
+              (acb.start_date IS NULL AND CAST(acb.CreatedDate AS DATE) >= ${fromDateParam} AND CAST(acb.CreatedDate AS DATE) ${toDateCompare})
+            )
+        ), 0)
+      )`;
+    }
+
+    const customSalesExpr = hasCustomRange
+      ? getSalesSumSubquery('@customFrom', '@customTo', true)
       : `0`;
 
-    const result = await request.query(`
-      DECLARE @sgtEnd DATETIME = DATEADD(DAY, 1, CAST(CAST(GETDATE() AS DATE) AS DATETIME));
+    const dailySalesExpr  = getSalesSumSubquery('@daily', '@sgtEnd', true);
+    const weeklySalesExpr = getSalesSumSubquery('@weekly', '@sgtEnd', true);
+    const monthlySalesExpr = getSalesSumSubquery('@monthly', '@sgtEnd', true);
+    const yearlySalesExpr = getSalesSumSubquery('@yearly', '@sgtEnd', true);
 
+    const bonusEarnedExpr = hasCustomRange
+      ? `ISNULL((SELECT SUM(abt.BonusEarned) FROM ArtistBonusTransaction abt WHERE abt.ArtistDishId = d.DishId AND abt.SalesFromDate >= @customFrom AND abt.SalesToDate < @customTo), 0)`
+      : `ISNULL((SELECT SUM(abt.BonusEarned) FROM ArtistBonusTransaction abt WHERE abt.ArtistDishId = d.DishId), 0)`;
+
+    const bonusPaidExpr = hasCustomRange
+      ? `ISNULL((SELECT SUM(abp.PaymentAmount) FROM ArtistBonusPayment abp WHERE abp.ArtistDishId = d.DishId AND abp.PaidDate >= @customFrom AND abp.PaidDate < @customTo), 0)`
+      : `ISNULL((SELECT SUM(abp.PaymentAmount) FROM ArtistBonusPayment abp WHERE abp.ArtistDishId = d.DishId), 0)`;
+
+    const result = await request.query(`
       SELECT
         d.Name AS ArtistName,
         d.DishId AS ArtistDishId,
@@ -1378,40 +1439,20 @@ router.get('/reports/performance', async (req, res) => {
         ${customSalesExpr} AS CustomSales,
 
         -- Daily
-        ISNULL((SELECT SUM(CAST(sid.Qty*sid.Price AS DECIMAL(18,2)))
-          FROM SettlementItemDetail sid
-          INNER JOIN SettlementHeader sh ON sid.SettlementID = sh.SettlementID
-          WHERE (sid.DishId = d.DishId OR LTRIM(RTRIM(sid.DishName)) = d.Name)
-            AND sh.IsCancelled = 0 AND ISNULL(sid.Status,'NORMAL') <> 'VOIDED'
-            AND sh.LastSettlementDate >= @daily AND sh.LastSettlementDate < @sgtEnd), 0) AS DailySales,
+        ${dailySalesExpr} AS DailySales,
 
         -- Weekly
-        ISNULL((SELECT SUM(CAST(sid.Qty*sid.Price AS DECIMAL(18,2)))
-          FROM SettlementItemDetail sid
-          INNER JOIN SettlementHeader sh ON sid.SettlementID = sh.SettlementID
-          WHERE (sid.DishId = d.DishId OR LTRIM(RTRIM(sid.DishName)) = d.Name)
-            AND sh.IsCancelled = 0 AND ISNULL(sid.Status,'NORMAL') <> 'VOIDED'
-            AND sh.LastSettlementDate >= @weekly AND sh.LastSettlementDate < @sgtEnd), 0) AS WeeklySales,
+        ${weeklySalesExpr} AS WeeklySales,
 
         -- Monthly
-        ISNULL((SELECT SUM(CAST(sid.Qty*sid.Price AS DECIMAL(18,2)))
-          FROM SettlementItemDetail sid
-          INNER JOIN SettlementHeader sh ON sid.SettlementID = sh.SettlementID
-          WHERE (sid.DishId = d.DishId OR LTRIM(RTRIM(sid.DishName)) = d.Name)
-            AND sh.IsCancelled = 0 AND ISNULL(sid.Status,'NORMAL') <> 'VOIDED'
-            AND sh.LastSettlementDate >= @monthly AND sh.LastSettlementDate < @sgtEnd), 0) AS MonthlySales,
+        ${monthlySalesExpr} AS MonthlySales,
 
         -- Yearly
-        ISNULL((SELECT SUM(CAST(sid.Qty*sid.Price AS DECIMAL(18,2)))
-          FROM SettlementItemDetail sid
-          INNER JOIN SettlementHeader sh ON sid.SettlementID = sh.SettlementID
-          WHERE (sid.DishId = d.DishId OR LTRIM(RTRIM(sid.DishName)) = d.Name)
-            AND sh.IsCancelled = 0 AND ISNULL(sid.Status,'NORMAL') <> 'VOIDED'
-            AND sh.LastSettlementDate >= @yearly AND sh.LastSettlementDate < @sgtEnd), 0) AS YearlySales,
+        ${yearlySalesExpr} AS YearlySales,
 
-        -- Bonus totals (all time)
-        ISNULL((SELECT SUM(abt.BonusEarned) FROM ArtistBonusTransaction abt WHERE abt.ArtistDishId = d.DishId), 0) AS TotalBonusEarned,
-        ISNULL((SELECT SUM(abp.PaymentAmount) FROM ArtistBonusPayment abp WHERE abp.ArtistDishId = d.DishId), 0) AS TotalBonusPaid
+        -- Bonus totals
+        ${bonusEarnedExpr} AS TotalBonusEarned,
+        ${bonusPaidExpr} AS TotalBonusPaid
 
       FROM DishMaster d
       WHERE d.IsSplitDish = 1 AND d.IsGroupDish = 0 AND d.IsActive = 1

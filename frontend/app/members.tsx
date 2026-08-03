@@ -154,11 +154,11 @@ export default function MembersScreen() {
   const [allDishes, setAllDishes] = useState<any[]>([]);
   const [allGroups, setAllGroups] = useState<any[]>([]);
   const [vipRuleEnabled, setVipRuleEnabled] = useState(false);
-  const [vipRuleTargetType, setVipRuleTargetType] = useState<"DISH" | "GROUP">("DISH");
-  const [vipRuleDishId, setVipRuleDishId] = useState("");
-  const [vipRuleDishGroupId, setVipRuleDishGroupId] = useState("");
-  const [vipRuleDiscountType, setVipRuleDiscountType] = useState<"PERCENTAGE" | "AMOUNT">("PERCENTAGE");
-  const [vipRuleDiscountValue, setVipRuleDiscountValue] = useState("");
+  const [vipRuleTargetType, setVipRuleTargetType] = useState<"DISH" | "GROUP" | "BOTH">("BOTH");
+  const [vipRuleDishRules, setVipRuleDishRules] = useState<any[]>([]);
+  const [vipRuleGroupRules, setVipRuleGroupRules] = useState<any[]>([]);
+  const [vipSearchQuery, setVipSearchQuery] = useState("");
+  const [vipSearchGroupQuery, setVipSearchGroupQuery] = useState("");
 
   // Sync state values when store settings load
   useEffect(() => {
@@ -166,11 +166,57 @@ export default function MembersScreen() {
       setTempThreshold(String(settings.vipThreshold));
     }
     setVipRuleEnabled(!!settings.vipRuleEnabled);
-    setVipRuleTargetType(settings.vipRuleTargetType || "DISH");
-    setVipRuleDishId(settings.vipRuleDishId || "");
-    setVipRuleDishGroupId(settings.vipRuleDishGroupId || "");
-    setVipRuleDiscountType(settings.vipRuleDiscountType || "PERCENTAGE");
-    setVipRuleDiscountValue(settings.vipRuleDiscountValue !== undefined ? String(settings.vipRuleDiscountValue) : "");
+    setVipRuleTargetType(settings.vipRuleTargetType || "BOTH");
+
+    // Parse Dish Rules JSON or migrate legacy comma-separated IDs
+    let dishRules: any[] = [];
+    if (settings.vipRuleDishId) {
+      try {
+        const parsed = JSON.parse(settings.vipRuleDishId);
+        if (Array.isArray(parsed)) {
+          dishRules = parsed;
+        } else {
+          throw new Error();
+        }
+      } catch (e) {
+        // Migration of legacy comma-separated IDs
+        dishRules = settings.vipRuleDishId
+          .split(",")
+          .map((id: string) => id.trim())
+          .filter(Boolean)
+          .map((id: string) => ({
+            id,
+            discountType: settings.vipRuleDiscountType || "PERCENTAGE",
+            discountValue: Number(settings.vipRuleDiscountValue) || 0
+          }));
+      }
+    }
+    setVipRuleDishRules(dishRules);
+
+    // Parse Group Rules JSON or migrate legacy comma-separated IDs
+    let groupRules: any[] = [];
+    if (settings.vipRuleDishGroupId) {
+      try {
+        const parsed = JSON.parse(settings.vipRuleDishGroupId);
+        if (Array.isArray(parsed)) {
+          groupRules = parsed;
+        } else {
+          throw new Error();
+        }
+      } catch (e) {
+        // Migration of legacy comma-separated IDs
+        groupRules = settings.vipRuleDishGroupId
+          .split(",")
+          .map((id: string) => id.trim())
+          .filter(Boolean)
+          .map((id: string) => ({
+            id,
+            discountType: settings.vipRuleDiscountType || "PERCENTAGE",
+            discountValue: Number(settings.vipRuleDiscountValue) || 0
+          }));
+      }
+    }
+    setVipRuleGroupRules(groupRules);
   }, [settings]);
 
   // Fetch Dishes and Dish Groups on mount with proper authorization
@@ -203,10 +249,23 @@ export default function MembersScreen() {
       Alert.alert("Invalid Value", "Please enter a valid numeric threshold.");
       return;
     }
-    const discountVal = parseFloat(vipRuleDiscountValue) || 0;
-    if (vipRuleEnabled && (isNaN(discountVal) || discountVal < 0)) {
-      Alert.alert("Invalid Discount", "Please enter a valid discount value.");
-      return;
+
+    // Verify all active configurations have valid numeric discounts
+    if (vipRuleEnabled) {
+      for (const rule of vipRuleDishRules) {
+        if (isNaN(parseFloat(rule.discountValue)) || parseFloat(rule.discountValue) < 0) {
+          const dishObj = allDishes.find(d => d.DishId === rule.id);
+          const dishDisplayName = dishObj ? (dishObj.Name || dishObj.DishName) : rule.id;
+          Alert.alert("Invalid Discount", `Please set a valid discount for dish: ${dishDisplayName}`);
+          return;
+        }
+      }
+      for (const rule of vipRuleGroupRules) {
+        if (isNaN(parseFloat(rule.discountValue)) || parseFloat(rule.discountValue) < 0) {
+          Alert.alert("Invalid Discount", `Please set a valid discount for group: ${allGroups.find(g => g.DishGroupId === rule.id)?.DishGroupName || rule.id}`);
+          return;
+        }
+      }
     }
 
     setIsSavingSettings(true);
@@ -216,10 +275,11 @@ export default function MembersScreen() {
         vipThreshold: val,
         vipRuleEnabled,
         vipRuleTargetType,
-        vipRuleDishId: vipRuleTargetType === "DISH" ? vipRuleDishId : null,
-        vipRuleDishGroupId: vipRuleTargetType === "GROUP" ? vipRuleDishGroupId : null,
-        vipRuleDiscountType,
-        vipRuleDiscountValue: discountVal
+        vipRuleDishId: JSON.stringify(vipRuleDishRules),
+        vipRuleDishGroupId: JSON.stringify(vipRuleGroupRules),
+        // Keep default discount type/val for legacy fallbacks
+        vipRuleDiscountType: vipRuleDishRules[0]?.discountType || vipRuleGroupRules[0]?.discountType || "PERCENTAGE",
+        vipRuleDiscountValue: Number(vipRuleDishRules[0]?.discountValue) || Number(vipRuleGroupRules[0]?.discountValue) || 0
       });
       if (success) {
         Alert.alert("Success", "VIP settings updated successfully.");
@@ -745,9 +805,9 @@ export default function MembersScreen() {
           </TouchableOpacity>
           <Text style={styles.screenTitle}>Member Management</Text>
           <View style={{ flexDirection: "row", gap: 10 }}>
-            <TouchableOpacity onPress={() => { setTempThreshold(String(settings.vipThreshold ?? 5000)); setShowVipSettingsModal(true); }} style={[styles.addBtn, { backgroundColor: Theme.bgCard, borderWidth: 1, borderColor: Theme.primary }]}>
-              <Ionicons name="settings-outline" size={16} color={Theme.primary} style={{ marginRight: 6 }} />
-              <Text style={[styles.addBtnText, { color: Theme.primary }]}>VIP Threshold</Text>
+            <TouchableOpacity onPress={() => { setTempThreshold(String(settings.vipThreshold ?? 5000)); setShowVipSettingsModal(true); }} style={[styles.addBtn, { backgroundColor: Theme.bgCard, borderWidth: 1, borderColor: Theme.primary, flexDirection: "row", alignItems: "center", justifyContent: "center", height: 44, paddingHorizontal: 12 }]}>
+              <Ionicons name="ribbon" size={16} color={Theme.primary} style={{ marginRight: 6 }} />
+              <Text style={[styles.addBtnText, { color: Theme.primary, fontSize: 13, fontFamily: Fonts.bold }]} numberOfLines={1}>VIP Threshold</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={openAddModal} style={styles.addBtn}>
               <Text style={styles.addBtnText}>+ Add Member</Text>
@@ -953,7 +1013,11 @@ export default function MembersScreen() {
                         <View style={{ height: 42, borderWidth: 1, borderColor: Theme.border, borderRadius: 8, overflow: "hidden", backgroundColor: Theme.bgInput }}>
                           <select
                             value={vipRuleTargetType}
-                            onChange={(e) => setVipRuleTargetType(e.target.value as any)}
+                            onChange={(e) => {
+                              setVipRuleTargetType(e.target.value as any);
+                              setVipSearchQuery("");
+                              setVipSearchGroupQuery("");
+                            }}
                             style={{
                               width: "100%",
                               height: "100%",
@@ -967,110 +1031,223 @@ export default function MembersScreen() {
                               outline: "none"
                             }}
                           >
-                            <option value="DISH" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>Specific Dish</option>
-                            <option value="GROUP" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>Dish Group</option>
+                            <option value="BOTH" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>Both (Dishes & Groups)</option>
+                            <option value="DISH" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>Specific Dishes Only</option>
+                            <option value="GROUP" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>Dish Groups Only</option>
                           </select>
                         </View>
                       </View>
 
-                      {vipRuleTargetType === "DISH" ? (
-                        <View style={[styles.inputGroup, { marginBottom: 14 }]}>
-                          <Text style={styles.inputLabel}>SELECT DISH</Text>
-                          <View style={{ height: 42, borderWidth: 1, borderColor: Theme.border, borderRadius: 8, overflow: "hidden", backgroundColor: Theme.bgInput }}>
-                            <select
-                              value={vipRuleDishId}
-                              onChange={(e) => setVipRuleDishId(e.target.value)}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                backgroundColor: "#1E1B4B",
-                                color: "#FFFFFF",
-                                border: "none",
-                                paddingLeft: 10,
-                                paddingRight: 10,
-                                fontFamily: Fonts.bold,
-                                fontSize: 13,
-                                outline: "none"
-                              }}
-                            >
-                              <option value="" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>-- Select Dish --</option>
-                              {allDishes.map((d: any) => (
-                                <option key={d.DishId} value={d.DishId} style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>
-                                  {d.DishName} (${(d.Price || 0).toFixed(2)})
-                                </option>
-                              ))}
-                            </select>
-                          </View>
-                        </View>
-                      ) : (
-                        <View style={[styles.inputGroup, { marginBottom: 14 }]}>
-                          <Text style={styles.inputLabel}>SELECT DISH GROUP</Text>
-                          <View style={{ height: 42, borderWidth: 1, borderColor: Theme.border, borderRadius: 8, overflow: "hidden", backgroundColor: Theme.bgInput }}>
-                            <select
-                              value={vipRuleDishGroupId}
-                              onChange={(e) => setVipRuleDishGroupId(e.target.value)}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                backgroundColor: "#1E1B4B",
-                                color: "#FFFFFF",
-                                border: "none",
-                                paddingLeft: 10,
-                                paddingRight: 10,
-                                fontFamily: Fonts.bold,
-                                fontSize: 13,
-                                outline: "none"
-                              }}
-                            >
-                              <option value="" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>-- Select Group --</option>
-                              {allGroups.map((g: any) => (
-                                <option key={g.DishGroupId} value={g.DishGroupId} style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>
-                                  {g.DishGroupName}
-                                </option>
-                              ))}
-                            </select>
+                      {/* ── Specific Dishes Config Section ── */}
+                      {(vipRuleTargetType === "DISH" || vipRuleTargetType === "BOTH") && (
+                        <View style={{ marginBottom: 20 }}>
+                          <Text style={[styles.inputLabel, { color: Theme.primary }]}>CONFIGURED SPECIFIC DISHES</Text>
+                          {vipRuleDishRules.length > 0 ? (
+                            <View style={{ marginBottom: 10, backgroundColor: "#161338", borderRadius: 8, padding: 8 }}>
+                              {vipRuleDishRules.map((rule, idx) => {
+                                const dish = allDishes.find(d => d.DishId === rule.id);
+                                return (
+                                  <View key={rule.id} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, borderBottomWidth: idx < vipRuleDishRules.length - 1 ? 1 : 0, borderBottomColor: Theme.border + "30" }}>
+                                    <Text style={{ flex: 1.5, fontSize: 13, fontFamily: Fonts.bold, color: "#FFFFFF" }} numberOfLines={1}>
+                                      {dish?.Name || dish?.DishName || "Unknown Dish"}
+                                    </Text>
+                                    <View style={{ width: 100, height: 32, borderWidth: 1, borderColor: Theme.border, borderRadius: 6, overflow: "hidden", backgroundColor: Theme.bgInput }}>
+                                      <select
+                                        value={rule.discountType}
+                                        onChange={(e) => {
+                                          const next = [...vipRuleDishRules];
+                                          next[idx].discountType = e.target.value;
+                                          setVipRuleDishRules(next);
+                                        }}
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          backgroundColor: "#1E1B4B",
+                                          color: "#FFFFFF",
+                                          border: "none",
+                                          paddingLeft: 4,
+                                          paddingRight: 4,
+                                          fontFamily: Fonts.bold,
+                                          fontSize: 11,
+                                          outline: "none"
+                                        }}
+                                      >
+                                        <option value="PERCENTAGE">% Off</option>
+                                        <option value="AMOUNT">$ Off</option>
+                                      </select>
+                                    </View>
+                                    <TextInput
+                                      style={[styles.sheetInput, { width: 60, height: 32, paddingVertical: 0, paddingHorizontal: 6, marginBottom: 0 }]}
+                                      keyboardType="numeric"
+                                      value={String(rule.discountValue)}
+                                      onChangeText={(val) => {
+                                        const next = [...vipRuleDishRules];
+                                        next[idx].discountValue = val;
+                                        setVipRuleDishRules(next);
+                                      }}
+                                    />
+                                    <TouchableOpacity
+                                      onPress={() => {
+                                        setVipRuleDishRules(prev => prev.filter(r => r.id !== rule.id));
+                                      }}
+                                      style={{ padding: 4 }}
+                                    >
+                                      <Ionicons name="trash" size={16} color={Theme.danger} />
+                                    </TouchableOpacity>
+                                  </View>
+                                );
+                              })}
+                            </View>
+                          ) : (
+                            <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textMuted, marginVertical: 8 }}>No dishes added yet.</Text>
+                          )}
+
+                          <Text style={[styles.inputLabel, { marginTop: 10 }]}>ADD DISHES</Text>
+                          <TextInput
+                            style={[styles.sheetInput, { marginBottom: 8, height: 38 }]}
+                            placeholder="Search dishes to add..."
+                            placeholderTextColor={Theme.textMuted}
+                            value={vipSearchQuery}
+                            onChangeText={setVipSearchQuery}
+                          />
+                          <View style={{ maxHeight: 150, borderWidth: 1, borderColor: Theme.border, borderRadius: 8, backgroundColor: "#111026", overflow: "hidden", padding: 6 }}>
+                            <ScrollView nestedScrollEnabled={true} style={{ flex: 1 }} showsVerticalScrollIndicator={true}>
+                              {allDishes
+                                .filter((d: any) => (d.Name || d.DishName || "").toLowerCase().includes(vipSearchQuery.toLowerCase()))
+                                .filter((d: any) => !vipRuleDishRules.some(r => r.id === d.DishId))
+                                .map((d: any) => (
+                                  <TouchableOpacity
+                                    key={d.DishId}
+                                    activeOpacity={0.7}
+                                    onPress={() => {
+                                      setVipRuleDishRules(prev => [...prev, { id: d.DishId, discountType: "PERCENTAGE", discountValue: 0 }]);
+                                    }}
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      paddingVertical: 8,
+                                      paddingHorizontal: 10,
+                                      borderRadius: 6,
+                                      marginBottom: 4,
+                                    }}
+                                  >
+                                    <Ionicons name="add-circle-outline" size={18} color={Theme.primary} style={{ marginRight: 8 }} />
+                                    <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: "#FFFFFF", flex: 1 }}>
+                                      {d.Name || d.DishName}
+                                    </Text>
+                                    <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.textMuted }}>
+                                      ${(d.Price || 0).toFixed(2)}
+                                    </Text>
+                                  </TouchableOpacity>
+                                ))}
+                            </ScrollView>
                           </View>
                         </View>
                       )}
 
-                      <View style={{ flexDirection: "row", gap: 12, marginBottom: 14 }}>
-                        <View style={{ flex: 1.2 }}>
-                          <Text style={styles.inputLabel}>DISCOUNT TYPE</Text>
-                          <View style={{ height: 42, borderWidth: 1, borderColor: Theme.border, borderRadius: 8, overflow: "hidden", backgroundColor: Theme.bgInput }}>
-                            <select
-                              value={vipRuleDiscountType}
-                              onChange={(e) => setVipRuleDiscountType(e.target.value as any)}
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                backgroundColor: "#1E1B4B",
-                                color: "#FFFFFF",
-                                border: "none",
-                                paddingLeft: 10,
-                                paddingRight: 10,
-                                fontFamily: Fonts.bold,
-                                fontSize: 13,
-                                outline: "none"
-                              }}
-                            >
-                              <option value="PERCENTAGE" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>Percentage (%)</option>
-                              <option value="AMOUNT" style={{ backgroundColor: "#1E1B4B", color: "#FFFFFF" }}>Flat Amount ($)</option>
-                            </select>
+                      {/* ── Dish Groups Config Section ── */}
+                      {(vipRuleTargetType === "GROUP" || vipRuleTargetType === "BOTH") && (
+                        <View style={{ marginBottom: 20 }}>
+                          <Text style={[styles.inputLabel, { color: Theme.primary }]}>CONFIGURED DISH GROUPS</Text>
+                          {vipRuleGroupRules.length > 0 ? (
+                            <View style={{ marginBottom: 10, backgroundColor: "#161338", borderRadius: 8, padding: 8 }}>
+                              {vipRuleGroupRules.map((rule, idx) => {
+                                const group = allGroups.find(g => g.DishGroupId === rule.id);
+                                return (
+                                  <View key={rule.id} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, borderBottomWidth: idx < vipRuleGroupRules.length - 1 ? 1 : 0, borderBottomColor: Theme.border + "30" }}>
+                                    <Text style={{ flex: 1.5, fontSize: 13, fontFamily: Fonts.bold, color: "#FFFFFF" }} numberOfLines={1}>
+                                      {group?.DishGroupName || "Unknown Group"}
+                                    </Text>
+                                    <View style={{ width: 100, height: 32, borderWidth: 1, borderColor: Theme.border, borderRadius: 6, overflow: "hidden", backgroundColor: Theme.bgInput }}>
+                                      <select
+                                        value={rule.discountType}
+                                        onChange={(e) => {
+                                          const next = [...vipRuleGroupRules];
+                                          next[idx].discountType = e.target.value;
+                                          setVipRuleGroupRules(next);
+                                        }}
+                                        style={{
+                                          width: "100%",
+                                          height: "100%",
+                                          backgroundColor: "#1E1B4B",
+                                          color: "#FFFFFF",
+                                          border: "none",
+                                          paddingLeft: 4,
+                                          paddingRight: 4,
+                                          fontFamily: Fonts.bold,
+                                          fontSize: 11,
+                                          outline: "none"
+                                        }}
+                                      >
+                                        <option value="PERCENTAGE">% Off</option>
+                                        <option value="AMOUNT">$ Off</option>
+                                      </select>
+                                    </View>
+                                    <TextInput
+                                      style={[styles.sheetInput, { width: 60, height: 32, paddingVertical: 0, paddingHorizontal: 6, marginBottom: 0 }]}
+                                      keyboardType="numeric"
+                                      value={String(rule.discountValue)}
+                                      onChangeText={(val) => {
+                                        const next = [...vipRuleGroupRules];
+                                        next[idx].discountValue = val;
+                                        setVipRuleGroupRules(next);
+                                      }}
+                                    />
+                                    <TouchableOpacity
+                                      onPress={() => {
+                                        setVipRuleGroupRules(prev => prev.filter(r => r.id !== rule.id));
+                                      }}
+                                      style={{ padding: 4 }}
+                                    >
+                                      <Ionicons name="trash" size={16} color={Theme.danger} />
+                                    </TouchableOpacity>
+                                  </View>
+                                );
+                              })}
+                            </View>
+                          ) : (
+                            <Text style={{ fontSize: 12, fontFamily: Fonts.bold, color: Theme.textMuted, marginVertical: 8 }}>No groups added yet.</Text>
+                          )}
+
+                          <Text style={[styles.inputLabel, { marginTop: 10 }]}>ADD DISH GROUPS</Text>
+                          <TextInput
+                            style={[styles.sheetInput, { marginBottom: 8, height: 38 }]}
+                            placeholder="Search groups to add..."
+                            placeholderTextColor={Theme.textMuted}
+                            value={vipSearchGroupQuery}
+                            onChangeText={setVipSearchGroupQuery}
+                          />
+                          <View style={{ maxHeight: 150, borderWidth: 1, borderColor: Theme.border, borderRadius: 8, backgroundColor: "#111026", overflow: "hidden", padding: 6 }}>
+                            <ScrollView nestedScrollEnabled={true} style={{ flex: 1 }} showsVerticalScrollIndicator={true}>
+                              {allGroups
+                                .filter((g: any) => (g.DishGroupName || "").toLowerCase().includes(vipSearchGroupQuery.toLowerCase()))
+                                .filter((g: any) => !vipRuleGroupRules.some(r => r.id === g.DishGroupId))
+                                .map((g: any) => (
+                                  <TouchableOpacity
+                                    key={g.DishGroupId}
+                                    activeOpacity={0.7}
+                                    onPress={() => {
+                                      setVipRuleGroupRules(prev => [...prev, { id: g.DishGroupId, discountType: "PERCENTAGE", discountValue: 0 }]);
+                                    }}
+                                    style={{
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      paddingVertical: 8,
+                                      paddingHorizontal: 10,
+                                      borderRadius: 6,
+                                      marginBottom: 4,
+                                    }}
+                                  >
+                                    <Ionicons name="add-circle-outline" size={18} color={Theme.primary} style={{ marginRight: 8 }} />
+                                    <Text style={{ fontSize: 13, fontFamily: Fonts.bold, color: Theme.textSecondary }}>
+                                      {g.DishGroupName}
+                                    </Text>
+                                  </TouchableOpacity>
+                                ))}
+                            </ScrollView>
                           </View>
                         </View>
-
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.inputLabel}>VALUE</Text>
-                          <TextInput
-                            style={styles.sheetInput}
-                            keyboardType="numeric"
-                            placeholder="0.00"
-                            placeholderTextColor={Theme.textMuted}
-                            value={vipRuleDiscountValue}
-                            onChangeText={setVipRuleDiscountValue}
-                          />
-                        </View>
-                      </View>
+                      )}
                     </>
                   )}
                 </View>
