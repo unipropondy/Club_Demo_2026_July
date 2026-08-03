@@ -325,6 +325,17 @@ private static escapeHtml(str: string): string {
     });
 
     let orderDiscount = finalDiscountInfo?.amount || 0;
+    if (finalDiscountInfo?.applied && orderDiscount === 0 && finalDiscountInfo.value > 0) {
+      const subtotalPostItemDisc = grossTotal - totalItemDiscount;
+      if (finalDiscountInfo.type === 'percentage') {
+         orderDiscount = (subtotalPostItemDisc * finalDiscountInfo.value) / 100;
+      } else {
+         orderDiscount = Math.min(finalDiscountInfo.value, subtotalPostItemDisc);
+      }
+      if (finalDiscountInfo) {
+         finalDiscountInfo.amount = orderDiscount;
+      }
+    }
     if (totalVipDiscount > 0) {
       orderDiscount = Math.max(0, orderDiscount - totalVipDiscount);
     }

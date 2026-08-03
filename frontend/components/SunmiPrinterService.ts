@@ -394,7 +394,7 @@ class SunmiPrinterService {
       const dateStr = formatToSingaporeDate(saleDate, { day: '2-digit', month: '2-digit', year: 'numeric' });
       const timeStr = displayTime ? ` ${formatToSingaporeTime(saleDate)}` : "";
 
-      await SunmiModule.printText(formatter.left(`INVOICE NO: ${saleData.invoiceNumber || saleData.id}`));
+      await SunmiModule.printText(formatter.left(`INVOICE NO: ${saleData.invoiceNumber || saleData.id || saleData.orderId || ""}`));
       if (saleData.tableNo) {
         await SunmiModule.printText(formatter.left(`TABLE NO: ${saleData.tableNo}`));
       }
@@ -491,6 +491,14 @@ class SunmiPrinterService {
       let orderDiscount = parseFloat(String(saleData.discountAmount || 0)) || 0;
       if (orderDiscount === 0 && saleData.discount) {
         orderDiscount = parseFloat(String(saleData.discount.amount || 0)) || 0;
+      }
+      if (orderDiscount === 0 && saleData.discount?.applied && saleData.discount.value > 0) {
+        const subtotalPostItemDisc = grossTotal - totalItemDiscount;
+        if (saleData.discount.type === "percentage") {
+           orderDiscount = (subtotalPostItemDisc * saleData.discount.value) / 100;
+        } else {
+           orderDiscount = Math.min(saleData.discount.value, subtotalPostItemDisc);
+        }
       }
       const orderDiscountType = saleData.discountType || saleData.discount?.type || "percentage";
       const orderDiscountValue = saleData.discountValue || saleData.discount?.value || 0;

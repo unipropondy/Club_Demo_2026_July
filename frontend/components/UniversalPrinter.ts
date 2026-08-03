@@ -1430,11 +1430,41 @@ class UniversalPrinter {
 
         // ✅ Pass discount to saleData for Sunmi printer
         const enhancedSaleData = { ...saleData };
-        if (discountInfo?.applied && discountInfo.amount > 0) {
-          enhancedSaleData.discountAmount = discountInfo.amount;
+        let discAmount = discountInfo?.amount;
+        if (discountInfo?.applied && (!discAmount || discAmount === 0) && discountInfo.value > 0) {
+          let grossTotal = 0;
+          let totalItemDiscount = 0;
+          (saleData.items || []).forEach((item: any) => {
+            if (item.status === "VOIDED") return;
+            const qtyNum = parseInt(String(item.qty || item.quantity || 1)) || 1;
+            const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
+            const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
+            const baseTotal = (item.price || 0) * qtyNum;
+            let itemDiscount = 0;
+            const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
+            const discType = item.discountType || "percentage";
+            if (discAmt > 0) {
+              if (discType === "percentage") {
+                itemDiscount = (discountBasis * (discAmt / 100)) * qtyNum;
+              } else {
+                itemDiscount = Math.min(discAmt, discountBasis) * qtyNum;
+              }
+            }
+            grossTotal += baseTotal;
+            totalItemDiscount += itemDiscount;
+          });
+          const subtotalPostItemDisc = grossTotal - totalItemDiscount;
+          if (discountInfo.type === "percentage") {
+             discAmount = (subtotalPostItemDisc * discountInfo.value) / 100;
+          } else {
+             discAmount = Math.min(discountInfo.value, subtotalPostItemDisc);
+          }
+        }
+        if (discountInfo?.applied && discAmount && discAmount > 0) {
+          enhancedSaleData.discountAmount = discAmount;
           enhancedSaleData.discountType = discountInfo.type;
           enhancedSaleData.discountValue = discountInfo.value;
-          enhancedSaleData.originalTotal = saleData.total + discountInfo.amount;
+          enhancedSaleData.originalTotal = saleData.total + discAmount;
         }
 
         const printed = await SunmiPrinterService.printReceipt(
@@ -1579,7 +1609,7 @@ class UniversalPrinter {
                      saleData.date ? new Date(saleData.date) : 
                      new Date();
 
-    text += `[L]Bill No: ${saleData.invoiceNumber || saleData.id || ""}\n`;
+    text += `[L]Bill No: ${saleData.invoiceNumber || saleData.id || saleData.orderId || ""}\n`;
     if (saleData.tableNo) {
       text += `[L]<font size=\'big\'><B>TABLE: ${saleData.tableNo}</B></font>\n`;
     }
@@ -1722,7 +1752,18 @@ class UniversalPrinter {
             }
           : null);
 
-    const orderDiscount = finalDiscountInfo?.amount || 0;
+    let orderDiscount = finalDiscountInfo?.amount || 0;
+    if (finalDiscountInfo?.applied && orderDiscount === 0 && finalDiscountInfo.value > 0) {
+      const subtotalPostItemDisc = grossTotal - totalItemDiscount;
+      if (finalDiscountInfo.type === "percentage") {
+         orderDiscount = (subtotalPostItemDisc * finalDiscountInfo.value) / 100;
+      } else {
+         orderDiscount = Math.min(finalDiscountInfo.value, subtotalPostItemDisc);
+      }
+      if (finalDiscountInfo) {
+         finalDiscountInfo.amount = orderDiscount;
+      }
+    }
     const hasAnyDiscount = totalItemDiscount > 0 || orderDiscount > 0 || totalVipDiscount > 0;
     let currentSubtotal = grossTotal;
 
