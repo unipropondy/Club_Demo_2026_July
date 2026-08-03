@@ -489,36 +489,7 @@ class UniversalPrinter {
   ): Promise<boolean> {
     if (Platform.OS === "web") {
       try {
-        const isOnline = await this.isBridgeOnline();
-        if (!isOnline) {
-          console.log("📡 [Web Print Bridge] Bridge is OFFLINE. Direct fallback to preview.");
-          const html = this.generateKOTHTML(orderData, "KDS_PRINT");
-          let frame = document.getElementById("kot-print-iframe") as HTMLIFrameElement;
-          if (!frame) {
-            frame = document.createElement("iframe");
-            frame.id = "kot-print-iframe";
-            frame.style.display = "none";
-            document.body.appendChild(frame);
-          }
-
-          const doc = frame.contentWindow?.document || frame.contentDocument;
-          if (doc) {
-            doc.open();
-            doc.write(html);
-            doc.close();
-
-            const triggerPrint = () => {
-              frame.contentWindow?.focus();
-              frame.contentWindow?.print();
-            };
-
-            frame.contentWindow?.addEventListener("load", triggerPrint);
-            setTimeout(triggerPrint, 50);
-          }
-          await this.logPrintJob(orderData.orderId, orderData.orderNo, "REPRINT");
-          return true;
-        }
-
+        // Try bridge directly — skip pre-flight isBridgeOnline() check which can falsely report offline
         const text = this.formatKOTThermalText(orderData, "KDS_PRINT");
         console.log(`📡 [Web Print Bridge] Queueing KDS print`);
         const success = await this.queuePrintJob(4, undefined, text);
@@ -601,39 +572,7 @@ class UniversalPrinter {
   ): Promise<boolean> {
     if (Platform.OS === "web") {
       try {
-        const isOnline = await this.isBridgeOnline();
-        if (!isOnline) {
-          console.log("📡 [Web Print Bridge] Bridge is OFFLINE. Direct fallback to preview.");
-          const html = this.generateKOTHTML(orderData, type);
-          let frame = document.getElementById("kot-print-iframe") as HTMLIFrameElement;
-          if (!frame) {
-            frame = document.createElement("iframe");
-            frame.id = "kot-print-iframe";
-            frame.style.display = "none";
-            document.body.appendChild(frame);
-          }
-
-          const doc = frame.contentWindow?.document || frame.contentDocument;
-          if (doc) {
-            doc.open();
-            doc.write(html);
-            doc.close();
-
-            let printed = false;
-            const triggerPrint = () => {
-              if (printed) return;
-              printed = true;
-              frame.contentWindow?.focus();
-              frame.contentWindow?.print();
-            };
-
-            frame.contentWindow?.addEventListener("load", triggerPrint);
-            setTimeout(triggerPrint, 50);
-          }
-          await this.logPrintJob(orderData.orderId, orderData.orderNo, type);
-          return true;
-        }
-
+        // Try bridge directly — skip pre-flight isBridgeOnline() check which can falsely report offline
         const text = this.formatKOTThermalText(orderData, type);
         // Map kitchenCode or kitchenTypeValue
         const kitchenTypeValue = orderData.kitchenCode || orderData.KitchenCode || orderData.kitchenTypeValue || orderData.KitchenTypeValue || "0";
@@ -1296,11 +1235,7 @@ class UniversalPrinter {
   ): Promise<boolean> {
     if (Platform.OS === "web") {
       try {
-        const isOnline = await this.isBridgeOnline();
-        if (!isOnline) {
-          console.log("📡 [Web Print Bridge] Bridge is OFFLINE. Direct fallback to preview.");
-          return await this.offerPDFFallback(saleData, outletId, t, discountInfo);
-        }
+        // Try bridge directly — skip pre-flight isBridgeOnline() check which can falsely report offline
 
         const company = await BillPDFGenerator.loadSettings(outletId);
         const text = this.formatThermalTextWithDiscount(
