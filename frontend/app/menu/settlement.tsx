@@ -1277,64 +1277,89 @@ const fetchDayHistory = async () => {
         </html>
       `;
 
-      // 3. Attempt silent IP printing first if IP is reachable
+      // 3. Attempt silent IP printing first if IP is reachable (or via Print Bridge on Web)
       let printedToHardware = false;
       const isIp = cashierIp && /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(cashierIp.trim());
-      if (isIp && Platform.OS !== 'web') {
+
+      // Generate ESC/POS payload formatters
+      const formatTwoCols48 = (left: string, right: string) => {
+        const cleanLeft = left.replace(/<[^>]*>/g, "");
+        const cleanRight = right.replace(/<[^>]*>/g, "");
+        const spaceCount = 48 - cleanLeft.length - cleanRight.length;
+        return spaceCount > 0 ? `${left}${" ".repeat(spaceCount)}${right}\n` : `${left}\n${right.padStart(48, " ")}\n`;
+      };
+
+      let text = "[C]========================================\n";
+      text += "[C]<font size='big'><B>SETTLEMENT REPORT</B></font>\n";
+      text += "[C]========================================\n\n";
+      text += `[L]<B>Business Date:</B> ${businessDateStr}\n\n`;
+      text += "[L]<B>Generated:</B>\n";
+      text += `[L]${formatDateTime(new Date())}\n\n`;
+
+      text += "[C]========================================\n";
+      text += "[C]<B>SALES SUMMARY</B>\n";
+      text += "[C]========================================\n";
+      text += formatTwoCols48("Gross Sales:", formatCurrency(totalSales.SubTotal));
+      text += formatTwoCols48("Discount:", formatCurrency((parseFloat(totalSales.DiscountAmount) || 0) - (parseFloat(totalSales.VIPDiscountAmount) || 0)));
+      text += formatTwoCols48("VIP Discount:", formatCurrency(totalSales.VIPDiscountAmount));
+      text += formatTwoCols48("Service Charge:", formatCurrency(totalSales.ServiceCharge));
+      text += formatTwoCols48("GST Collected:", formatCurrency(totalSales.TotalTax));
+      text += formatTwoCols48("Tips:", formatCurrency(totalSales.Tips));
+      text += "[L]----------------------------------------\n";
+      text += formatTwoCols48("<B>NET SALES:</B>", "<B>" + formatCurrency(netSales) + "</B>\n");
+
+      text += "[C]========================================\n";
+      text += "[C]<B>PAYMENT COLLECTION</B>\n";
+      text += "[C]========================================\n";
+      payments.forEach(p => {
+        text += formatTwoCols48(p.PaymodeName + ":", formatCurrency(p.Amount));
+      });
+      text += "[L]----------------------------------------\n";
+      text += formatTwoCols48("<B>TOTAL COLLECTION:</B>", "<B>" + formatCurrency(paymentsTotal) + "</B>\n");
+
+      text += "[C]========================================\n";
+      text += "[C]<B>CASH DRAWER SUMMARY</B>\n";
+      text += "[C]========================================\n";
+      text += formatTwoCols48("Opening Float:", formatCurrency(displayOpeningAmount));
+      text += formatTwoCols48("Cash Sales:", formatCurrency(salesCash));
+      text += formatTwoCols48("Cash In:", formatCurrency(cashInTotalSum));
+      text += formatTwoCols48("Cash Out:", formatCurrency(totalCashOutSum));
+      text += "[L]----------------------------------------\n";
+      text += formatTwoCols48("<font size='big'><B>EXPECTED CASH:</B></font>", "<font size='big'><B>" + formatCurrency(totalCashIn - totalCashOutSum) + "</B></font>\n");
+      text += "[C]========================================\n";
+      text += "[C]SMART-POS BY UNIPROSG\n";
+      text += "[C]========================================\n\n\n\n";
+
+      if (Platform.OS === 'web') {
+        try {
+          console.log("📡 [Web Settlement] Sending print job to Print Bridge");
+          const storeId = "STORE_001";
+          const response = await fetch(`${API_URL}/api/print-jobs`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer unipro-pos-bridge-token-2026",
+              "x-store-id": storeId
+            },
+            body: JSON.stringify({
+              printerType: 1, // Cashier Printer
+              content: text
+            })
+          });
+          const resData = await response.json();
+          if (resData.success && resData.jobId) {
+            printedToHardware = true;
+            console.log(`✅ [Web Settlement] Settlement report print queued successfully via bridge: ${resData.jobId}`);
+          }
+        } catch (e) {
+          console.error("❌ [Web Settlement] Bridge print failed:", e);
+        }
+      } else if (isIp) {
         try {
           // Check if IP reachable
           const ipReachable = await checkIpReachable(cashierIp.trim());
 
           if (ipReachable) {
-            // Generate ESC/POS payload
-            const formatTwoCols48 = (left: string, right: string) => {
-              const cleanLeft = left.replace(/<[^>]*>/g, "");
-              const cleanRight = right.replace(/<[^>]*>/g, "");
-              const spaceCount = 48 - cleanLeft.length - cleanRight.length;
-              return spaceCount > 0 ? `${left}${" ".repeat(spaceCount)}${right}\n` : `${left}\n${right.padStart(48, " ")}\n`;
-            };
-
-            let text = "[C]========================================\n";
-            text += "[C]<font size='big'><B>SETTLEMENT REPORT</B></font>\n";
-            text += "[C]========================================\n\n";
-            text += `[L]<B>Business Date:</B> ${businessDateStr}\n\n`;
-            text += "[L]<B>Generated:</B>\n";
-            text += `[L]${formatDateTime(new Date())}\n\n`;
-
-            text += "[C]========================================\n";
-            text += "[C]<B>SALES SUMMARY</B>\n";
-            text += "[C]========================================\n";
-            text += formatTwoCols48("Gross Sales:", formatCurrency(totalSales.SubTotal));
-            text += formatTwoCols48("Discount:", formatCurrency((parseFloat(totalSales.DiscountAmount) || 0) - (parseFloat(totalSales.VIPDiscountAmount) || 0)));
-            text += formatTwoCols48("VIP Discount:", formatCurrency(totalSales.VIPDiscountAmount));
-            text += formatTwoCols48("Service Charge:", formatCurrency(totalSales.ServiceCharge));
-            text += formatTwoCols48("GST Collected:", formatCurrency(totalSales.TotalTax));
-            text += formatTwoCols48("Tips:", formatCurrency(totalSales.Tips));
-            text += "[L]----------------------------------------\n";
-            text += formatTwoCols48("<B>NET SALES:</B>", "<B>" + formatCurrency(netSales) + "</B>\n");
-
-            text += "[C]========================================\n";
-            text += "[C]<B>PAYMENT COLLECTION</B>\n";
-            text += "[C]========================================\n";
-            payments.forEach(p => {
-              text += formatTwoCols48(p.PaymodeName + ":", formatCurrency(p.Amount));
-            });
-            text += "[L]----------------------------------------\n";
-            text += formatTwoCols48("<B>TOTAL COLLECTION:</B>", "<B>" + formatCurrency(paymentsTotal) + "</B>\n");
-
-            text += "[C]========================================\n";
-            text += "[C]<B>CASH DRAWER SUMMARY</B>\n";
-            text += "[C]========================================\n";
-            text += formatTwoCols48("Opening Float:", formatCurrency(displayOpeningAmount));
-            text += formatTwoCols48("Cash Sales:", formatCurrency(salesCash));
-            text += formatTwoCols48("Cash In:", formatCurrency(cashInTotalSum));
-            text += formatTwoCols48("Cash Out:", formatCurrency(totalCashOutSum));
-            text += "[L]----------------------------------------\n";
-            text += formatTwoCols48("<font size='big'><B>EXPECTED CASH:</B></font>", "<font size='big'><B>" + formatCurrency(totalCashIn - totalCashOutSum) + "</B></font>\n");
-            text += "[C]========================================\n";
-            text += "[C]SMART-POS BY UNIPROSG\n";
-            text += "[C]========================================\n\n\n\n";
-
             const ThermalPrinter = require("react-native-thermal-printer").default;
             await ThermalPrinter.printTcp({
               ip: cashierIp.trim(),
