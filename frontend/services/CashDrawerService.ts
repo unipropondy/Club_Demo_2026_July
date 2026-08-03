@@ -61,10 +61,10 @@ export default class CashDrawerService {
           return false;
         }
 
-        // Poll for completion (up to 1.5 seconds)
+        // Poll for completion (up to 15 seconds to allow for bridge poll cycle + print + network latency)
         const jobId = resData.jobId;
         const start = Date.now();
-        while (Date.now() - start < 1500) {
+        while (Date.now() - start < 15000) {
           await new Promise((resolve) => setTimeout(resolve, 250));
           try {
             const statusRes = await fetch(`${API_URL}/api/print-jobs/status/${jobId}`);
