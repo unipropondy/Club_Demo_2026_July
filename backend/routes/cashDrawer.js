@@ -54,7 +54,7 @@ router.post('/log', authenticateToken, async (req, res) => {
       .input('BusinessUnitId', sql.UniqueIdentifier, businessUnitId)
       .input('UserId', sql.UniqueIdentifier, userId)
       .input('OutletId', sql.Int, parsedOutletId)
-      .input('TerminalCode', sql.NVarChar(50), finalTerminalCode)
+      .input('TerminalCode', sql.NVarChar(50), null)
       .input('ActionType', sql.NVarChar(30), actionType || 'OTHER')
       .input('Amount', sql.Decimal(18, 2), amount || 0)
       .input('TenderedAmount', sql.Decimal(18, 2), tenderedAmount || 0)
@@ -99,7 +99,7 @@ router.post('/log', authenticateToken, async (req, res) => {
           .input('Remarks', sql.VarChar(sql.MAX), remark || '')
           .input('PaymentMode', sql.VarChar(50), 'Cash')
           .input('ReferenceNo', orderId || '')
-          .input('TerminalCode', sql.VarChar(50), finalTerminalCode)
+          .input('TerminalCode', sql.VarChar(50), null)
           .input('CreatedBy', sql.VarChar(100), cashierName)
           .input('startDate', sql.Date, formattedStartDate)
           .query(`
@@ -121,7 +121,7 @@ router.post('/log', authenticateToken, async (req, res) => {
           .input('Remarks', sql.VarChar(sql.MAX), remark || '')
           .input('PaymentMode', sql.VarChar(50), 'Cash')
           .input('ReferenceNo', sql.VarChar(100), orderId || '')
-          .input('TerminalCode', sql.VarChar(50), finalTerminalCode)
+          .input('TerminalCode', sql.VarChar(50), null)
           .input('CreatedBy', sql.VarChar(100), cashierName)
           .input('startDate', sql.Date, formattedStartDate)
           .query(`
