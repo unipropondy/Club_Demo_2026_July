@@ -1503,9 +1503,10 @@ router.post("/save", async (req, res) => {
           SELECT TOP 1 sh.SettlementID, sh.BillNo 
           FROM SettlementHeader sh
           LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
-          WHERE sh.BillNo = @OrderId 
+          WHERE (sh.BillNo = @OrderId 
              OR (TRY_CAST(@OrderId AS UNIQUEIDENTIFIER) IS NOT NULL AND ri.OrderId = TRY_CAST(@OrderId AS UNIQUEIDENTIFIER))
-             OR ri.OrderId = (SELECT TOP 1 OrderId FROM RestaurantOrder WHERE OrderNumber = @OrderId)
+             OR ri.OrderId = (SELECT TOP 1 OrderId FROM RestaurantOrderCur WHERE OrderNumber = @OrderId))
+             AND ISNULL(ri.SplitCount, 0) = 0
         `);
       if (existingCheck.recordset.length > 0) {
         const existing = existingCheck.recordset[0];
@@ -1525,7 +1526,9 @@ router.post("/save", async (req, res) => {
           SELECT TOP 1 sh.SettlementID, sh.BillNo
           FROM SettlementHeader sh
           INNER JOIN TableMaster tm ON sh.BillNo = tm.CurrentOrderId
+          LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
           WHERE tm.TableId = @tid AND ISNULL(sh.IsCancelled, 0) = 0
+            AND ISNULL(ri.SplitCount, 0) = 0
         `);
       if (tableSettlementCheck.recordset.length > 0) {
         const existing = tableSettlementCheck.recordset[0];
@@ -2211,7 +2214,7 @@ router.post("/save", async (req, res) => {
             // Subtract quantity from detail record
             await transaction.request()
               .input("detailId", sql.UniqueIdentifier, detailId)
-              .input("qtyPaid", sql.Decimal(18, 2), qtyPaid)
+              .input("qtyPaid", sql.Decimal(18, 4), qtyPaid)
               .query(`
                 UPDATE RestaurantOrderDetailCur
                 SET Quantity = Quantity - @qtyPaid,

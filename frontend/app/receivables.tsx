@@ -1619,6 +1619,8 @@ export default function ReceivablesScreen() {
                                 });
                               const isDebit =
                                 tx.TransactionType === "DEBIT" ||
+                                tx.TransactionType === "CREDIT_SALE" ||
+                                tx.TransactionType === "SALE" ||
                                 (tx.TransactionType === "ADJUSTMENT" &&
                                   tx.Amount > 0);
                               return (
