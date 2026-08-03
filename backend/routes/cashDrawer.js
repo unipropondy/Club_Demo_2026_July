@@ -66,13 +66,14 @@ router.post('/log', authenticateToken, async (req, res) => {
       .input('ApprovedByUserId', sql.NVarChar(100), approvedByUserId || '')
       .input('OpenSource', sql.NVarChar(20), openSource || 'MANUAL')
       .input('IsSuccess', sql.Bit, isSuccess !== false ? 1 : 0)
+      .input('startDate', sql.Date, formattedStartDate)
       .query(`
         INSERT INTO CashDrawerLog
           (BusinessUnitId, UserId, OutletId, TerminalCode, ActionType, Amount, TenderedAmount, ChangeAmount, OrderId,
-           Reason, Remark, OpenedByUserId, ApprovedByUserId, OpenSource, IsSuccess, CreatedOn)
+           Reason, Remark, OpenedByUserId, ApprovedByUserId, OpenSource, IsSuccess, CreatedOn, start_date)
         VALUES
           (@BusinessUnitId, @UserId, @OutletId, @TerminalCode, @ActionType, @Amount, @TenderedAmount, @ChangeAmount, @OrderId,
-           @Reason, @Remark, @OpenedByUserId, @ApprovedByUserId, @OpenSource, @IsSuccess, GETDATE())
+           @Reason, @Remark, @OpenedByUserId, @ApprovedByUserId, @OpenSource, @IsSuccess, GETDATE(), @startDate)
       `);
 
     // 2. Settlement Integration — PROFESSIONAL POS DESIGN:
@@ -181,13 +182,16 @@ router.get('/logs', authenticateToken, async (req, res) => {
 
     let where = '1=1';
 
-    if (fromDate) {
-      request.input('fromDate', sql.VarChar, fromDate);
-      where += ' AND l.CreatedOn >= CAST(@fromDate AS DATETIME)';
-    }
-    if (toDate) {
-      request.input('toDate', sql.VarChar, toDate);
-      where += ' AND l.CreatedOn <= CAST(@toDate AS DATETIME)';
+    if (fromDate && toDate) {
+      request.input('fromDate', sql.Date, new Date(fromDate));
+      request.input('toDate', sql.Date, new Date(toDate));
+      where += ' AND COALESCE(l.start_date, CAST(l.CreatedOn as DATE)) BETWEEN @fromDate AND @toDate';
+    } else if (fromDate) {
+      request.input('fromDate', sql.Date, new Date(fromDate));
+      where += ' AND COALESCE(l.start_date, CAST(l.CreatedOn as DATE)) >= @fromDate';
+    } else if (toDate) {
+      request.input('toDate', sql.Date, new Date(toDate));
+      where += ' AND COALESCE(l.start_date, CAST(l.CreatedOn as DATE)) <= @toDate';
     }
     if (actionType && actionType !== 'ALL') {
       request.input('actionType', sql.NVarChar(30), actionType);

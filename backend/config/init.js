@@ -738,6 +738,7 @@ async function initDB(pool) {
     await runQuery("CashDrawerLog - OpenedByUserId", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CashDrawerLog]') AND name = 'OpenedByUserId') ALTER TABLE [dbo].[CashDrawerLog] ADD [OpenedByUserId] NVARCHAR(100) NULL");
     await runQuery("CashDrawerLog - ApprovedByUserId", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CashDrawerLog]') AND name = 'ApprovedByUserId') ALTER TABLE [dbo].[CashDrawerLog] ADD [ApprovedByUserId] NVARCHAR(100) NULL");
     await runQuery("CashDrawerLog - IsSuccess", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CashDrawerLog]') AND name = 'IsSuccess') ALTER TABLE [dbo].[CashDrawerLog] ADD [IsSuccess] BIT NOT NULL DEFAULT 1");
+    await runQuery("CashDrawerLog - start_date", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CashDrawerLog]') AND name = 'start_date') ALTER TABLE [dbo].[CashDrawerLog] ADD start_date DATE");
 
     // 2.1 ArtistCashBox table
     await runQuery("Create ArtistCashBox table", `
