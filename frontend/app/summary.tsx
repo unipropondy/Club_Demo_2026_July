@@ -532,6 +532,14 @@ export default function SummaryScreen() {
     }
   }, [displayOrderId, isFocused]);
 
+  // Fetch cart items from DB when tableId is available and screen is focused
+  useEffect(() => {
+    if (context?.tableId && isFocused) {
+      console.log(`[Summary] Fetching cart from DB for table ${context.tableId}`);
+      useCartStore.getState().fetchCartFromDB(context.tableId);
+    }
+  }, [context?.tableId, isFocused]);
+
   useEffect(() => {
 
     // 2. If activeOrder is missing, try fetching from kitchen ONCE

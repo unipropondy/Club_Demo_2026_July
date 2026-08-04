@@ -1547,15 +1547,8 @@ router.post("/checkout", async (req, res) => {
     const io = req.app.get("io");
     if (io) {
       const lid = cleanId.toLowerCase();
-      io.emit("order_closed", {
+      io.emit("cart_updated", {
         tableId: lid,
-        tableNo: updated?.tableNo,
-        section: updated?.section,
-      });
-      io.emit("order_status_update", {
-        tableId: lid,
-        action: "CLOSE",
-        orderId: updated?.CurrentOrderId,
       });
     }
 

@@ -237,15 +237,22 @@ const DishCard = React.memo(
 // 🚀 PERFORMANCE OPTIMIZATION: Surgical Quantity Updates
 // This wrapper ensures only the SPECIFIC dish card being updated re-renders.
 const DishCardWrapper = React.memo(
-  ({ item, width, isPhone, isTablet, isLandscape, onPress }: any) => {
+  ({ item, width, isPhone, isTablet, isLandscape, onPress, selectedGroup, groups }: any) => {
     const currentContextId = useCartStore((state) => state.currentContextId);
     const dishId = item.DishId || item.id;
 
     // ⚡ SURGICAL SUBSCRIPTION: Only re-render if the quantity of THIS specific product changes
     const cartQty = useCartStore((state) => {
       if (!currentContextId) return 0;
-      const qtyMap = state.cartQtyMap[currentContextId] || {};
-      return qtyMap[dishId] || 0;
+      const cart = state.carts[currentContextId] || [];
+      const currentGroupObj = (groups || []).find((g: any) => g.DishGroupId === selectedGroup);
+      const dishGroupName = currentGroupObj?.DishGroupName || item.DishGroupName;
+      const expectedPrefix = dishGroupName ? `${dishGroupName} - ` : "";
+      const expectedFullName = `${expectedPrefix}${item.Name || item.name || ""}`;
+
+      return cart
+        .filter((c: any) => c.id === dishId && c.name === expectedFullName)
+        .reduce((sum: number, c: any) => sum + (c.qty || 0), 0);
     });
 
     return (
@@ -268,7 +275,9 @@ const DishCardWrapper = React.memo(
       prevProps.isPhone === nextProps.isPhone &&
       prevProps.isTablet === nextProps.isTablet &&
       prevProps.isLandscape === nextProps.isLandscape &&
-      prevProps.onPress === nextProps.onPress
+      prevProps.onPress === nextProps.onPress &&
+      prevProps.selectedGroup === nextProps.selectedGroup &&
+      prevProps.groups === nextProps.groups
     );
   },
 );
@@ -957,7 +966,6 @@ export default function MenuScreen() {
     }
   };
 
-
   useEffect(() => {
     const initMenu = async () => {
       setIsInitialLoading(true);
@@ -1059,10 +1067,11 @@ export default function MenuScreen() {
         currentKitchen?.KitchenTypeCode || String(selectedKitchenId || "0");
 
       const addToCartSimple = (overridePrice?: number) => {
+        const currentGroupObj = groups.find(
+          (g: any) => g.DishGroupId === selectedGroup,
+        );
         const dishGroupName =
-          dish.DishGroupName ||
-          groups.find((g: any) => g.DishGroupId === selectedGroup)
-            ?.DishGroupName;
+          currentGroupObj?.DishGroupName || dish.DishGroupName;
         const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
         addToCartGlobal({
           id: dish.DishId,
@@ -1249,10 +1258,12 @@ export default function MenuScreen() {
           isPhone={isPhone}
           isTablet={isTablet}
           isLandscape={isLandscape}
+          selectedGroup={selectedGroup}
+          groups={groups}
         />
       );
     },
-    [cardWidth, openModifiers, isPhone, isTablet, isLandscape],
+    [cardWidth, openModifiers, isPhone, isTablet, isLandscape, selectedGroup, groups],
   );
 
   const toggleModifier = (mod: any) => {
@@ -1348,9 +1359,11 @@ export default function MenuScreen() {
       const currentKitchenCode =
         currentKitchen?.KitchenTypeCode || selectedKitchenId;
 
+      const currentGroupObj = groups.find(
+        (g: any) => g.DishGroupId === selectedGroup,
+      );
       const dishGroupName =
-        selectedDish.DishGroupName ||
-        groups.find((g: any) => g.DishGroupId === selectedGroup)?.DishGroupName;
+        currentGroupObj?.DishGroupName || selectedDish.DishGroupName;
       const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
 
       addToCartGlobal({
@@ -1392,9 +1405,10 @@ export default function MenuScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const dishGroupName =
-      dish.DishGroupName ||
-      groups.find((g: any) => g.DishGroupId === selectedGroup)?.DishGroupName;
+    const currentGroupObj = groups.find(
+      (g: any) => g.DishGroupId === selectedGroup,
+    );
+    const dishGroupName = currentGroupObj?.DishGroupName || dish.DishGroupName;
     const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
 
     addToCartGlobal({
