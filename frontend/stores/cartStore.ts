@@ -303,6 +303,15 @@ type CartState = {
   activeSplitItems: any[] | null;
   setActiveSplitItems: (items: any[] | null) => void;
 
+  // Split-by-Parts session tracking
+  splitSession: {
+    totalParts: number;
+    currentPart: number; // 1-indexed: which part is currently being paid
+    perPartAmount: number;
+    originalCart: any[]; // snapshot of full cart at the time split was initiated
+  } | null;
+  setSplitSession: (session: { totalParts: number; currentPart: number; perPartAmount: number; originalCart: any[] } | null) => void;
+
   setCurrentContext: (contextId: string | null) => void;
 
   getCart: () => CartItem[];
@@ -379,9 +388,11 @@ export const useCartStore = create<CartState>()(
       cartQtyMap: {},
       _syncAbortControllers: {},
       activeSplitItems: null,
+      splitSession: null,
 
       setCurrentContext: (contextId) => set({ currentContextId: contextId }),
       setActiveSplitItems: (items) => set({ activeSplitItems: items }),
+      setSplitSession: (session) => set({ splitSession: session }),
 
       getCart: () => {
         const { carts, currentContextId } = get();

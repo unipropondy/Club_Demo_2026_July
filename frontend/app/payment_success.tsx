@@ -54,6 +54,14 @@ export default function PaymentSuccess() {
   const serviceCharge = String(params.serviceCharge ?? "0");
   const takeawayCharge = String(params.takeawayCharge ?? "0");
   const vipDiscountAmountRaw = String(params.vipDiscountAmount ?? "0");
+  // Split-by-parts tracking
+  const splitTotalParts = params.splitTotalParts ? parseInt(params.splitTotalParts as string, 10) : 0;
+  const splitCurrentPart = params.splitCurrentPart ? parseInt(params.splitCurrentPart as string, 10) : 0;
+  const isPartsSplit = splitTotalParts > 1 && splitCurrentPart > 0;
+  const partsRemaining = isPartsSplit ? splitTotalParts - splitCurrentPart : 0;
+  // New: return to SplitPartQueue after each part payment
+  const splitReturnToQueue = params.splitReturnToQueue === "true";
+
   const payments = React.useMemo(() => {
     try {
       return JSON.parse(paymentsRaw);
@@ -104,9 +112,43 @@ export default function PaymentSuccess() {
       } else {
         router.replace("/receivables");
       }
-    } else if (params.isSplit === "true") {
+    } else if (splitReturnToQueue && isPartsSplit && partsRemaining > 0) {
+      // ── QUEUE MODE: Return to summary with queue open & mark this part paid ──
+      router.replace({
+        pathname: "/summary",
+        params: {
+          openPartQueue: "true",
+          partJustPaid: String(splitCurrentPart),
+          splitTotalParts: String(splitTotalParts),
+        },
+      });
+    } else if (splitReturnToQueue && isPartsSplit && partsRemaining === 0) {
+      // All parts done via queue — clean up and go home
+      try {
+        const { useCartStore: CS } = require("../stores/cartStore");
+        CS.getState().setSplitSession(null);
+        CS.getState().setActiveSplitItems(null);
+      } catch (_) {}
+      router.replace({
+        pathname: "/(tabs)/category",
+        params: { section },
+      });
+    } else if (isPartsSplit && partsRemaining > 0) {
+      // Split-by-parts (legacy modal flow): still have more parts
+      setShowSplitConfirmModal(true);
+    } else if (params.isSplit === "true" && !isPartsSplit) {
+      // Split-by-items: show the original balance remaining modal
       setShowSplitConfirmModal(true);
     } else {
+      // All parts paid (or not a split) — clean up and go home
+      if (isPartsSplit) {
+        // Last part complete — clean up the split session
+        try {
+          const { useCartStore: CS } = require("../stores/cartStore");
+          CS.getState().setSplitSession(null);
+          CS.getState().setActiveSplitItems(null);
+        } catch (_) {}
+      }
       router.replace({
         pathname: "/(tabs)/category",
         params: { section },
@@ -218,6 +260,33 @@ export default function PaymentSuccess() {
             <Ionicons name="checkmark-circle" size={80} color={Theme.success} />
           </View>
 
+          {/* Split-by-parts progress banner */}
+          {isPartsSplit && (
+            <View style={styles.partsProgressBanner}>
+              <Text style={styles.partsProgressLabel}>
+                Part {splitCurrentPart} of {splitTotalParts} Paid
+              </Text>
+              <View style={styles.partsProgressBar}>
+                {Array.from({ length: splitTotalParts }).map((_, idx) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.partsProgressSegment,
+                      idx < splitCurrentPart
+                        ? styles.partsProgressSegmentDone
+                        : styles.partsProgressSegmentPending,
+                    ]}
+                  />
+                ))}
+              </View>
+              {partsRemaining > 0 && (
+                <Text style={styles.partsProgressSub}>
+                  {partsRemaining} part{partsRemaining > 1 ? "s" : ""} remaining
+                </Text>
+              )}
+            </View>
+          )}
+
           <Text style={styles.title}>{params.isLedgerCollection === "true" ? "Member Payment Collected" : "Payment Successful"}</Text>
           <Text style={styles.orderText}>{params.isLedgerCollection === "true" ? `Settlement ID: ${orderId}` : `Order #${orderId}`}</Text>
 
@@ -311,33 +380,94 @@ export default function PaymentSuccess() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Balance Remaining</Text>
-            <Text style={styles.modalMessage}>
-              Split payment successful! Would you like to pay the remaining balance now?
-            </Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => {
-                  setShowSplitConfirmModal(false);
-                  router.replace("/summary");
-                }}
-              >
-                <Text style={styles.cancelButtonText}>Go to Summary</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.confirmButton]}
-                onPress={() => {
-                  setShowSplitConfirmModal(false);
-                  router.replace({
-                    pathname: "/summary",
-                    params: { autoPay: "true" },
-                  });
-                }}
-              >
-                <Text style={styles.confirmButtonText}>Pay Remaining</Text>
-              </TouchableOpacity>
-            </View>
+            {isPartsSplit && partsRemaining > 0 ? (
+              // Split-by-parts: prompt to pay the NEXT part
+              <>
+                <Text style={styles.modalTitle}>
+                  Part {splitCurrentPart} Complete
+                </Text>
+                <Text style={styles.modalMessage}>
+                  {partsRemaining} more part{partsRemaining > 1 ? "s" : ""} left to pay.{"\n"}
+                  Would you like to collect the next payment now?
+                </Text>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => {
+                      setShowSplitConfirmModal(false);
+                      // Go to summary but DO NOT clear split session so summary screen displays the remaining split amount/items
+                      router.replace("/summary");
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>Go to Summary</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.confirmButton]}
+                    onPress={() => {
+                      setShowSplitConfirmModal(false);
+                      const { useCartStore: CS } = require("../stores/cartStore");
+                      const store = CS.getState();
+                      const nextPart = splitCurrentPart + 1;
+                      const session = store.splitSession;
+                      if (session) {
+                        // Update session to the next part
+                        const updatedSession = { ...session, currentPart: nextPart };
+                        store.setSplitSession(updatedSession);
+                        // Re-set split items for next part (same proportional items)
+                        const nextItems = session.originalCart.map((item: any) => ({
+                          ...item,
+                          qty: item.qty / session.totalParts,
+                        }));
+                        store.setActiveSplitItems(nextItems);
+                      }
+                      router.replace({
+                        pathname: "/payment",
+                        params: {
+                          splitTotalParts: String(splitTotalParts),
+                          splitCurrentPart: String(nextPart),
+                          mobileNo: String(params.mobileNo || ""),
+                        },
+                      });
+                    }}
+                  >
+                    <Text style={styles.confirmButtonText}>
+                      Collect Part {splitCurrentPart + 1}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              // Split-by-items: original "Balance Remaining" modal
+              <>
+                <Text style={styles.modalTitle}>Balance Remaining</Text>
+                <Text style={styles.modalMessage}>
+                  Split payment successful! Would you like to pay the remaining balance now?
+                </Text>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => {
+                      setShowSplitConfirmModal(false);
+                      router.replace("/summary");
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>Go to Summary</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.confirmButton]}
+                    onPress={() => {
+                      setShowSplitConfirmModal(false);
+                      router.replace({
+                        pathname: "/summary",
+                        params: { autoPay: "true" },
+                      });
+                    }}
+                  >
+                    <Text style={styles.confirmButtonText}>Pay Remaining</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
           </View>
         </View>
       </Modal>
@@ -500,5 +630,47 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontFamily: Fonts.bold,
     fontSize: 15,
+  },
+  // Split-by-parts progress banner styles
+  partsProgressBanner: {
+    width: "100%",
+    backgroundColor: Theme.bgInput,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Theme.border,
+  },
+  partsProgressLabel: {
+    fontFamily: Fonts.bold,
+    fontSize: 15,
+    color: Theme.success,
+    marginBottom: 10,
+    letterSpacing: 0.3,
+  },
+  partsProgressBar: {
+    flexDirection: "row",
+    gap: 6,
+    width: "100%",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  partsProgressSegment: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    maxWidth: 60,
+  },
+  partsProgressSegmentDone: {
+    backgroundColor: Theme.success,
+  },
+  partsProgressSegmentPending: {
+    backgroundColor: Theme.border,
+  },
+  partsProgressSub: {
+    fontFamily: Fonts.medium,
+    fontSize: 12,
+    color: Theme.textSecondary,
   },
 });

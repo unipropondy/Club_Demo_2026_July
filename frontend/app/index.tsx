@@ -1,3 +1,4 @@
+import React from "react";
 import { Redirect } from "expo-router";
 import { useAuthStore } from "../stores/authStore";
 
@@ -7,7 +8,9 @@ export default function Index() {
   if (user) {
     const currentDate = new Date().toISOString().split("T")[0];
     if (loginDate && currentDate !== loginDate) {
-      logout();
+      React.useEffect(() => {
+        logout();
+      }, []);
       return <Redirect href="/login" />;
     }
 

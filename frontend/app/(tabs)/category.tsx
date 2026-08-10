@@ -3993,17 +3993,23 @@ export default function Category() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* License Info Card (Bottom-Left Corner) */}
       <View
         style={[
           styles.licenseCardContainer,
           {
             bottom: Math.max(insets.bottom, 12) + 12,
             left: Math.max(insets.left, 12) + 12,
+            maxWidth: isTablet || Platform.OS === "web" ? 320 : 240,
+            padding: isTablet || Platform.OS === "web" ? 12 : 10,
           },
         ]}
       >
-        <View style={styles.licenseLogoContainer}>
+        <View
+          style={[
+            styles.licenseLogoContainer,
+            (isTablet || Platform.OS === "web") && { width: 48, height: 48, borderRadius: 10 },
+          ]}
+        >
           {licenseInfo?.CompanyLogoUrl ? (
             <Image
               source={{ uri: licenseInfo.CompanyLogoUrl }}
@@ -4011,15 +4017,31 @@ export default function Category() {
               resizeMode="cover"
             />
           ) : (
-            <Ionicons name="restaurant-outline" size={18} color={Theme.primary} />
+            <Ionicons
+              name="restaurant-outline"
+              size={isTablet || Platform.OS === "web" ? 22 : 18}
+              color={Theme.primary}
+            />
           )}
         </View>
 
         <View style={styles.licenseTextContainer}>
-          <Text style={styles.licenseCompanyName} numberOfLines={1}>
+          <Text
+            style={[
+              styles.licenseCompanyName,
+              (isTablet || Platform.OS === "web") && { fontSize: 14 },
+            ]}
+            numberOfLines={1}
+          >
             {licenseInfo?.CompanyName || "Smart POS"}
           </Text>
-          <Text style={styles.licenseAddress} numberOfLines={1}>
+          <Text
+            style={[
+              styles.licenseAddress,
+              (isTablet || Platform.OS === "web") && { fontSize: 10, lineHeight: 14 },
+            ]}
+            numberOfLines={1}
+          >
             {licenseInfo?.Address || "Shop Address"}
           </Text>
           {licenseInfo && (() => {
@@ -4038,8 +4060,19 @@ export default function Category() {
             if (isExpired) {
               return (
                 <View style={styles.licenseRow}>
-                  <Ionicons name="alert-circle-outline" size={12} color="#EF4444" style={{ marginRight: 3 }} />
-                  <Text style={[styles.licenseDateText, { color: "#EF4444", fontWeight: "bold" }]}>
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={isTablet || Platform.OS === "web" ? 14 : 12}
+                    color="#EF4444"
+                    style={{ marginRight: 3 }}
+                  />
+                  <Text
+                    style={[
+                      styles.licenseDateText,
+                      { color: "#EF4444", fontWeight: "bold" },
+                      (isTablet || Platform.OS === "web") && { fontSize: 10 },
+                    ]}
+                  >
                     License Expired
                   </Text>
                 </View>
@@ -4048,14 +4081,32 @@ export default function Category() {
 
             return (
               <View style={styles.licenseRow}>
-                <Ionicons name="checkmark-circle-outline" size={12} color="#22C55E" style={{ marginRight: 3 }} />
-                <Text style={styles.licenseDateText}>
-                  License: <Text style={styles.licenseDatesHighlighted}>{fromDateStr || ""} to {toDateStr || ""}</Text>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={isTablet || Platform.OS === "web" ? 14 : 12}
+                  color="#22C55E"
+                  style={{ marginRight: 3 }}
+                />
+                <Text
+                  style={[
+                    styles.licenseDateText,
+                    (isTablet || Platform.OS === "web") && { fontSize: 10 },
+                  ]}
+                >
+                  License:{" "}
+                  <Text style={styles.licenseDatesHighlighted}>
+                    {fromDateStr || ""} to {toDateStr || ""}
+                  </Text>
                 </Text>
               </View>
             );
           })()}
-          <Text style={styles.licenseCopyright}>
+          <Text
+            style={[
+              styles.licenseCopyright,
+              (isTablet || Platform.OS === "web") && { fontSize: 9 },
+            ]}
+          >
             @ 2026 UNIPRO . All rights reserved.
           </Text>
         </View>
@@ -4497,7 +4548,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    maxWidth: 240,                              // Compact on mobile so AI button is never covered
+    maxWidth: 240,                              // Set default to 240 on phone portrait
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.6,

@@ -125,6 +125,9 @@ export default function PaymentScreen() {
   const isMember = params.isMember === "true";
   const isLedgerCollection = !!memberId;
   const rewardMemberId = params.rewardMemberId as string | undefined;
+  // Split-by-parts tracking
+  const splitTotalParts = params.splitTotalParts ? parseInt(params.splitTotalParts as string, 10) : 0;
+  const splitCurrentPart = params.splitCurrentPart ? parseInt(params.splitCurrentPart as string, 10) : 0;
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "cancelled" | "failed">("idle");
   const [allDishes, setAllDishes] = useState<any[]>([]);
   const vipOffer = useMemo(() => {
@@ -1564,6 +1567,9 @@ export default function PaymentScreen() {
             memberRewardBalance: String(result.memberRewardBalance || "0"),
             mobileNo: loyaltyPhone || "",
             vipDiscountAmount: (vipDiscountAmount || 0).toFixed(2),
+            // Split-by-parts tracking — forwarded to success screen
+            splitTotalParts: splitTotalParts > 0 ? String(splitTotalParts) : "0",
+            splitCurrentPart: splitCurrentPart > 0 ? String(splitCurrentPart) : "0",
           },
         });
         // Snapshot context/splitItems before the delayed cleanup

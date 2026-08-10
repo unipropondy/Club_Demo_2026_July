@@ -50,13 +50,12 @@ export const Palette = {
 };
 
 export const Theme = {
-  // ── Primary Brand — Electric Violet / Purple ──────────────────────────────
-  primary:       Palette.violet300,   // #A855F7  glowing violet
-  primaryDark:   Palette.violet500,   // #7C3AED  deep button fill
-  primaryDeep:   Palette.violet800,   // #4B1C71  jewel shadow
+  primary:       '#9000F0',           // Bright Neon/Electric Purple
+  primaryDark:   '#7A00CC',           // Richer dark purple fill
+  primaryDeep:   '#5E0099',           // Jewel shadow purple
   primaryLight:  Palette.dark600,     // #221F4A  pressed/light tint on dark bg
-  primaryBorder: 'rgba(168,85,247,0.40)',
-  primaryGlow:   'rgba(168,85,247,0.20)',  // ambient glow behind buttons
+  primaryBorder: 'rgba(144,0,240,0.40)',
+  primaryGlow:   'rgba(144,0,240,0.20)',  // ambient glow behind buttons
 
   // ── DARK combo — main app surfaces ───────────────────────────────────────
   bgMain:    Palette.dark900,   // #0C0A22  page background

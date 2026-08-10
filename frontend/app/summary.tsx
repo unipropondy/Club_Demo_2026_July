@@ -32,6 +32,8 @@ import CancelOrderModal from "../components/CancelOrderModal";
 import DiscountModal from "../components/DiscountModal";
 import ItemDiscountModal from "../components/ItemDiscountModal";
 import ServerSelectionModal from "../components/ServerSelectionModal";
+import SplitChitPreview from "../components/SplitChitPreview";
+import SplitPartQueue from "../components/SplitPartQueue";
 import UniversalPrinter from "../components/UniversalPrinter";
 import VoidItemModal from "../components/VoidItemModal";
 import {
@@ -142,6 +144,12 @@ export default function SummaryScreen() {
   const [isSplitMode, setIsSplitMode] = useState(false);
   const [splitType, setSplitType] = useState<"items" | "parts">("items");
   const [partCount, setPartCount] = useState<number>(2);
+  // Split Chit Preview (for items split)
+  const [showSplitChit, setShowSplitChit] = useState(false);
+  const [splitChitItems, setSplitChitItems] = useState<any[]>([]);
+  // Split Part Queue (for parts split)
+  const [showPartQueue, setShowPartQueue] = useState(false);
+  const [partQueuePaidParts, setPartQueuePaidParts] = useState<number[]>([]);
   const [showPromoModal, setShowPromoModal] = useState(false);
   const [promoCodeInput, setPromoCodeInput] = useState("");
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
@@ -522,6 +530,32 @@ export default function SummaryScreen() {
     loyaltyName,
     rewardMember,
   ]);
+
+  // Re-open the part queue after returning from payment_success (queue mode)
+  useEffect(() => {
+    if (params.openPartQueue === "true" && context) {
+      const partJustPaid = params.partJustPaid ? parseInt(params.partJustPaid as string, 10) : null;
+      const totalParts = params.splitTotalParts ? parseInt(params.splitTotalParts as string, 10) : null;
+
+      // Set partCount from params if we have it
+      if (totalParts && totalParts > 0) {
+        setPartCount(totalParts);
+      }
+
+      // Mark the just-paid part in queue
+      if (partJustPaid) {
+        setPartQueuePaidParts((prev) => {
+          if (prev.includes(partJustPaid)) return prev;
+          return [...prev, partJustPaid];
+        });
+      }
+
+      // Clear the URL params and re-open queue
+      router.setParams({ openPartQueue: undefined, partJustPaid: undefined, splitTotalParts: undefined });
+      setTimeout(() => setShowPartQueue(true), 200);
+    }
+  }, [params.openPartQueue, context]);
+
 
   const settings = useCompanySettingsStore((state: any) => state.settings);
   const currencySymbol = settings.currencySymbol || "$";
@@ -1375,9 +1409,14 @@ export default function SummaryScreen() {
     fetchDishLoyaltyRewards();
   }, [loyaltyPhone, selectedCountry, cart]);
 
+  const activeSplitItems = useCartStore((s: any) => s.activeSplitItems);
+
   const finalItems = useMemo(() => {
+    if (activeSplitItems && activeSplitItems.length > 0) {
+      return activeSplitItems;
+    }
     return loyaltyDiscountItems.length > 0 ? loyaltyDiscountItems : cart;
-  }, [loyaltyDiscountItems, cart]);
+  }, [loyaltyDiscountItems, cart, activeSplitItems]);
 
   const totalItems = useMemo(
     () =>
@@ -4710,43 +4749,203 @@ export default function SummaryScreen() {
                     }
                     return;
                   }
-                  const selectedItems =
-                    splitType === "items"
-                      ? [
-                          ...cart
-                            .map((item: any) => ({
-                              ...item,
-                              qty: splitQuantities[item.lineItemId] || 0,
-                            }))
-                            .filter((i: any) => i.qty > 0),
-                          ...extraSplitItems,
-                        ]
-                      : cart.map((item: any) => ({
-                          ...item,
-                          qty: item.qty / partCount,
-                        }));
 
-                  useCartStore.getState().setActiveSplitItems(selectedItems);
-                  setShowSplitModal(false);
-                  router.push({
-                    pathname: "/payment",
-                    params: {
-                      mobileNo: loyaltyPhone
-                        ? `${selectedCountry.code} ${loyaltyPhone.trim()}`
-                        : "",
-                      customerName: loyaltyName || "",
-                      vipOffer: vipOffer ? JSON.stringify(vipOffer) : "",
-                    },
-                  });
+                  const activeCart = cart.filter((i: any) => i.status !== "VOIDED");
+
+                  if (splitType === "parts") {
+                    // ── SPLIT BY PARTS: Open Part Queue ─────────────────────
+                    // Reset any old paid-parts tracking and open the queue screen
+                    setPartQueuePaidParts([]);
+                    useCartStore.getState().setSplitSession({
+                      totalParts: partCount,
+                      currentPart: 1,
+                      perPartAmount: grandTotal / partCount,
+                      originalCart: activeCart,
+                    });
+                    setShowSplitModal(false);
+                    setShowPartQueue(true);
+                  } else {
+                    // ── SPLIT BY ITEMS: Show Bill Chit Preview first ─────────
+                    const selectedItems = [
+                      ...activeCart
+                        .map((item: any) => ({
+                          ...item,
+                          qty: splitQuantities[item.lineItemId] || 0,
+                        }))
+                        .filter((i: any) => i.qty > 0),
+                      ...extraSplitItems,
+                    ];
+                    setSplitChitItems(selectedItems);
+                    setShowSplitModal(false);
+                    setShowSplitChit(true);
+                  }
                 }}
               >
-                <Ionicons name="card-outline" size={22} color="#fff" />
-                <Text style={styles.proceedText}>Pay Separate Amount</Text>
+                <Ionicons name="receipt-outline" size={22} color="#fff" />
+                <Text style={styles.proceedText}>Preview Bill & Pay</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      {/* ─────────────────────────────────────────────────────────── */}
+      {/* SPLIT CHIT PREVIEW (items split — shown before payment) */}
+      <SplitChitPreview
+        visible={showSplitChit}
+        onClose={() => setShowSplitChit(false)}
+        onProceedToPay={() => {
+          const activeCart = cart.filter((i: any) => i.status !== "VOIDED");
+          const selectedItems = splitChitItems;
+          useCartStore.getState().setSplitSession(null);
+          useCartStore.getState().setActiveSplitItems(selectedItems);
+          setShowSplitChit(false);
+          router.push({
+            pathname: "/payment",
+            params: {
+              mobileNo: loyaltyPhone
+                ? `${selectedCountry.code} ${loyaltyPhone.trim()}`
+                : "",
+              customerName: loyaltyName || "",
+              vipOffer: vipOffer ? JSON.stringify(vipOffer) : "",
+            },
+          });
+        }}
+        onPrintChit={async () => {
+          try {
+            const saleData = {
+              items: splitChitItems,
+              total: splitChitItems.reduce((s: number, i: any) => s + (i.price || 0) * i.qty, 0),
+              subtotal: splitChitItems.reduce((s: number, i: any) => s + (i.price || 0) * i.qty, 0),
+              discount: null,
+              orderId: displayOrderId,
+              tableNo: context?.tableNo,
+              waiterName: context?.serverName,
+              date: new Date(),
+              isCheckout: false,
+              serviceCharge: 0,
+              takeawayCharge: 0,
+              mobileNo: "",
+              memberRewardBalance: "0",
+              isSplitChit: true,
+            };
+            await UniversalPrinter.printCheckoutBill(saleData, user?.userId || "SYSTEM", undefined);
+          } catch (e) {
+            showToast({ type: "error", message: "Print failed" });
+          }
+        }}
+        items={splitChitItems}
+        partLabel="Split Bill Preview"
+        gstRate={gstRate}
+        scRate={scRate}
+        scReduced={scReduced}
+        discountInfo={discountInfo}
+        currencySymbol={currencySymbol}
+        orderId={displayOrderId || ""}
+        tableNo={context?.tableNo || context?.takeawayNo || ""}
+        orderType={context?.orderType}
+      />
+
+      {/* ─────────────────────────────────────────────────────────── */}
+      {/* SPLIT PART QUEUE (parts split — manages whole payment loop) */}
+      <SplitPartQueue
+        visible={showPartQueue}
+        onClose={() => {
+          setShowPartQueue(false);
+          // Restore split modal if no parts paid yet
+          if (partQueuePaidParts.length === 0) {
+            setShowSplitModal(true);
+          }
+        }}
+        onPayPart={(partIndex: number) => {
+          const activeCart = cart.filter((i: any) => i.status !== "VOIDED");
+          const selectedItems = activeCart.map((item: any) => ({
+            ...item,
+            qty: item.qty / partCount,
+          }));
+          useCartStore.getState().setSplitSession({
+            totalParts: partCount,
+            currentPart: partIndex,
+            perPartAmount: grandTotal / partCount,
+            originalCart: activeCart,
+          });
+          useCartStore.getState().setActiveSplitItems(selectedItems);
+          // Keep queue open so we return to it after payment
+          // (payment_success will navigate back to queue via params)
+          setShowPartQueue(false);
+          router.push({
+            pathname: "/payment",
+            params: {
+              mobileNo: loyaltyPhone
+                ? `${selectedCountry.code} ${loyaltyPhone.trim()}`
+                : "",
+              customerName: loyaltyName || "",
+              vipOffer: vipOffer ? JSON.stringify(vipOffer) : "",
+              splitTotalParts: String(partCount),
+              splitCurrentPart: String(partIndex),
+              splitReturnToQueue: "true",
+            },
+          });
+        }}
+        totalParts={partCount}
+        paidParts={partQueuePaidParts}
+        cart={cart.filter((i: any) => i.status !== "VOIDED")}
+        gstRate={gstRate}
+        scRate={scRate}
+        scReduced={scReduced}
+        discountInfo={discountInfo}
+        currencySymbol={currencySymbol}
+        grandTotal={grandTotal}
+        orderId={displayOrderId || ""}
+        tableNo={context?.tableNo || context?.takeawayNo || ""}
+        orderType={context?.orderType}
+        onPrintAllChits={async () => {
+          // Print one checkout bill per part — each showing the proportional items & amount
+          const activeCart = cart.filter((i: any) => i.status !== "VOIDED");
+          const perPartItems = activeCart.map((item: any) => ({
+            ...item,
+            qty: item.qty / partCount,
+          }));
+          const perPartTotal = grandTotal / partCount;
+
+          for (let part = 1; part <= partCount; part++) {
+            const saleData = {
+              items: perPartItems,
+              total: perPartTotal,
+              subtotal: perPartItems.reduce(
+                (s: number, i: any) => s + (i.price || 0) * i.qty,
+                0,
+              ),
+              discount: discountInfo?.applied ? discountInfo : null,
+              orderId: displayOrderId,
+              tableNo: context?.tableNo,
+              waiterName: context?.serverName,
+              date: new Date(),
+              isCheckout: true,
+              isSplitChit: true,
+              splitPartLabel: `Part ${part} of ${partCount}`,
+              serviceCharge: serviceChargeAmount / partCount,
+              takeawayCharge: currentTakeawayCharge / partCount,
+              mobileNo: "",
+              memberRewardBalance: "0",
+            };
+            await UniversalPrinter.printCheckoutBill(
+              saleData,
+              user?.userId || "SYSTEM",
+              discountInfo ?? undefined,
+            );
+            // Small delay between prints to avoid printer buffer overflow
+            if (part < partCount) {
+              await new Promise((r) => setTimeout(r, 600));
+            }
+          }
+          showToast({
+            type: "success",
+            message: `${partCount} Bills Printed`,
+            subtitle: `One checkout bill per part sent to printer`,
+          });
+        }}
+      />
 
       {/* VIP DYNAMIC OFFER MODAL */}
       <Modal transparent visible={showVipOfferModal} animationType="slide">
