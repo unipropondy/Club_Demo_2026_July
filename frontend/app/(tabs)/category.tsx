@@ -1682,8 +1682,8 @@ export default function Category() {
       <StatusBar barStyle="dark-content" backgroundColor={Theme.bgNav} />
 
       {/* 〰〰〰〰〰〰〰〰〰〰〰 TOP NAV BAR 〰〰〰〰〰〰〰〰〰〰〰 */}
-      {!isTablet ? (
-        // --- MOBILE HEADER (TWO ROWS) ---
+      {(!isTablet || !isLandscape) ? (
+        // --- MOBILE/PORTRAIT HEADER (TWO ROWS) ---
         <View
           style={{
             backgroundColor: Theme.bgNav,
@@ -1731,40 +1731,50 @@ export default function Category() {
                       style={[
                         styles.tabBtn,
                         isActive && styles.activeTabBtn,
-                        { paddingVertical: 6, paddingHorizontal: 12 },
+                        {
+                          paddingVertical: isTablet ? 9 : 6,
+                          paddingHorizontal: isTablet ? 16 : 12,
+                        },
                       ]}
                     >
                       <Ionicons
                         name={SECTION_ICONS[section] as any}
-                        size={12}
+                        size={isTablet ? 15 : 12}
                         color={isActive ? "#fff" : Theme.textSecondary}
-                        style={{ marginRight: 4 }}
+                        style={{ marginRight: isTablet ? 6 : 4 }}
                       />
                       <Text
                         style={[
                           styles.tabText,
                           isActive && styles.activeTabText,
-                          { fontSize: 12 },
+                          { fontSize: isTablet ? 15 : 12 },
                         ]}
                       >
-                        {formatSectionGlobal(SECTION_LABELS[section]).replace(
-                          "Section ",
-                          "Sec-",
-                        )}
+                        {isTablet
+                          ? formatSectionGlobal(SECTION_LABELS[section])
+                          : formatSectionGlobal(SECTION_LABELS[section]).replace(
+                              "Section ",
+                              "Sec-",
+                            )}
                       </Text>
                       {occupied > 0 && (
                         <View
                           style={[
                             styles.tabBadge,
                             isActive && styles.activeTabBadge,
-                            { marginLeft: 4, height: 16, minWidth: 16 },
+                            {
+                              marginLeft: isTablet ? 6 : 4,
+                              height: isTablet ? 20 : 16,
+                              minWidth: isTablet ? 20 : 16,
+                              borderRadius: isTablet ? 10 : 8,
+                            },
                           ]}
                         >
                           <Text
                             style={[
                               styles.tabBadgeText,
                               isActive && styles.activeTabBadgeText,
-                              { fontSize: 9 },
+                              { fontSize: isTablet ? 11 : 9 },
                             ]}
                           >
                             {occupied}
