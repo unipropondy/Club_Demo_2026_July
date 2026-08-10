@@ -1,10 +1,10 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import { useToast } from "../../components/Toast";
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
+import API from '../../api';
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -72,7 +72,7 @@ export default function ArtistBonusMasterScreen() {
   const fetchRules = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/api/artist-bonus/master`, {
+      const res = await API.get(`/artist-bonus/master`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.data.success) setRules(res.data.data);
@@ -128,12 +128,12 @@ export default function ArtistBonusMasterScreen() {
       };
 
       if (editingId) {
-        await axios.put(`${API_URL}/api/artist-bonus/master/${editingId}`, payload, {
+        await API.put(`/artist-bonus/master/${editingId}`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
         showToast({ type: "success", message: "Rule Saved", subtitle: "Bonus rule saved successfully." });
       } else {
-        await axios.post(`${API_URL}/api/artist-bonus/master`, payload, {
+        await API.post(`/artist-bonus/master`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
         showToast({ type: "success", message: "Rule Created", subtitle: "New bonus rule created successfully." });
@@ -158,11 +158,11 @@ export default function ArtistBonusMasterScreen() {
     const executeChange = async () => {
       try {
         if (rule.IsActive) {
-          await axios.delete(`${API_URL}/api/artist-bonus/master/${rule.Id}`, {
+          await API.delete(`${API_URL}/api/artist-bonus/master/${rule.Id}`, {
             headers: { Authorization: `Bearer ${token}` },
           });
         } else {
-          await axios.put(
+          await API.put(
             `${API_URL}/api/artist-bonus/master/${rule.Id}`,
             {
               thresholdAmount: rule.ThresholdAmount,
@@ -271,7 +271,7 @@ export default function ArtistBonusMasterScreen() {
                   </View>
                 </View>
                 <Text style={styles.flowRepeatText}>
-                  {rule.IsRepeating ? "⚙️ Repeats Every Time" : "⚙️ One-time Payout"}
+                  {rule.IsRepeating ? "âš™ï¸ Repeats Every Time" : "âš™ï¸ One-time Payout"}
                 </Text>
               </View>
 
@@ -282,10 +282,10 @@ export default function ArtistBonusMasterScreen() {
                   {previews.map((row, i) => (
                     <View key={i} style={styles.previewRow}>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Text style={styles.milestoneIcon}>📈</Text>
+                        <Text style={styles.milestoneIcon}>ðŸ“ˆ</Text>
                         <Text style={styles.previewVal}>Sales: <Text style={{ fontFamily: Fonts.bold }}>${row.sales}</Text></Text>
                       </View>
-                      <Text style={styles.previewEarned}>➔ Earned: <Text style={{ color: "#16A34A", fontFamily: Fonts.black }}>+${row.earned}</Text></Text>
+                      <Text style={styles.previewEarned}>âž” Earned: <Text style={{ color: "#16A34A", fontFamily: Fonts.black }}>+${row.earned}</Text></Text>
                     </View>
                   ))}
                 </View>

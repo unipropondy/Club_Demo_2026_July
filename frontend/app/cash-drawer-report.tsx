@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import { Fonts } from '../constants/Fonts';
 import { API_URL } from '../constants/Config';
 import { useAuthStore } from '../stores/authStore';
 import { getSingaporeTimeTodayRange } from '../utils/timezoneHelper';
-import axios from 'axios';
+import API from '../api';
 
 export default function CashDrawerReportScreen() {
   const router = useRouter();
@@ -56,7 +56,7 @@ export default function CashDrawerReportScreen() {
 
   const loadTerminals = async () => {
     try {
-      const res = await axios.get(`${API_URL}/api/settlement/terminals`);
+      const res = await API.get(`/settlement/terminals`);
       const codes = (res.data || []).map((t: any) => t.TerminalCode);
       setTerminals(codes);
     } catch (err) {
@@ -75,7 +75,7 @@ export default function CashDrawerReportScreen() {
       const toStr = formatLocal(toDate);
 
       const url = `${API_URL}/api/cash-drawer/logs?fromDate=${fromStr}&toDate=${toStr}&actionType=${actionFilter}&terminalCode=${terminalFilter}`;
-      const res = await axios.get(url, {
+      const res = await API.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -142,7 +142,7 @@ export default function CashDrawerReportScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={24} color={Theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>📊 Drawer Activity Audit</Text>
+        <Text style={styles.headerTitle}>ðŸ“Š Drawer Activity Audit</Text>
         <TouchableOpacity onPress={fetchLogs} style={styles.refreshButton}>
           <Ionicons name="refresh" size={20} color={Theme.primary} />
         </TouchableOpacity>

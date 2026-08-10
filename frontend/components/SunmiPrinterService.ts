@@ -685,7 +685,7 @@ class SunmiPrinterService {
         timestamp: is80mm ? 20 : 24,
         table: is80mm ? 38 : 48,
         item: is80mm ? 28 : 36,
-        modifier: is80mm ? 20 : 24,
+        modifier: is80mm ? 28 : 36,
         note: is80mm ? 22 : 28,
         reset: is80mm ? 20 : 24,
       };
@@ -696,9 +696,11 @@ class SunmiPrinterService {
       const orderNo = data.orderNo || data.orderId || "N/A";
       const waiter = data.waiterName || "Staff";
       const now = new Date();
+      const { showBillTime } = useGeneralSettingsStore.getState().settings;
+      const displayTime = showBillTime !== false;
       const dateStr = formatToSingaporeDate(now, { day: '2-digit', month: '2-digit' });
-      const timeStr = formatToSingaporeTime(now, { hour: '2-digit', minute: '2-digit', hour12: false });
-      const timestamp = `${dateStr} ${timeStr}`;
+      const timeStr = displayTime ? ` ${formatToSingaporeTime(now, { hour: '2-digit', minute: '2-digit', hour12: false })}` : "";
+      const timestamp = `${dateStr}${timeStr}`;
 
       const setSize = async (size: number) => {
         try {
@@ -767,10 +769,16 @@ class SunmiPrinterService {
 
         if (item.modifiers && item.modifiers.length > 0) {
           await setSize(fontSizes.modifier);
+          try {
+            if (SunmiModule.setBold) await SunmiModule.setBold(true);
+          } catch (_) {}
           for (const mod of item.modifiers) {
-            await SunmiModule.printText(formatter.left(`  + ${mod.ModifierName || mod.name}`));
+            await SunmiModule.printText(formatter.left(`    + ${mod.ModifierName || mod.name}`));
             await SunmiModule.lineWrap(1);
           }
+          try {
+            if (SunmiModule.setBold) await SunmiModule.setBold(false);
+          } catch (_) {}
         }
 
         const noteText = item.note || item.notes || item.Remarks || item.remarks;

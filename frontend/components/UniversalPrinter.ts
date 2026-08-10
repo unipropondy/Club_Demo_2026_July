@@ -428,10 +428,10 @@ class UniversalPrinter {
         return false;
       }
 
-      // Poll for bridge completion (up to 20 seconds - allows for bridge poll cycle + print + network latency)
+      // Poll for bridge completion (up to 8 seconds - allows for bridge poll cycle + print + network latency)
       const jobId = data.jobId;
       const start = Date.now();
-      while (Date.now() - start < 20000) {
+      while (Date.now() - start < 8000) {
         await new Promise((resolve) => setTimeout(resolve, 500));
         try {
           const statusRes = await fetch(`${API_URL}/api/print-jobs/status/${jobId}`);
@@ -448,7 +448,7 @@ class UniversalPrinter {
           console.error("[UniversalPrinter] Status poll error:", err);
         }
       }
-      console.warn(`[UniversalPrinter] Print job ${jobId} timed out after 20s (bridge offline/no printer)`);
+      console.warn(`[UniversalPrinter] Print job ${jobId} timed out after 8s (bridge offline/no printer)`);
       return false;
     } catch (e) {
       console.warn("[UniversalPrinter] Failed to queue print job:", e);
@@ -778,9 +778,11 @@ class UniversalPrinter {
     const deviceNo = data.deviceNo || "1";
     const orderNo = data.orderNo || data.orderId || "N/A";
     const waiter = data.waiterName || "Staff";
+    const { showBillTime } = useGeneralSettingsStore.getState().settings;
+    const displayTime = showBillTime !== false;
     const kotDateStr = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
-    const kotTimeStr = formatToSingaporeTime(new Date(), { hour: '2-digit', minute: '2-digit', hour12: false });
-    const timestamp = `${kotDateStr} ${kotTimeStr}`;
+    const kotTimeStr = displayTime ? ` ${formatToSingaporeTime(new Date(), { hour: '2-digit', minute: '2-digit', hour12: false })}` : "";
+    const timestamp = `${kotDateStr}${kotTimeStr}`;
     const kitchenName = data.kitchenName || "";
 
     return `
@@ -1070,7 +1072,27 @@ class UniversalPrinter {
     `;
   }
 
+  // ── wrapText: Splits text into chunks of at most maxLen chars ──
+  private static wrapTextKOT(text: string, maxLen: number): string[] {
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let current = '';
+    for (const word of words) {
+      if ((current + (current ? ' ' : '') + word).length <= maxLen) {
+        current += (current ? ' ' : '') + word;
+      } else {
+        if (current) lines.push(current);
+        current = word.length > maxLen ? word.substring(0, maxLen) : word;
+      }
+    }
+    if (current) lines.push(current);
+    return lines.length > 0 ? lines : [""];
+  }
+
   private static formatKOTThermalText(data: any, type: string): string {
+    const BIG_NAME = 40; // max chars per line for big font item name
+    const MOD_WRAP = 44; // max chars per line for modifier text
+
     const title =
       type === "KDS_PRINT"
         ? "KDS PRINT"
@@ -1086,9 +1108,11 @@ class UniversalPrinter {
     const kitchenName = data.kitchenName || "";
 
     let text = `[C]<B>${title}</B>\n`;
+    const { showBillTime } = useGeneralSettingsStore.getState().settings;
+    const displayTime = showBillTime !== false;
     const kotDateStr = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: '2-digit' }).format(new Date());
-    const kotTimeStr = formatToSingaporeTime(new Date(), { hour: '2-digit', minute: '2-digit', hour12: false });
-    text += `[C]${kotDateStr} ${kotTimeStr}\n`;
+    const kotTimeStr = displayTime ? ` ${formatToSingaporeTime(new Date(), { hour: '2-digit', minute: '2-digit', hour12: false })}` : "";
+    text += `[C]${kotDateStr}${kotTimeStr}\n`;
     text += "[L]--------------------------------\n";
 
     // 🏠 Big centered table number
@@ -1097,6 +1121,69 @@ class UniversalPrinter {
 
     text += "[L]QTY  ITEM\n";
     text += "[L]--------------------------------\n";
+
+    // ── Shared per-item formatter ──
+    const formatItem = (item: any): string => {
+      let t = "";
+      const qtyNum = item.quantity || item.qty || 1;
+      const itemName = (item.name || item.DishName || "").replace(/\n/g, " ");
+
+      // Item name: big + bold, wrap if needed
+      this.wrapTextKOT(itemName, BIG_NAME).forEach((chunk: string, idx: number) => {
+        if (idx === 0) t += `[L]<font size="big"><B>[${qtyNum}] ${chunk}</B></font>\n`;
+        else           t += `[L]<font size="big"><B>    ${chunk}</B></font>\n`;
+      });
+
+      // Song name
+      const songName = item.songName || item.SongName || "";
+      if (songName) t += `[L]        <B>\u266a ${songName}</B>\n`;
+
+      // Takeaway flag
+      const isTw = !!(item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway);
+      if (isTw) t += `[L]        <B>>> TAKEAWAY <<</B>\n`;
+
+      // Modifiers: bold, 8-space indent, wrap at MOD_WRAP
+      if (item.modifiers && item.modifiers.length > 0) {
+        item.modifiers.forEach((m: any) => {
+          const modName = (m.ModifierName || m.modifierName || m.name || m.ModifierNameEn || "").trim();
+          if (modName) {
+            this.wrapTextKOT(modName, MOD_WRAP).forEach((chunk: string, idx: number) => {
+              t += idx === 0 ? `[L]        <B>+ ${chunk}</B>\n` : `[L]          <B>${chunk}</B>\n`;
+            });
+          }
+        });
+      }
+
+      // Combo selections with ComboDetailsJSON fallback
+      let comboSels = item.comboSelections;
+      if (!comboSels || (Array.isArray(comboSels) && comboSels.length === 0)) {
+        const rawCombo = item.ComboDetailsJSON || item.comboDetailsJSON || item.ComboDetails || item.comboDetails;
+        if (rawCombo) {
+          if (typeof rawCombo === 'string') {
+            try {
+              const parsed = JSON.parse(rawCombo);
+              comboSels = Array.isArray(parsed) ? parsed : (parsed.groups || parsed.items || []);
+            } catch { comboSels = []; }
+          } else if (Array.isArray(rawCombo)) {
+            comboSels = rawCombo;
+          }
+        }
+      }
+      if (comboSels && Array.isArray(comboSels) && comboSels.length > 0) {
+        comboSels.forEach((g: any) => {
+          t += `[L]    ${g.groupName}:\n`;
+          g.items?.forEach((opt: any) => {
+            t += `[L]      \u21b3 ${opt.name}\n`;
+          });
+        });
+      }
+
+      // Note
+      const noteText = item.note || item.notes || item.Remarks || item.remarks;
+      if (noteText) t += `[L]    * NOTE: ${noteText}\n`;
+
+      return t;
+    };
 
     if (type === "KDS_PRINT") {
       const kitchenGroups: Record<string, any[]> = {};
@@ -1109,105 +1196,14 @@ class UniversalPrinter {
       for (const [kName, groupItems] of Object.entries(kitchenGroups)) {
         text += `\n[L]<B>${kName}</B>\n`;
         text += "[L]--------------------------------\n";
-        
         groupItems.forEach((item: any) => {
-          const qtyNum = item.quantity || item.qty || 1;
-          const itemName = item.name || item.DishName || "";
-          const lines = itemName.split("\n");
-          lines.forEach((line: string, idx: number) => {
-            if (idx === 0) {
-              text += `[L]<font size='big'>[${qtyNum}] ${line}</font>\n`;
-            } else {
-              text += `[L]<font size='big'>    ${line}</font>\n`;
-            }
-          });
-
-          const songName = item.songName || item.SongName || "";
-          if (songName) {
-            text += `[L]    🎵 ${songName}\n`;
-          }
-
-          const isTw = !!(
-            item.isTakeaway ||
-            item.IsTakeaway ||
-            item.isTakeAway ||
-            item.IsTakeAway
-          );
-          if (isTw) {
-            text += `[L]    <B>- Takeaway</B>\n`;
-          }
-
-          if (item.modifiers && item.modifiers.length > 0) {
-            item.modifiers.forEach((m: any) => {
-              text += `[L]    + ${m.ModifierName || m.name}\n`;
-            });
-          }
-
-          if (item.comboSelections && item.comboSelections.length > 0) {
-            item.comboSelections.forEach((g: any) => {
-              text += `[L]    ${g.groupName}:\n`;
-              g.items?.forEach((opt: any) => {
-                text += `[L]      ↳ ${opt.name}\n`;
-              });
-            });
-          }
-
-          const noteText = item.note || item.notes || item.Remarks || item.remarks;
-          if (noteText) {
-            text += `[L]    * NOTE: ${noteText}\n`;
-          }
+          text += formatItem(item);
         });
-        
         text += "[L]--------------------------------\n";
       }
     } else {
       items.forEach((item: any) => {
-        const qtyNum = item.quantity || item.qty || 1;
-        const itemName = item.name || item.DishName || "";
-        const lines = itemName.split("\n");
-        lines.forEach((line: string, idx: number) => {
-          if (idx === 0) {
-            text += `[L]<font size='big'>[${qtyNum}] ${line}</font>\n`;
-          } else {
-            text += `[L]<font size='big'>    ${line}</font>\n`;
-          }
-        });
-
-        const songName = item.songName || item.SongName || "";
-        if (songName) {
-          text += `[L]    🎵 ${songName}\n`;
-        }
-
-        const isTw = !!(
-          item.isTakeaway ||
-          item.IsTakeaway ||
-          item.isTakeAway ||
-          item.IsTakeAway
-        );
-        if (isTw) {
-          text += `[L]    <B>- Takeaway</B>\n`;
-        }
-
-        if (item.modifiers && item.modifiers.length > 0) {
-          item.modifiers.forEach((m: any) => {
-            text += `[L]    + ${m.ModifierName || m.name}\n`;
-          });
-        }
-
-        if (item.comboSelections && item.comboSelections.length > 0) {
-          item.comboSelections.forEach((g: any) => {
-            text += `[L]    ${g.groupName}:\n`;
-            g.items?.forEach((opt: any) => {
-              text += `[L]      ↳ ${opt.name}\n`;
-            });
-          });
-        }
-
-        const noteText = item.note || item.notes || item.Remarks || item.remarks;
-        if (noteText) {
-          text += `[L]    * NOTE: ${noteText}\n`;
-        }
-
+        text += formatItem(item);
         text += "[L]--------------------------------\n";
       });
     }
@@ -1670,15 +1666,12 @@ class UniversalPrinter {
         text += `[L]   [Service Charge ${company.serviceChargePercentage}%]\n`;
       }
 
-      // Modifiers with positive pricing
+      // Modifiers: bold, no price, all modifiers shown
       if (item.modifiers && Array.isArray(item.modifiers)) {
         item.modifiers.forEach((m: any) => {
-          const mName = (m.ModifierName || m.name || "").trim();
-          const mAmt = parseFloat(String(m.Amount ?? m.Price ?? m.amount ?? m.price ?? 0)) || 0;
-          if (mAmt > 0) {
-            const leftStr = `   + ${mName}`;
-            const rightStr = `${symbol}${(mAmt * qtyNum).toFixed(2)}`;
-            text += this.formatTwoCols48(leftStr, rightStr);
+          const mName = (m.ModifierName || m.modifierName || m.name || m.ModifierNameEn || "").trim();
+          if (mName) {
+            text += `[L]        <B>+ ${mName}</B>\n`;
           }
         });
       }

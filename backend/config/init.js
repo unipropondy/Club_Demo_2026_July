@@ -60,6 +60,12 @@ async function initDB(pool) {
     await runQuery("MemberMaster - Promocode", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'Promocode') ALTER TABLE [dbo].[MemberMaster] ADD Promocode NVARCHAR(100) NULL");
     await runQuery("MemberMaster - Promoamount", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'Promoamount') ALTER TABLE [dbo].[MemberMaster] ADD Promoamount DECIMAL(18,2) NULL");
     
+    // VIP columns for MemberMaster
+    await runQuery("MemberMaster - IsVIP", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'IsVIP') ALTER TABLE [dbo].[MemberMaster] ADD IsVIP BIT NOT NULL DEFAULT 0");
+    await runQuery("MemberMaster - VIPType", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'VIPType') ALTER TABLE [dbo].[MemberMaster] ADD VIPType VARCHAR(20) NOT NULL DEFAULT 'Manual'");
+    await runQuery("MemberMaster - VIPSince", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'VIPSince') ALTER TABLE [dbo].[MemberMaster] ADD VIPSince DATETIME NULL");
+    await runQuery("MemberMaster - LifetimeSpend", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'LifetimeSpend') ALTER TABLE [dbo].[MemberMaster] ADD LifetimeSpend DECIMAL(18,2) NOT NULL DEFAULT 0");
+
     // AvailableCredit computed column — only add if it doesn't exist yet
     await runQuery("MemberMaster - AvailableCredit", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[MemberMaster]') AND name = 'AvailableCredit') ALTER TABLE [dbo].[MemberMaster] ADD AvailableCredit AS (CASE WHEN CreditLimit > 0 THEN (CreditLimit - CurrentBalance) ELSE CurrentBalance END)");
 
@@ -196,6 +202,8 @@ async function initDB(pool) {
     await runQuery("SettlementHeader - VoidItemAmount", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'VoidItemAmount') ALTER TABLE [dbo].[SettlementHeader] ADD VoidItemAmount DECIMAL(18, 2) DEFAULT 0");
     await runQuery("SettlementHeader - ServiceCharge", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'ServiceCharge') ALTER TABLE [dbo].[SettlementHeader] ADD ServiceCharge DECIMAL(18, 2) DEFAULT 0");
     await runQuery("SettlementHeader - RoundedBy", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'RoundedBy') ALTER TABLE [dbo].[SettlementHeader] ADD RoundedBy DECIMAL(18, 2) DEFAULT 0");
+    await runQuery("SettlementHeader - IsVIP", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'IsVIP') ALTER TABLE [dbo].[SettlementHeader] ADD IsVIP BIT NOT NULL DEFAULT 0");
+    await runQuery("SettlementHeader - VIPDiscountAmount", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'VIPDiscountAmount') ALTER TABLE [dbo].[SettlementHeader] ADD VIPDiscountAmount DECIMAL(18, 2) NOT NULL DEFAULT 0");
 
     // 4. SettlementItemDetail Columns
     await runQuery("SettlementItemDetail - Status", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementItemDetail]') AND name = 'Status') ALTER TABLE [dbo].[SettlementItemDetail] ADD Status NVARCHAR(50) NULL");
@@ -207,6 +215,8 @@ async function initDB(pool) {
     await runQuery("SettlementItemDetail - Sugar", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementItemDetail]') AND name = 'Sugar') ALTER TABLE [dbo].[SettlementItemDetail] ADD Sugar NVARCHAR(50) NULL");
     await runQuery("SettlementItemDetail - OrderDetailId", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementItemDetail]') AND name = 'OrderDetailId') ALTER TABLE [dbo].[SettlementItemDetail] ADD OrderDetailId UNIQUEIDENTIFIER NULL");
     await runQuery("SettlementItemDetail - SongName", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementItemDetail]') AND name = 'SongName') ALTER TABLE [dbo].[SettlementItemDetail] ADD SongName NVARCHAR(255) NULL");
+    await runQuery("SettlementItemDetail - VIPDiscountAmount", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementItemDetail]') AND name = 'VIPDiscountAmount') ALTER TABLE [dbo].[SettlementItemDetail] ADD VIPDiscountAmount DECIMAL(18,2) NOT NULL DEFAULT 0");
+    await runQuery("SettlementItemDetail - VIPRuleID", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementItemDetail]') AND name = 'VIPRuleID') ALTER TABLE [dbo].[SettlementItemDetail] ADD VIPRuleID UNIQUEIDENTIFIER NULL");
 
     // 5. CancelRemarksMaster
     await runQuery("Create CancelRemarksMaster", `
@@ -350,6 +360,8 @@ async function initDB(pool) {
     await runQuery("AppSettings - CustomerSideDisplay", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'CustomerSideDisplay') ALTER TABLE [dbo].[AppSettings] ADD CustomerSideDisplay BIT NOT NULL DEFAULT 1");
     await runQuery("AppSettings - EnableGuestDetailsPopup", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'EnableGuestDetailsPopup') ALTER TABLE [dbo].[AppSettings] ADD EnableGuestDetailsPopup BIT NOT NULL DEFAULT 1");
     await runQuery("AppSettings - EnableCashDrawer", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'EnableCashDrawer') ALTER TABLE [dbo].[AppSettings] ADD EnableCashDrawer BIT NOT NULL DEFAULT 1");
+    await runQuery("AppSettings - VIPThreshold", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'VIPThreshold') ALTER TABLE [dbo].[AppSettings] ADD VIPThreshold DECIMAL(18,2) NOT NULL DEFAULT 5000.00");
+    await runQuery("AppSettings - VipRuleEnabled", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[AppSettings]') AND name = 'VipRuleEnabled') ALTER TABLE [dbo].[AppSettings] ADD VipRuleEnabled BIT NOT NULL DEFAULT 0");
     await runQuery("RestaurantOrderCur - TakeawayCharge", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrderCur]') AND name = 'TakeawayCharge') ALTER TABLE [dbo].[RestaurantOrderCur] ADD TakeawayCharge DECIMAL(18, 2) DEFAULT 0");
     await runQuery("RestaurantOrder - TakeawayCharge", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[RestaurantOrder]') AND name = 'TakeawayCharge') ALTER TABLE [dbo].[RestaurantOrder] ADD TakeawayCharge DECIMAL(18, 2) DEFAULT 0");
     await runQuery("SettlementHeader - TakeawayCharge", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[SettlementHeader]') AND name = 'TakeawayCharge') ALTER TABLE [dbo].[SettlementHeader] ADD TakeawayCharge DECIMAL(18, 2) DEFAULT 0");
@@ -370,6 +382,27 @@ async function initDB(pool) {
         )
       END
     `);
+
+    // 11.1 VIP Discount Rules
+    await runQuery("Create VIPDiscountRule table", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[VIPDiscountRule]') AND type in (N'U'))
+      BEGIN
+        CREATE TABLE [dbo].[VIPDiscountRule] (
+          [VIPRuleID] UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+          [RuleName] NVARCHAR(100) NOT NULL,
+          [DishID] UNIQUEIDENTIFIER NULL,
+          [DishGroupID] UNIQUEIDENTIFIER NULL,
+          [DiscountType] VARCHAR(20) NOT NULL,
+          [DiscountValue] DECIMAL(18,2) NOT NULL,
+          [Priority] INT NOT NULL DEFAULT 1,
+          [IsActive] BIT NOT NULL DEFAULT 1,
+          [CreatedDate] DATETIME NOT NULL DEFAULT GETDATE()
+        )
+      END
+    `);
+
+    // 11.2 DishMaster IsDeck column
+    await runQuery("DishMaster - IsDeck", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[DishMaster]') AND name = 'IsDeck') ALTER TABLE [dbo].[DishMaster] ADD IsDeck BIT NOT NULL DEFAULT 0");
 
     await runQuery("Insert Default CompanySettings", `
       IF NOT EXISTS (SELECT TOP 1 1 FROM [dbo].[CompanySettings])
@@ -582,6 +615,8 @@ async function initDB(pool) {
           )
       END
     `);
+    await runQuery("OpeningCashDenomination - ScreenType", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[OpeningCashDenomination]') AND name = 'ScreenType') ALTER TABLE [dbo].[OpeningCashDenomination] ADD ScreenType NVARCHAR(50) NULL");
+    await runQuery("OpeningCashDenomination - start_date", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[OpeningCashDenomination]') AND name = 'start_date') ALTER TABLE [dbo].[OpeningCashDenomination] ADD start_date DATE NULL");
 
     // 18. Create CashOutEntry table
     await runQuery("Create CashOutEntry table", `
@@ -847,6 +882,13 @@ async function initDB(pool) {
         INCLUDE (PaymentAmount, PaidDate, PaidBy)
       END
     `);
+
+    // 🚀 TABLE SYNC DEPS: Add takeaway/service override columns to prevent syncTableStatus compilation failures
+    await runQuery("RestaurantOrderCur - ServiceChargeOverride", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrderCur' AND COLUMN_NAME = 'ServiceChargeOverride') ALTER TABLE RestaurantOrderCur ADD ServiceChargeOverride BIT NULL");
+    await runQuery("RestaurantOrderCur - TakeawayCharge", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrderCur' AND COLUMN_NAME = 'TakeawayCharge') ALTER TABLE RestaurantOrderCur ADD TakeawayCharge DECIMAL(18,2) DEFAULT 0");
+    await runQuery("RestaurantOrder - TakeawayCharge", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrder' AND COLUMN_NAME = 'TakeawayCharge') ALTER TABLE RestaurantOrder ADD TakeawayCharge DECIMAL(18,2) DEFAULT 0");
+    await runQuery("RestaurantOrderCur - TakeawayChargeOverride", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrderCur' AND COLUMN_NAME = 'TakeawayChargeOverride') ALTER TABLE RestaurantOrderCur ADD TakeawayChargeOverride BIT NULL");
+    await runQuery("RestaurantOrder - TakeawayChargeOverride", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrder' AND COLUMN_NAME = 'TakeawayChargeOverride') ALTER TABLE RestaurantOrder ADD TakeawayChargeOverride BIT NULL");
 
   } catch (err) {
     console.error("❌ DB Initialization Failed:", err.message);

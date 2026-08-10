@@ -2,7 +2,7 @@ import "../shims/displayMock";
 import "react-native-get-random-values";
 import "react-native-reanimated";
 
-import { DarkTheme, ThemeProvider } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 
 import {
   Inter_400Regular,
@@ -19,17 +19,227 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as React from "react";
 import { useEffect } from "react";
-import { useWindowDimensions } from "react-native";
+import { useWindowDimensions, Alert } from "react-native";
 import * as ScreenOrientation from "expo-screen-orientation";
-import { ToastProvider } from "../components/Toast";
+import { ToastProvider, useToast } from "../components/Toast";
 import { CustomerDisplayManager } from "../components/CustomerDisplayManager";
 import { usePOSReadyGate } from "../hooks/usePOSReadyGate";
+import { socket } from "../constants/socket";
+
+// ── Real-time socket listener: shows toast for QR orders & table requests ──
+function SocketToastListener() {
+  const toast = useToast();
+
+  useEffect(() => {
+    const handleNewOrder = (payload: any) => {
+      const user = useAuthStore.getState().user;
+      if (!user) return;
+
+      const isQrOrder =
+        payload?.context?.entryStatus === "q" ||
+        payload?.entryStatus === "q" ||
+        payload?.context?.orderSource === "QR";
+
+      if (isQrOrder) {
+        const tableLabel =
+          payload.context?.orderType === "TAKEAWAY"
+            ? `Takeaway ${payload.context.takeawayNo || ""}`
+            : `${payload.context?.section || ""} • Table ${payload.context?.tableNo || ""}`;
+
+        toast.showToast({
+          message: `📦 New QR Order Placed!`,
+          subtitle: `Order #${payload.orderId} for ${tableLabel}`,
+          type: "success",
+          duration: 5000,
+        });
+      }
+    };
+
+    const handleCustomerRequest = (payload: {
+      tableNo: string;
+      type: string;
+      tableId?: string;
+    }) => {
+      toast.showToast({
+        message: `🛎️ Table ${payload.tableNo} Request`,
+        subtitle: payload.type,
+        type: "warning",
+        duration: 5000,
+      });
+
+      // 🖨️ Auto-print checkout bill if customer requested bill
+      if (payload.type === "Request Bill" && payload.tableId) {
+        (async () => {
+          try {
+            const { useGeneralSettingsStore } = require("../stores/generalSettingsStore");
+            const settings = useGeneralSettingsStore.getState().settings;
+            // If auto-print for QR checkout is explicitly disabled, skip
+            if ((settings as any).enableQROrderAutoPrint === false) {
+              console.log("ℹ️ Auto-print for QR checkout is disabled.");
+              return;
+            }
+
+            const token = useAuthStore.getState().token;
+            const res = await fetch(`${API_URL}/api/orders/cart/${payload.tableId}`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            const rawItems = Array.isArray(data) ? data : data.items || [];
+
+            const activeItems = rawItems.filter((item: any) => {
+              const status = (item.status || item.Status || "").toUpperCase();
+              return (
+                status !== "VOIDED" &&
+                Number(item.StatusCode || item.statusCode) !== 0
+              );
+            });
+
+            if (activeItems.length === 0) return;
+
+            const { useCompanySettingsStore } = require("../stores/companySettingsStore");
+            const companySettings = useCompanySettingsStore.getState().settings;
+
+            const serviceChargePercentage = Number(
+              companySettings?.serviceChargePercentage ??
+                companySettings?.ServiceChargePercentage ??
+                0
+            );
+            const gstPercentage = Number(
+              companySettings?.gstPercentage ?? companySettings?.GSTPercentage ?? 0
+            );
+            const takeawayChargeRate = Number(
+              companySettings?.takeawayCharges ??
+                companySettings?.TakeawayCharges ??
+                0
+            );
+
+            let subtotal = 0;
+            let scEligibleSubtotal = 0;
+            let takeawayItemsQty = 0;
+
+            const cartItems = activeItems.map((item: any) => {
+              const qty = Number(item.qty ?? item.Quantity ?? item.quantity ?? 1);
+              const price = Number(item.price ?? item.Cost ?? item.Price ?? 0);
+              const isTakeaway = !!(
+                item.isTakeaway ||
+                item.IsTakeaway ||
+                item.isTakeAway ||
+                item.IsTakeAway
+              );
+              const isServiceCharge =
+                !isTakeaway &&
+                (Number(item.isServiceCharge) === 1 ||
+                  item.isServiceCharge === true ||
+                  Number(item.IsServiceCharge) === 1 ||
+                  item.IsServiceCharge === true);
+
+              subtotal += price * qty;
+              if (isServiceCharge) scEligibleSubtotal += price * qty;
+              if (isTakeaway) takeawayItemsQty += qty;
+
+              let comboSelections =
+                item.comboSelections || item.ComboSelections;
+              if (
+                typeof item.ComboDetailsJSON === "string" &&
+                item.ComboDetailsJSON
+              ) {
+                try {
+                  const parsed = JSON.parse(item.ComboDetailsJSON);
+                  comboSelections = Array.isArray(parsed)
+                    ? parsed
+                    : parsed.groups;
+                } catch (e) {}
+              } else if (Array.isArray(item.ComboDetailsJSON)) {
+                comboSelections = item.ComboDetailsJSON;
+              }
+
+              let modifiers = item.modifiers || item.Modifiers || [];
+              if (typeof modifiers === "string") {
+                try {
+                  modifiers = JSON.parse(modifiers);
+                } catch (e) {
+                  modifiers = [];
+                }
+              }
+
+              return {
+                lineItemId: item.lineItemId || item.LineItemId,
+                id: item.id || item.DishId,
+                name: item.name || item.DishName || "",
+                price,
+                qty,
+                isTakeaway,
+                isServiceCharge,
+                modifiers: modifiers.map((m: any) => ({
+                  ModifierId: m.ModifierId || m.ModifierID || m.id,
+                  ModifierName:
+                    m.ModifierName || m.modifierName || m.name || "",
+                  Price: Number(m.Price || m.price || 0),
+                })),
+                comboSelections,
+              };
+            });
+
+            const orderDiscountAmt = Number(data.orderDiscount?.amount || 0);
+            const orderNetSubtotal = Math.max(0, subtotal - orderDiscountAmt);
+            const takeawayChargeAmt = takeawayItemsQty * takeawayChargeRate;
+            const serviceChargeAmt =
+              Math.max(0, scEligibleSubtotal - orderDiscountAmt) *
+              (serviceChargePercentage / 100);
+            const totalBeforeGst =
+              orderNetSubtotal + serviceChargeAmt + takeawayChargeAmt;
+            const gstAmt = totalBeforeGst * (gstPercentage / 100);
+            const grandTotal = totalBeforeGst + gstAmt;
+
+            const saleData = {
+              items: cartItems,
+              total: grandTotal,
+              subtotal,
+              discount: {
+                applied: orderDiscountAmt > 0,
+                type: "fixed" as const,
+                value: orderDiscountAmt,
+                amount: orderDiscountAmt,
+              },
+              orderId:
+                data.currentOrderId || data.orderId || payload.tableNo,
+              tableNo: payload.tableNo,
+              waiterName: "QR Customer",
+              date: new Date(),
+              isCheckout: true,
+              serviceCharge: serviceChargeAmt,
+              takeawayCharge: takeawayChargeAmt,
+            };
+
+            const UniversalPrinter = require("../components/UniversalPrinter").default;
+            await UniversalPrinter.printCheckoutBill(
+              saleData,
+              useAuthStore.getState().user?.userId || "SYSTEM"
+            );
+          } catch (err) {
+            console.warn("Auto-print on cashier request failed:", err);
+          }
+        })();
+      }
+    };
+
+    socket.on("new_order", handleNewOrder);
+    socket.on("customer_request", handleCustomerRequest);
+    return () => {
+      socket.off("new_order", handleNewOrder);
+      socket.off("customer_request", handleCustomerRequest);
+    };
+  }, [toast]);
+
+  return null;
+}
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useAuthStore } from "@/stores/authStore";
-import { useRouter, useSegments, Slot } from "expo-router";
+import { useRouter, useSegments } from "expo-router";
 import * as SystemUI from "expo-system-ui";
 import { Theme } from "@/constants/theme";
 import { LogBox } from "react-native";
@@ -62,10 +272,7 @@ import { useGlobalSocketSync } from "@/hooks/useGlobalSocketSync";
 import { API_URL } from "@/constants/Config";
 import { setApiUrl } from "@/stores/paymentSettingsStore";
 
-// 🔗 Sync the shared customer-display package's API_URL with the frontend's
-// runtime URL (localhost in dev, Railway in prod). Without this, all store
-// fetches (payment-methods, settings) hit the production server instead of
-// the local backend — bypassing the global fetch auth interceptor entirely.
+// 🔗 Sync the shared customer-display package's API_URL with the frontend's runtime URL
 setApiUrl(API_URL);
 
 // 🌐 GLOBAL FETCH RETRY & IDEMPOTENCY ENGINE
@@ -108,8 +315,8 @@ const HEALTH_POLICY: NetworkPolicy = {
 };
 
 const TERMINAL_POLICY: NetworkPolicy = {
-  timeout: 165000, // 165 seconds to match/exceed YeahPay backend timeout (160s)
-  maxRetries: 0,   // Do not retry payments to avoid idempotency conflicts
+  timeout: 165000,
+  maxRetries: 0,
   initialDelay: 300,
   budget: 170000,
 };
@@ -256,7 +463,6 @@ export default function RootLayout() {
   React.useEffect(() => {
     if (authHydrated) return;
 
-    // Subscribe to completion of hydration in Zustand
     const unsubFinish = useAuthStore.persist.onFinishHydration(() => {
       setAuthHydrated(true);
     });
@@ -278,28 +484,25 @@ export default function RootLayout() {
       }
       try {
         const start = Date.now();
-        // Trigger DNS lookup, TCP/SSL handshake, and backend container spin-up
         const res = await fetch(`${API_URL}/health`);
         const duration = Date.now() - start;
         if (__DEV__) {
-          console.log(`🌐 [App Startup] API warmed up successfully in ${duration}ms. Status: ${res.status}`);
+          console.log(`🌐 [App Startup] API warmed up in ${duration}ms. Status: ${res.status}`);
         }
 
-        // 🚀 PARALLEL PREFETCH: Load static payment config immediately after connection
-        // is confirmed. This ensures the Payment screen reads from cache instead of
-        // making sequential network requests on every open.
+        // 🚀 PARALLEL PREFETCH: Load static payment config after connection confirmed
         const token = useAuthStore.getState().token;
         if (token) {
           import("@/stores/paymentSettingsStore").then((m) => {
             Promise.all([
               m.usePaymentSettingsStore.getState().fetchSettings(),
               m.usePaymentSettingsStore.getState().fetchPaymentMethods(),
-            ]).catch(() => {/* Non-fatal — payment screen still works on miss */});
+            ]).catch(() => {/* Non-fatal */});
           });
         }
       } catch (err: any) {
         if (__DEV__) {
-          console.warn(`🌐 [App Startup] API warmup ping failed (expected if backend container is booting up):`, err.message || err);
+          console.warn(`🌐 [App Startup] API warmup ping failed:`, err.message || err);
         }
       }
     };
@@ -316,8 +519,6 @@ export default function RootLayout() {
     Inter_900Black,
   });
 
-
-
   // 🖥️ CUSTOMER DISPLAY: Gate resolves once fonts + settings + socket are ready
   const isPOSReady = usePOSReadyGate(fontsLoaded || !!fontError);
 
@@ -329,9 +530,8 @@ export default function RootLayout() {
     if (rootSegment && rootSegment.startsWith("customer-display")) return;
 
     const isInsideApp = !!rootSegment && rootSegment !== "login";
-    
+
     if (!user && isInsideApp) {
-      // 1. Not logged in -> Go to Login
       router.replace("/login");
     } else if (user) {
       if (user.userGroupId === "DFCF23EE-F6F4-4885-8D26-0056C657595F") {
@@ -339,16 +539,15 @@ export default function RootLayout() {
           router.replace("/sales-report");
         }
       } else if (!rootSegment || rootSegment === "login") {
-        // 2. Already logged in -> Go to Role-Specific Dashboard
         const role = user.role;
         const userName = (user.userName || "").trim().toUpperCase();
 
         if (userName === "KDS") {
           router.replace("/kds" as any);
         } else if (role === "WAITER") {
-          router.replace("/(tabs)/category"); // Waiter starts at Ordering
+          router.replace("/(tabs)/category");
         } else {
-          router.replace("/(tabs)/category"); // Others start at POS
+          router.replace("/(tabs)/category");
         }
       }
     }
@@ -368,6 +567,8 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider value={RoyalNoirTheme}>
         <ToastProvider>
+          {/* 🔔 Staff Toaster alerts for QR orders & Table Service requests */}
+          <SocketToastListener />
           {/* 🖥️ Customer Display: auto-projects onto Sunmi D3 secondary screen */}
           <CustomerDisplayManager isPOSReady={isPOSReady} />
           <Stack screenOptions={{ headerShown: false }}>
@@ -394,7 +595,6 @@ export default function RootLayout() {
             <Stack.Screen name="StaffAttendance" />
             <Stack.Screen name="loyalty" />
             <Stack.Screen name="loyaltyConfig" />
-            <Stack.Screen name="menu/rewardMaster" />
             <Stack.Screen name="general-settings" />
             <Stack.Screen name="terminal-settings" />
             <Stack.Screen name="customer-display" />

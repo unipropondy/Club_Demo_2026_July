@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
-import axios from "axios";
+import API from '../../api';
 import { API_URL } from "@/constants/Config";
 import { useAuthStore } from "@/stores/authStore";
 import { Theme } from "@/constants/theme";
@@ -59,7 +59,7 @@ export default function RewardMasterScreen() {
 
   const fetchActiveRule = async () => {
     try {
-      const res = await axios.get(`${API_URL}/api/rewards/master`, {
+      const res = await API.get(`/rewards/master`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data) {
@@ -108,7 +108,7 @@ export default function RewardMasterScreen() {
 
     setIsSavingRule(true);
     try {
-      await axios.put(
+      await API.put(
         `${API_URL}/api/rewards/master`,
         { spendAmount: spend, creditAmount: credit, description },
         { headers: { Authorization: `Bearer ${token}` } }
@@ -133,7 +133,7 @@ export default function RewardMasterScreen() {
 
     setIsSearchingMembers(true);
     try {
-      const res = await axios.get(`${API_URL}/api/rewards/members/search?q=${encodeURIComponent(clean)}`, {
+      const res = await API.get(`/rewards/members/search?q=${encodeURIComponent(clean)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setMembers(res.data || []);
@@ -148,7 +148,7 @@ export default function RewardMasterScreen() {
     setSelectedMember(member);
     setIsLoadingHistory(true);
     try {
-      const res = await axios.get(`${API_URL}/api/rewards/history/${member.MemberId}`, {
+      const res = await API.get(`/rewards/history/${member.MemberId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setHistory(res.data || []);
@@ -418,7 +418,7 @@ export default function RewardMasterScreen() {
             <View style={styles.pwIconContainer}>
               <FontAwesome5 name="lock" size={32} color={Theme.primary} />
             </View>
-            <Text style={styles.pwHeaderTitleCentered}>🔒 Admin Verification</Text>
+            <Text style={styles.pwHeaderTitleCentered}>ðŸ”’ Admin Verification</Text>
             <Text style={styles.pwSubtitleCentered}>
               Enter admin password to access Shop Settings
             </Text>

@@ -4,7 +4,7 @@ import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import { useToast } from "../../components/Toast";
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
+import API from '../../api';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -36,8 +36,8 @@ const fmtDate = (raw: string | null) => {
 
 const WALLET_STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
   Paid:             { bg: "#DCFCE7", text: "#16A34A", label: "🟢 Settled" },
-  "Partially Paid": { bg: "#FFF7ED", text: "#A855F7", label: "🟠 Partial Payment" },
-  Pending:          { bg: "#FEE2E2", text: "#DC2626", label: "🟡 Due Payment" },
+  "Partially Paid": { bg: "#FFF7ED", text: "#A855F7", label: "🟡 Partial Payment" },
+  Pending:          { bg: "#FEE2E2", text: "#DC2626", label: "🔴 Due Payment" },
   "No Bonus":      { bg: "#F5F5F4", text: "#78716C", label: "⚪ Wallet Empty" },
 };
 
@@ -92,7 +92,7 @@ export default function ArtistDetailScreen() {
       const params = artistDateState.fromDate && artistDateState.toDate
         ? `?fromDate=${artistDateState.fromDate}&toDate=${artistDateState.toDate}`
         : "";
-      const res = await axios.get(
+      const res = await API.get(
         `${API_URL}/api/artist-bonus/artist/${dishId}${params}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -136,7 +136,7 @@ export default function ArtistDetailScreen() {
       icon: "bar-chart",
       color: "#2563EB",
       amount: s.Amount,
-      desc: `Bill ${s.BillNo || "Cashbox"} · ${s.ItemName || "Event sales"}`
+      desc: `Bill ${s.BillNo || "Cashbox"} • ${s.ItemName || "Event sales"}`
     });
   });
 
@@ -160,7 +160,7 @@ export default function ArtistDetailScreen() {
       icon: "cash",
       color: "#16A34A",
       amount: p.PaymentAmount,
-      desc: `Paid by ${p.PaidBy} · Method: ${p.Remarks || "Cash"}`
+      desc: `Paid by ${p.PaidBy} • Method: ${p.Remarks || "Cash"}`
     });
   });
 
@@ -194,7 +194,7 @@ export default function ArtistDetailScreen() {
         if (remaining <= 0) break;
         const txnPending = Number(txn.BonusEarned) - Number(txn.BonusPaid);
         const payForThisTxn = Math.min(remaining, txnPending);
-        await axios.post(
+        await API.post(
           `${API_URL}/api/artist-bonus/pay`,
           {
             transactionId: txn.Id,
@@ -295,7 +295,7 @@ export default function ArtistDetailScreen() {
           contentContainerStyle={{ paddingBottom: 100 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); }} colors={[Theme.primary]} tintColor={Theme.primary} />}
         >
-          {/* ── HERO HEADER ── */}
+          {/* â”€â”€ HERO HEADER â”€â”€ */}
           <View style={styles.heroCard}>
             <View style={styles.heroRow}>
               <View style={styles.heroAvatar}>
@@ -316,7 +316,7 @@ export default function ArtistDetailScreen() {
             </View>
           </View>
 
-          {/* ── WALLET SUMMARY CARDS ── */}
+          {/* â”€â”€ WALLET SUMMARY CARDS â”€â”€ */}
           <View style={styles.cardsGrid}>
             {[
               { label: "Lifetime Sales", value: `$${summary.totalSales.toFixed(0)}`, color: "#2563EB", bg: "#EFF6FF" },
@@ -331,7 +331,7 @@ export default function ArtistDetailScreen() {
             ))}
           </View>
 
-          {/* ── ACTIVE BONUS RULE CARD ── */}
+          {/* --- ACTIVE BONUS RULE CARD --- */}
           {activeRule && (
             <View style={styles.ruleCard}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
@@ -350,11 +350,11 @@ export default function ArtistDetailScreen() {
             </View>
           )}
 
-          {/* ── PROGRESS CARD ── */}
+          {/* --- PROGRESS CARD --- */}
           {progress && (
             <View style={styles.progressCard}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
-                <Text style={styles.cardTitle}>📈 Next Bonus Target</Text>
+                <Text style={styles.cardTitle}>📈 Next Target</Text>
                 <Text style={styles.rewardTag}>+${progress.nextBonus.toFixed(0)} Next Reward</Text>
               </View>
               <View style={styles.progressStats}>
@@ -380,12 +380,12 @@ export default function ArtistDetailScreen() {
             </View>
           )}
 
-          {/* ── STICKY PAYOUT BUTTON ── */}
+          {/* --- STICKY PAYOUT BUTTON --- */}
           <View style={{ paddingHorizontal: 16, marginVertical: 14 }}>
             {totalOutstanding > 0 ? (
               <TouchableOpacity style={styles.payBtn} onPress={openPayModal}>
                 <Ionicons name="cash" size={20} color="#fff" />
-                <Text style={styles.payBtnText}>Pay Wallet Bonus · ${totalOutstanding.toFixed(2)} due</Text>
+                <Text style={styles.payBtnText}>Pay Wallet Bonus • ${totalOutstanding.toFixed(2)} due</Text>
               </TouchableOpacity>
             ) : (
               <View style={styles.disabledPayBtn}>
@@ -437,7 +437,7 @@ export default function ArtistDetailScreen() {
                   <View key={idx} style={styles.logRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.logBillText}>Bill {s.BillNo || "Direct Stage"}</Text>
-                      <Text style={styles.logSubText}>{s.ItemName} · Qty {s.Qty}</Text>
+                      <Text style={styles.logSubText}>{s.ItemName} • Qty {s.Qty}</Text>
                     </View>
                     <Text style={styles.logAmountText}>+${Number(s.Amount).toFixed(2)}</Text>
                   </View>
@@ -458,7 +458,7 @@ export default function ArtistDetailScreen() {
                   <View key={idx} style={styles.logRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.logBillText}>Paid to Artist ({p.Remarks || "Cash"})</Text>
-                      <Text style={styles.logSubText}>{fmtDate(p.PaidDate)} · by {p.PaidBy}</Text>
+                      <Text style={styles.logSubText}>{fmtDate(p.PaidDate)} • by {p.PaidBy}</Text>
                     </View>
                     <Text style={[styles.logAmountText, { color: "#16A34A" }]}>-${Number(p.PaymentAmount).toFixed(2)}</Text>
                   </View>
@@ -479,7 +479,7 @@ export default function ArtistDetailScreen() {
                   <View key={idx} style={styles.logRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.logBillText}>Milestone Reached</Text>
-                      <Text style={styles.logSubText}>{fmtDate(b.SalesFromDate)} ➔ {fmtDate(b.SalesToDate)} · Sales: ${b.TotalSales}</Text>
+                      <Text style={styles.logSubText}>{fmtDate(b.SalesFromDate)} ➔ {fmtDate(b.SalesToDate)} • Sales: ${b.TotalSales}</Text>
                     </View>
                     <Text style={[styles.logAmountText, { color: "#A855F7" }]}>+${Number(b.BonusEarned).toFixed(2)}</Text>
                   </View>
@@ -663,8 +663,8 @@ const styles = StyleSheet.create({
   progressCard: { backgroundColor: Theme.bgCard, marginHorizontal: 16, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: Theme.border },
   rewardTag: { fontFamily: Fonts.black, fontSize: 10, color: "#2563EB", backgroundColor: "#EFF6FF", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   progressStats: { flexDirection: "row", justifyContent: "space-between", marginVertical: 8 },
-  progLabel: { fontFamily: Fonts.medium, fontSize: 9, color: Theme.textMuted, textTransform: "uppercase" },
-  progVal: { fontFamily: Fonts.black, fontSize: 14, marginTop: 2 },
+  progLabel: { fontFamily: Fonts.medium, fontSize: 9, color: Theme.textSecondary, textTransform: "uppercase" },
+  progVal: { fontFamily: Fonts.black, fontSize: 14, marginTop: 2, color: Theme.textPrimary },
   progressTrack: { height: 16, backgroundColor: Theme.bgMuted, borderRadius: 8, overflow: "hidden", position: "relative", justifyContent: "center" },
   progressFill: { height: "100%", backgroundColor: "#2563EB", borderRadius: 8, justifyContent: "center", alignItems: "flex-end", paddingRight: 8 },
   progressFillText: { fontFamily: Fonts.black, fontSize: 9, color: "#fff" },

@@ -1,10 +1,10 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import { useToast } from "../../components/Toast";
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
+import API from '../../api';
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -27,7 +27,7 @@ import * as Print from "expo-print";
 
 const pad = (n: number) => n.toString().padStart(2, "0");
 const fmtDate = (raw: string | null) => {
-  if (!raw) return "—";
+  if (!raw) return "â€”";
   const d = new Date(raw);
   return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
 };
@@ -73,7 +73,7 @@ export default function ArtistBonusPaymentsScreen() {
   const fetchPending = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/api/artist-bonus/pending`, {
+      const res = await API.get(`/artist-bonus/pending`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.data.success) {
@@ -130,7 +130,7 @@ export default function ArtistBonusPaymentsScreen() {
       const settledNames: string[] = [];
 
       for (const t of activeList) {
-        await axios.post(
+        await API.post(
           `${API_URL}/api/artist-bonus/pay`,
           {
             transactionId: t.Id,
@@ -183,7 +183,7 @@ export default function ArtistBonusPaymentsScreen() {
 
     try {
       setPaying(true);
-      const res = await axios.post(
+      const res = await API.post(
         `${API_URL}/api/artist-bonus/pay`,
         {
           transactionId: singleTxn.Id,
@@ -313,7 +313,7 @@ export default function ArtistBonusPaymentsScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {loading && <ActivityIndicator size="large" color={Theme.primary} style={{ marginTop: 20 }} />}
 
-        {/* ── BATCH ACTION FOOTER ── */}
+        {/* â”€â”€ BATCH ACTION FOOTER â”€â”€ */}
         {selectedCount > 0 && (
           <View style={styles.batchCard}>
             <View>
@@ -327,10 +327,10 @@ export default function ArtistBonusPaymentsScreen() {
           </View>
         )}
 
-        {/* ── WAITING LIST ── */}
+        {/* â”€â”€ WAITING LIST â”€â”€ */}
         {waitingList.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>🔴 Due Payment ({waitingList.length})</Text>
+            <Text style={styles.sectionHeader}>ðŸ”´ Due Payment ({waitingList.length})</Text>
             {waitingList.map((t) => (
               <View key={t.Id} style={styles.walletCard}>
                 <TouchableOpacity style={styles.checkWrap} onPress={() => toggleSelect(t.Id)}>
@@ -342,7 +342,7 @@ export default function ArtistBonusPaymentsScreen() {
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.artistNameText}>{t.ArtistName}</Text>
-                  <Text style={styles.periodText}>{fmtDate(t.SalesFromDate)} ➔ {fmtDate(t.SalesToDate)}</Text>
+                  <Text style={styles.periodText}>{fmtDate(t.SalesFromDate)} âž” {fmtDate(t.SalesToDate)}</Text>
                 </View>
                 <View style={{ alignItems: "flex-end", marginRight: 8 }}>
                   <Text style={styles.dueLabel}>Bonus Due</Text>
@@ -356,10 +356,10 @@ export default function ArtistBonusPaymentsScreen() {
           </View>
         )}
 
-        {/* ── PARTIAL LIST ── */}
+        {/* â”€â”€ PARTIAL LIST â”€â”€ */}
         {partialList.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>🟠 Partial Payment ({partialList.length})</Text>
+            <Text style={styles.sectionHeader}>ðŸŸ  Partial Payment ({partialList.length})</Text>
             {partialList.map((t) => (
               <View key={t.Id} style={styles.walletCard}>
                 <TouchableOpacity style={styles.checkWrap} onPress={() => toggleSelect(t.Id)}>
@@ -371,7 +371,7 @@ export default function ArtistBonusPaymentsScreen() {
                 </TouchableOpacity>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.artistNameText}>{t.ArtistName}</Text>
-                  <Text style={styles.periodText}>Earned: ${t.BonusEarned.toFixed(0)} · Paid: ${t.BonusPaid.toFixed(0)}</Text>
+                  <Text style={styles.periodText}>Earned: ${t.BonusEarned.toFixed(0)} Â· Paid: ${t.BonusPaid.toFixed(0)}</Text>
                 </View>
                 <View style={{ alignItems: "flex-end", marginRight: 8 }}>
                   <Text style={styles.dueLabel}>Bonus Due</Text>
@@ -385,16 +385,16 @@ export default function ArtistBonusPaymentsScreen() {
           </View>
         )}
 
-        {/* ── SETTLED TODAY ── */}
+        {/* â”€â”€ SETTLED TODAY â”€â”€ */}
         {settledToday.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>🟢 Settled Today ({settledToday.length})</Text>
+            <Text style={styles.sectionHeader}>ðŸŸ¢ Settled Today ({settledToday.length})</Text>
             {settledToday.map((t, idx) => (
               <View key={idx} style={[styles.walletCard, { opacity: 0.8 }]}>
                 <Ionicons name="checkmark-circle" size={22} color="#16A34A" style={{ marginRight: 8 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.artistNameText}>{t.artistName}</Text>
-                  <Text style={styles.periodText}>Settled at {t.date} · via {t.method}</Text>
+                  <Text style={styles.periodText}>Settled at {t.date} Â· via {t.method}</Text>
                 </View>
                 <Text style={[styles.dueAmount, { color: "#16A34A" }]}>${t.amount.toFixed(0)}</Text>
               </View>

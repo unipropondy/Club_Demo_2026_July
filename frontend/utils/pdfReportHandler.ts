@@ -1,9 +1,9 @@
-/**
+﻿/**
  * Professional PDF Report Handler
  * Handles downloading and emailing consolidated sales reports
  */
 
-import axios from "axios";
+import API from '../api';
 import * as FileSystem from "expo-file-system/legacy";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as Sharing from "expo-sharing";
@@ -29,7 +29,7 @@ export const downloadSalesReportPdf = async (filter = "daily", date = null) => {
     console.log("[PDF Download] Fetching from:", url);
 
     // Download PDF
-    const response = await axios.get(url, {
+    const response = await API.get(url, {
       responseType: "arraybuffer",
       timeout: 30000, // 30 second timeout
     });
@@ -102,7 +102,7 @@ export const emailSalesReportPdf = async (
 
     // Request email send
     const emailUrl = `${API_BASE_URL}/export/email-pdf`;
-    const response = await axios.post(
+    const response = await API.post(
       emailUrl,
       {
         email: recipientEmail,
@@ -209,7 +209,7 @@ export const previewSalesReportPdf = async (filter = "daily", date = null) => {
       url += `&date=${date}`;
     }
 
-    const response = await axios.get(url, {
+    const response = await API.get(url, {
       responseType: "arraybuffer",
       timeout: 30000,
     });

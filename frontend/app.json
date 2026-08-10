@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Smart POS",
-    "slug": "pos-1",
+    "name": "Smart Club",
+    "slug": "smart-club",
     "version": "1.0.0",
     "orientation": "default",
     "icon": "./assets/images/logo_pos.png",
-    "scheme": "restaurantapp",
+    "scheme": "smartclub",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
@@ -14,14 +14,14 @@
         "NSBluetoothAlwaysUsageDescription": "This app needs Bluetooth access to connect to thermal printers for receipts.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.javi06.pos1"
+      "bundleIdentifier": "com.javi06.smartclub"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#FF8C00",
         "foregroundImage": "./assets/images/logo_pos.png"
       },
-      "package": "com.javi06.pos1",
+      "package": "com.javi06.smartclub",
       "versionCode": 1,
       "permissions": [
         "INTERNET",
@@ -72,9 +72,8 @@
         "origin": false
       },
       "eas": {
-        "projectId": "169e2026-a2e3-42a7-9d79-c84e1b3ad17d"
+        "projectId": "bd78a87e-3758-455b-9591-5e445dbeb7bf"
       }
-    },
-    "owner": "lokesh763918"
+    }
   }
 }

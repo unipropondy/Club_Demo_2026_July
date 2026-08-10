@@ -124,7 +124,8 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
               currentData = await getRes.json();
             }
           } catch (e) {
-            console.warn("⚠️ [GeneralSettingsStore] Failed to fetch current settings:", e);
+            // Non-fatal: fall back to empty object — upsert will use existing DB values for unset fields
+            console.warn("⚠️ [GeneralSettingsStore] Pre-fetch skipped (network blip), saving with current state:", e);
           }
 
           const payload = {

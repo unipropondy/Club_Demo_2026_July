@@ -125,9 +125,7 @@ export default function PaymentScreen() {
   const isMember = params.isMember === "true";
   const isLedgerCollection = !!memberId;
   const rewardMemberId = params.rewardMemberId as string | undefined;
-  const [paymentStatus, setPaymentStatus] = useState<
-    "idle" | "processing" | "success" | "cancelled" | "failed"
-  >("idle");
+  const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "cancelled" | "failed">("idle");
   const [allDishes, setAllDishes] = useState<any[]>([]);
   const vipOffer = useMemo(() => {
     if (!params.vipOffer) return null;
@@ -169,9 +167,7 @@ export default function PaymentScreen() {
     fetch(`${API_URL}/api/menu/dishes/all`)
       .then((res) => res.json())
       .then((data) => setAllDishes(Array.isArray(data) ? data : []))
-      .catch((err) =>
-        console.error("Error fetching all dishes inside payment:", err),
-      );
+      .catch((err) => console.error("Error fetching all dishes inside payment:", err));
   }, []);
 
   useEffect(() => {
@@ -189,9 +185,7 @@ export default function PaymentScreen() {
             ? `${API_URL}/api/members/validate/${memberId}`
             : `${API_URL}/api/credit-customers/search?query=${encodeURIComponent(memberPhone || memberId)}`;
           const res = await fetch(endpoint, {
-            headers: useAuthStore.getState().token
-              ? { Authorization: `Bearer ${useAuthStore.getState().token}` }
-              : {},
+            headers: useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {},
           });
           const data = await res.json();
           if (isMember) {
@@ -214,23 +208,15 @@ export default function PaymentScreen() {
     } else if (rewardMemberId) {
       const fetchRewardMemberDetails = async () => {
         try {
-          const res = await fetch(
-            `${API_URL}/api/members/validate/${rewardMemberId}`,
-            {
-              headers: useAuthStore.getState().token
-                ? { Authorization: `Bearer ${useAuthStore.getState().token}` }
-                : {},
-            },
-          );
+          const res = await fetch(`${API_URL}/api/members/validate/${rewardMemberId}`, {
+            headers: useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {},
+          });
           const data = await res.json();
           if (data.success && data.member) {
             setSelectedMember(data.member);
           }
         } catch (err) {
-          console.error(
-            "Failed to load details for reward customer in payment screen:",
-            err,
-          );
+          console.error("Failed to load details for reward customer in payment screen:", err);
         }
       };
       fetchRewardMemberDetails();
@@ -275,9 +261,7 @@ export default function PaymentScreen() {
       const v = c === "x" ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
-  const [checkoutSessionId, setCheckoutSessionId] = useState(() =>
-    generateSessionId(),
-  );
+  const [checkoutSessionId, setCheckoutSessionId] = useState(() => generateSessionId());
 
   useEffect(() => {
     if (isFocused) {
@@ -415,9 +399,7 @@ export default function PaymentScreen() {
       : `${API_URL}/api/members/search?query=${encodeURIComponent(q)}`;
     try {
       const res = await fetch(endpoint, {
-        headers: useAuthStore.getState().token
-          ? { Authorization: `Bearer ${useAuthStore.getState().token}` }
-          : {},
+        headers: useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {},
       });
       const data = await res.json();
       setMembers(Array.isArray(data) ? data : []);
@@ -465,9 +447,7 @@ export default function PaymentScreen() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [isUPIVisible, setIsUPIVisible] = useState(false);
   const [isPayNowVisible, setIsPayNowVisible] = useState(false);
-  const settingsStore = useCompanySettingsStore(
-    (state: { settings: CompanySettings }) => state.settings,
-  );
+  const settingsStore = useCompanySettingsStore((state: { settings: CompanySettings }) => state.settings);
   const currencySymbol = settingsStore.currencySymbol || "$";
   const gstRate = (settingsStore.gstPercentage || 0) / 100;
   const scRate = (settingsStore.serviceChargePercentage || 0) / 100;
@@ -481,18 +461,13 @@ export default function PaymentScreen() {
   const [isTestModalVisible, setIsTestModalVisible] = useState(false);
   const [scReduced, setScReduced] = useState(false);
   const scReducedLocal = useServiceChargeOverrideStore((s) =>
-    displayOrderId ? s.overrides[displayOrderId.toLowerCase()] : false,
+    displayOrderId ? s.overrides[displayOrderId.toLowerCase()] : false
   );
   const [takeawayChargeApplied, setTakeawayChargeApplied] = useState(true);
   const [takeawayChargeAmt, setTakeawayChargeAmt] = useState(0);
 
   useEffect(() => {
-    console.log(
-      "🔍 [Payment] SC & Takeaway override useEffect triggered. displayOrderId:",
-      displayOrderId,
-      "isFocused:",
-      isFocused,
-    );
+    console.log("🔍 [Payment] SC & Takeaway override useEffect triggered. displayOrderId:", displayOrderId, "isFocused:", isFocused);
     if (displayOrderId && isFocused) {
       const token = useAuthStore.getState().token;
       const url = `${API_URL}/api/orders/${displayOrderId}/sc-override`;
@@ -505,21 +480,14 @@ export default function PaymentScreen() {
           console.log("✅ [Payment] SC override response:", d);
           if (d?.serviceChargeReduced) {
             setScReduced(true);
-            useServiceChargeOverrideStore
-              .getState()
-              .setOverride(displayOrderId, true);
+            useServiceChargeOverrideStore.getState().setOverride(displayOrderId, true);
           } else {
             setScReduced(false);
-            useServiceChargeOverrideStore
-              .getState()
-              .setOverride(displayOrderId, false);
+            useServiceChargeOverrideStore.getState().setOverride(displayOrderId, false);
           }
         })
         .catch((e) => {
-          console.warn(
-            "❌ [Payment] Failed to fetch KDS/SC override status:",
-            e,
-          );
+          console.warn("❌ [Payment] Failed to fetch KDS/SC override status:", e);
         });
 
       fetch(`${API_URL}/api/orders/${displayOrderId}/takeaway-charge`, {
@@ -536,10 +504,7 @@ export default function PaymentScreen() {
           setTakeawayChargeAmt(d?.takeawayCharge || 0);
         })
         .catch((e) => {
-          console.warn(
-            "❌ [Payment] Failed to fetch takeaway-charge status:",
-            e,
-          );
+          console.warn("❌ [Payment] Failed to fetch takeaway-charge status:", e);
         });
     }
   }, [displayOrderId, isFocused]);
@@ -592,15 +557,9 @@ export default function PaymentScreen() {
 
   useEffect(() => {
     const fetchDishLoyaltyRewards = async () => {
-      const showRewardPoints =
-        useGeneralSettingsStore.getState().settings?.showRewardPoints !== false;
+      const showRewardPoints = useGeneralSettingsStore.getState().settings?.showRewardPoints !== false;
       const phone = loyaltyPhone ? loyaltyPhone.trim() : "";
-      if (
-        !showRewardPoints ||
-        !phone ||
-        finalItemsRaw.length === 0 ||
-        isLedgerCollection
-      ) {
+      if (!showRewardPoints || !phone || finalItemsRaw.length === 0 || isLedgerCollection) {
         setLoyaltyDiscountItems([]);
         setLoyaltyDiscountAmount(0);
         return;
@@ -611,34 +570,24 @@ export default function PaymentScreen() {
           DishId: i.DishId || i.dishId || i.id,
           Qty: i.qty,
           Price: i.price,
-          isDishReward: false,
+          isDishReward: false
         }));
 
-        const res = await fetch(
-          `${API_URL}/api/loyalty/calculate-bill-rewards`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({ phone, items: mappedItems }),
+        const res = await fetch(`${API_URL}/api/loyalty/calculate-bill-rewards`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {})
           },
-        );
+          body: JSON.stringify({ phone, items: mappedItems })
+        });
         const data = await res.json();
         if (data.success) {
           const processed = (data.items || []).map((i: any) => ({
             ...i,
             qty: i.Qty !== undefined ? i.Qty : i.qty,
             price: i.Price !== undefined ? i.Price : i.price,
-            name:
-              i.name ||
-              finalItemsRaw.find(
-                (raw: any) =>
-                  String(raw.id || raw.DishId || raw.dishId).toLowerCase() ===
-                  String(i.DishId || i.id).toLowerCase(),
-              )?.name ||
-              "Dish",
+            name: i.name || finalItemsRaw.find((raw: any) => String(raw.id || raw.DishId || raw.dishId).toLowerCase() === String(i.DishId || i.id).toLowerCase())?.name || "Dish"
           }));
           setLoyaltyDiscountItems(processed);
           setLoyaltyDiscountAmount(data.totalDiscount || 0);
@@ -657,9 +606,7 @@ export default function PaymentScreen() {
   }, [loyaltyPhone, finalItemsRaw, isLedgerCollection]);
 
   const finalItems = useMemo(() => {
-    return loyaltyDiscountItems.length > 0
-      ? loyaltyDiscountItems
-      : finalItemsRaw;
+    return loyaltyDiscountItems.length > 0 ? loyaltyDiscountItems : finalItemsRaw;
   }, [loyaltyDiscountItems, finalItemsRaw]);
 
   useEffect(() => {
@@ -667,13 +614,13 @@ export default function PaymentScreen() {
       const store = usePaymentSettingsStore.getState();
       setLoadingMethods(true);
       try {
-        await Promise.all([store.fetchSettings(), store.fetchPaymentMethods()]);
+        await Promise.all([
+          store.fetchSettings(),
+          store.fetchPaymentMethods()
+        ]);
       } catch (err) {
         if (__DEV__) {
-          console.error(
-            "Failed to fetch settings/methods on payment screen mount:",
-            err,
-          );
+          console.error("Failed to fetch settings/methods on payment screen mount:", err);
         }
       }
       applyPaymentMethodsFromCache();
@@ -708,6 +655,8 @@ export default function PaymentScreen() {
     };
   }, []);
 
+
+
   const takeawayCharges = settingsStore.takeawayCharges || 0;
 
   const {
@@ -732,28 +681,19 @@ export default function PaymentScreen() {
         calculatedItems: [],
       };
     }
-    const isVip = selectedMember?.IsVIP === true || selectedMember?.IsVIP === 1;
+    const isVip = (selectedMember?.IsVIP === true || selectedMember?.IsVIP === 1) && !!useGeneralSettingsStore.getState().settings.vipRuleEnabled;
     const nonVoided = finalItems.filter((i: any) => i.status !== "VOIDED");
-
+    
     return nonVoided.reduce(
       (acc: any, item: any) => {
         const baseTotal = (item.price || 0) * (item.qty || 0);
-        const isCombo =
-          item.isCombo === true ||
-          String(item.isCombo) === "1" ||
-          item.isCombo === 1;
-        const discountBasis = isCombo
-          ? (item.basePrice ?? item.price ?? 0)
-          : (item.price ?? 0);
+        const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
+        const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
         let itemDiscount = 0;
         const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
         const discType = item.discountType || "percentage";
         if (discAmt > 0) {
-          const isFixed =
-            discType === "fixed" ||
-            (discType === "percentage" &&
-              !item.discount &&
-              item.discountAmount > 0);
+          const isFixed = discType === "fixed" || (discType === "percentage" && !item.discount && item.discountAmount > 0);
           if (isFixed) {
             itemDiscount = Math.min(discAmt, discountBasis) * (item.qty || 0);
           } else {
@@ -767,80 +707,52 @@ export default function PaymentScreen() {
 
         if (isVip && vipOffer) {
           const itemDishId = item.id || item.DishId;
-          const itemDishGroupId = allDishes.find(
-            (d: any) =>
-              String(d.DishId).toLowerCase() ===
-              String(itemDishId).toLowerCase(),
-          )?.DishGroupId;
+          const itemDishGroupId = allDishes.find((d: any) => String(d.DishId).toLowerCase() === String(itemDishId).toLowerCase())?.DishGroupId;
 
           let matchesOffer = false;
           let ruleDiscountType: "PERCENTAGE" | "AMOUNT" = "PERCENTAGE";
           let ruleDiscountValue = 0;
 
-          if (
-            vipOffer.targetType === "DISH" ||
-            vipOffer.targetType === "BOTH"
-          ) {
+          if (vipOffer.targetType === "DISH" || vipOffer.targetType === "BOTH") {
             if (vipOffer.dishId) {
               try {
                 const parsed = JSON.parse(vipOffer.dishId);
                 if (Array.isArray(parsed)) {
-                  const match = parsed.find(
-                    (r) =>
-                      String(r.id).toLowerCase() ===
-                      String(itemDishId).toLowerCase(),
-                  );
+                  const match = parsed.find(r => String(r.id).toLowerCase() === String(itemDishId).toLowerCase());
                   if (match) {
                     matchesOffer = true;
-                    ruleDiscountType =
-                      match.discountType === "AMOUNT" ? "AMOUNT" : "PERCENTAGE";
+                    ruleDiscountType = match.discountType === "AMOUNT" ? "AMOUNT" : "PERCENTAGE";
                     ruleDiscountValue = Number(match.discountValue) || 0;
                   }
                 }
               } catch (e) {
-                const targetDishIds = vipOffer.dishId
-                  .split(",")
-                  .map((id: string) => id.trim().toLowerCase());
+                const targetDishIds = vipOffer.dishId.split(",").map((id: string) => id.trim().toLowerCase());
                 if (targetDishIds.includes(String(itemDishId).toLowerCase())) {
                   matchesOffer = true;
-                  ruleDiscountType =
-                    vipOffer.discountType === "FIXED" ? "AMOUNT" : "PERCENTAGE";
+                  ruleDiscountType = vipOffer.discountType === "FIXED" ? "AMOUNT" : "PERCENTAGE";
                   ruleDiscountValue = vipOffer.discountValue || 0;
                 }
               }
             }
           }
 
-          if (
-            !matchesOffer &&
-            (vipOffer.targetType === "GROUP" || vipOffer.targetType === "BOTH")
-          ) {
+          if (!matchesOffer && (vipOffer.targetType === "GROUP" || vipOffer.targetType === "BOTH")) {
             if (vipOffer.dishGroupId && itemDishGroupId) {
               try {
                 const parsed = JSON.parse(vipOffer.dishGroupId);
                 if (Array.isArray(parsed)) {
-                  const match = parsed.find(
-                    (r) =>
-                      String(r.id).toLowerCase() ===
-                      String(itemDishGroupId).toLowerCase(),
-                  );
+                  const match = parsed.find(r => String(r.id).toLowerCase() === String(itemDishGroupId).toLowerCase());
                   if (match) {
                     matchesOffer = true;
-                    ruleDiscountType =
-                      match.discountType === "AMOUNT" ? "AMOUNT" : "PERCENTAGE";
+                    ruleDiscountType = match.discountType === "AMOUNT" ? "AMOUNT" : "PERCENTAGE";
                     ruleDiscountValue = Number(match.discountValue) || 0;
                   }
                 }
               } catch (e) {
-                const targetGroupIds = vipOffer.dishGroupId
-                  .split(",")
-                  .map((id: string) => id.trim().toLowerCase());
-                if (
-                  targetGroupIds.includes(String(itemDishGroupId).toLowerCase())
-                ) {
+                const targetGroupIds = vipOffer.dishGroupId.split(",").map((id: string) => id.trim().toLowerCase());
+                if (targetGroupIds.includes(String(itemDishGroupId).toLowerCase())) {
                   matchesOffer = true;
-                  ruleDiscountType =
-                    vipOffer.discountType === "FIXED" ? "AMOUNT" : "PERCENTAGE";
+                  ruleDiscountType = vipOffer.discountType === "FIXED" ? "AMOUNT" : "PERCENTAGE";
                   ruleDiscountValue = vipOffer.discountValue || 0;
                 }
               }
@@ -849,33 +761,21 @@ export default function PaymentScreen() {
 
           if (matchesOffer) {
             matchedRuleId = "DYNAMIC";
-            const remainingBasis = Math.max(
-              0,
-              discountBasis - itemDiscount / (item.qty || 1),
-            );
+            const remainingBasis = Math.max(0, discountBasis - (itemDiscount / (item.qty || 1)));
 
             if (ruleDiscountType === "PERCENTAGE") {
-              vipItemDiscount =
-                remainingBasis * (ruleDiscountValue / 100) * (item.qty || 1);
+              vipItemDiscount = remainingBasis * (ruleDiscountValue / 100) * (item.qty || 1);
             } else {
-              vipItemDiscount =
-                Math.min(ruleDiscountValue, remainingBasis) * (item.qty || 1);
+              vipItemDiscount = Math.min(ruleDiscountValue, remainingBasis) * (item.qty || 1);
             }
           }
         }
 
         const itemSubtotal = baseTotal - itemDiscount - vipItemDiscount;
-        const isTakeawayItem =
-          item.isTakeaway ||
-          item.IsTakeaway ||
-          item.isTakeAway ||
-          item.IsTakeAway;
+        const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
         const isSC =
-          !isTakeawayItem &&
-          (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
-        const itemTWCharge = isTakeawayItem
-          ? (item.qty || 1) * takeawayCharges
-          : 0;
+          !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
+        const itemTWCharge = isTakeawayItem ? (item.qty || 1) * takeawayCharges : 0;
 
         acc.calculatedItems.push({
           ...item,
@@ -891,7 +791,7 @@ export default function PaymentScreen() {
           scEligibleSubtotal:
             acc.scEligibleSubtotal + (isSC ? itemSubtotal : 0),
           calcTakeawayChargeAmt: acc.calcTakeawayChargeAmt + itemTWCharge,
-          takeawayQty: acc.takeawayQty + (isTakeawayItem ? item.qty || 1 : 0),
+          takeawayQty: acc.takeawayQty + (isTakeawayItem ? (item.qty || 1) : 0),
           calculatedItems: acc.calculatedItems,
         };
       },
@@ -906,15 +806,7 @@ export default function PaymentScreen() {
         calculatedItems: [],
       },
     );
-  }, [
-    finalItems,
-    isLedgerCollection,
-    collectAmount,
-    takeawayCharges,
-    vipOffer,
-    allDishes,
-    selectedMember,
-  ]);
+  }, [finalItems, isLedgerCollection, collectAmount, takeawayCharges, vipOffer, allDishes, selectedMember]);
 
   const allItemsHaveSC = useMemo(() => {
     const activeItems = finalItems.filter(
@@ -922,17 +814,12 @@ export default function PaymentScreen() {
     );
     return (
       activeItems.length > 0 &&
-      activeItems.every((item: any) => {
-        const isTakeawayItem =
-          item.isTakeaway ||
-          item.IsTakeaway ||
-          item.isTakeAway ||
-          item.IsTakeAway;
-        return (
-          !isTakeawayItem &&
-          (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true)
-        );
-      })
+      activeItems.every(
+        (item: any) => {
+          const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
+          return !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
+        },
+      )
     );
   }, [finalItems]);
 
@@ -962,27 +849,17 @@ export default function PaymentScreen() {
     if (discount.type === "percentage") {
       return discount.value / 100;
     }
-    return subtotal > 0 ? discountAmount / subtotal : 0;
+    return subtotal > 0 ? (discountAmount / subtotal) : 0;
   }, [discount, subtotal, discountAmount, isLedgerCollection]);
 
   const currentTakeawayCharge = useMemo(() => {
     if (isLedgerCollection) return 0;
     if (!takeawayChargeApplied) return 0;
     return calcTakeawayChargeAmt * (1 - billDiscountProportion);
-  }, [
-    takeawayChargeApplied,
-    calcTakeawayChargeAmt,
-    billDiscountProportion,
-    isLedgerCollection,
-  ]);
+  }, [takeawayChargeApplied, calcTakeawayChargeAmt, billDiscountProportion, isLedgerCollection]);
 
-  const serviceChargeAmt = isLedgerCollection
-    ? 0
-    : scReduced || scReducedLocal
-      ? 0
-      : scEligibleNet * scRate;
-  const taxableAmount =
-    netAfterDiscount + serviceChargeAmt + currentTakeawayCharge;
+  const serviceChargeAmt = isLedgerCollection ? 0 : (scReduced || scReducedLocal ? 0 : scEligibleNet * scRate);
+  const taxableAmount = netAfterDiscount + serviceChargeAmt + currentTakeawayCharge;
   const tax = isLedgerCollection ? 0 : taxableAmount * gstRate;
   const baseTotal = taxableAmount + tax;
 
@@ -1015,14 +892,11 @@ export default function PaymentScreen() {
   const displayedRoundOff =
     roundOff !== 0
       ? parseFloat(
-          (
-            total -
-            (netAmountForDisplay +
-              displayedServiceCharge +
-              displayedTax +
-              currentTakeawayCharge)
-          ).toFixed(2),
-        )
+        (
+          total -
+          (netAmountForDisplay + displayedServiceCharge + displayedTax + currentTakeawayCharge)
+        ).toFixed(2),
+      )
       : 0;
   const paidNum = isCashMethod(method) ? parseFloat(cashInput) || 0 : total;
   const change = Math.max(0, paidNum - total);
@@ -1041,9 +915,7 @@ export default function PaymentScreen() {
     if (context && finalItems.length > 0) {
       // Distinguish YeahPay PayNow and YeahPay Card from regular payment modes
       // so the customer display shows custom cards and avoids static QRs.
-      const selectedMethodObj = paymentMethods.find(
-        (m: any) => m.payMode === method,
-      );
+      const selectedMethodObj = paymentMethods.find((m: any) => m.payMode === method);
       const isYeahPayMode = selectedMethodObj?.yeahPayEnabled === true;
       const isPayNowPayMode = /PAYNOW|PAY-NOW/i.test(method);
       const isCardPayMode = /CARD/i.test(method);
@@ -1051,15 +923,15 @@ export default function PaymentScreen() {
       let displayPaymentMethod = method;
       if (isYeahPayMode) {
         if (isPayNowPayMode) {
-          displayPaymentMethod = "YEAHPAY_PAYNOW";
+          displayPaymentMethod = 'YEAHPAY_PAYNOW';
         } else if (isCardPayMode) {
-          displayPaymentMethod = "YEAHPAY_CARD";
+          displayPaymentMethod = 'YEAHPAY_CARD';
         }
       }
 
       // Include member name when MEMBER or CREDIT mode is selected
-      const isMemberMode = /^(MEMBER|CREDIT)$/i.test((method || "").trim());
-      const displayMemberName = isMemberMode ? selectedMember?.Name || "" : "";
+      const isMemberMode = /^(MEMBER|CREDIT)$/i.test((method || '').trim());
+      const displayMemberName = isMemberMode ? (selectedMember?.Name || '') : '';
 
       CustomerDisplaySync.syncCart({
         orderContext: context,
@@ -1165,8 +1037,8 @@ export default function PaymentScreen() {
           mUpper.includes("PAYTM");
         const isPayNow =
           (mUpper.includes("PAYNOW") ||
-            mUpper.includes("QR") ||
-            mUpper.includes("PAY-NOW")) &&
+          mUpper.includes("QR") ||
+          mUpper.includes("PAY-NOW")) &&
           m.yeahPayEnabled !== true &&
           String(m.yeahPayEnabled) !== "true" &&
           String(m.yeahPayEnabled) !== "1";
@@ -1179,11 +1051,11 @@ export default function PaymentScreen() {
       if (filtered.length > 0) {
         setMethod((prev) => {
           const isValid = filtered.some((x) => x.payMode === prev);
-          return prev === "CAS" || !isValid ? filtered[0].payMode : prev;
+          return (prev === "CAS" || !isValid) ? filtered[0].payMode : prev;
         });
         setSelectedDetail((prev) => {
           const isValid = filtered.some((x) => x.payMode === prev?.payMode);
-          return !prev || !isValid ? filtered[0] : prev;
+          return (!prev || !isValid) ? filtered[0] : prev;
         });
         if (isCashMethod(filtered[0].payMode)) {
           setCashInput(total.toFixed(2));
@@ -1229,11 +1101,9 @@ export default function PaymentScreen() {
   const confirmPayment = async () => {
     if (processing) return;
 
-    const selectedMethod = paymentMethods.find((m) => m.payMode === method);
+    const selectedMethod = paymentMethods.find(m => m.payMode === method);
     const isYeahPay = selectedMethod?.yeahPayEnabled === true;
-    const isCard =
-      method.trim().toUpperCase().includes("CARD") &&
-      !method.trim().toUpperCase().includes("PAYNOW");
+    const isCard = method.trim().toUpperCase().includes("CARD") && !method.trim().toUpperCase().includes("PAYNOW");
 
     // ✅ YEAHPAY - Direct terminal call
     if (isYeahPay && total > 0) {
@@ -1242,55 +1112,49 @@ export default function PaymentScreen() {
       setProcessing(true);
 
       try {
-        const deviceSn = selectedMethod?.deviceSn || "";
-        const salt = selectedMethod?.deviceSalt || "";
+        const deviceSn = selectedMethod?.deviceSn || '';
+        const salt = selectedMethod?.deviceSalt || '';
 
-        console.log("🔄 [MainPayment] Calling YeahPay terminal for:", method);
-        console.log("   Amount:", total);
-        console.log("   DeviceSN:", deviceSn);
+        console.log('🔄 [MainPayment] Calling YeahPay terminal for:', method);
+        console.log('   Amount:', total);
+        console.log('   DeviceSN:', deviceSn);
 
         if (!deviceSn) {
           setPaymentStatus("failed");
           setPaymentMessage("DeviceSN not configured");
-          Alert.alert("Configuration Error", "DeviceSN not configured.");
+          Alert.alert('Configuration Error', 'DeviceSN not configured.');
           setProcessing(false);
           return;
         }
 
-        const endpoint = isCard
-          ? "/api/yeahpay/card-payment"
-          : "/api/yeahpay/paynow-payment";
+        const endpoint = isCard ? '/api/yeahpay/card-payment' : '/api/yeahpay/paynow-payment';
         const response = await fetch(`${API_URL}${endpoint}`, {
-          method: "POST",
+          method: 'POST',
           headers: {
-            "Content-Type": "application/json",
-            ...(useAuthStore.getState().token
-              ? { Authorization: `Bearer ${useAuthStore.getState().token}` }
-              : {}),
+            'Content-Type': 'application/json',
+            ...(useAuthStore.getState().token ? { 'Authorization': `Bearer ${useAuthStore.getState().token}` } : {}),
           },
           body: JSON.stringify({
             amount: total,
             deviceSn: deviceSn,
-            salt: salt || "",
-          }),
+            salt: salt || ''
+          })
         });
 
         const result = await response.json();
-        console.log("✅ [MainPayment] Terminal response:", result);
+        console.log('✅ [MainPayment] Terminal response:', result);
 
         const responseCode = result.code;
 
         // ✅ SUCCESS - Code 0
         if (result.success || responseCode === 0) {
           setPaymentStatus("success");
-          setPaymentMessage(
-            `✅ ${currencySymbol}${total.toFixed(2)} paid successfully via ${method}`,
-          );
+          setPaymentMessage(`✅ ${currencySymbol}${total.toFixed(2)} paid successfully via ${method}`);
 
           showToast({
-            type: "success",
-            message: "✅ Payment Successful",
-            subtitle: `${currencySymbol}${total.toFixed(2)} paid via ${method}`,
+            type: 'success',
+            message: '✅ Payment Successful',
+            subtitle: `${currencySymbol}${total.toFixed(2)} paid via ${method}`
           });
 
           // ✅ Proceed to save
@@ -1302,9 +1166,9 @@ export default function PaymentScreen() {
           setPaymentMessage(`❌ Transaction cancelled on terminal`);
 
           Alert.alert(
-            "❌ Transaction Cancelled",
-            "Payment was cancelled on the terminal. Please try again.",
-            [{ text: "OK" }],
+            '❌ Transaction Cancelled',
+            'Payment was cancelled on the terminal. Please try again.',
+            [{ text: 'OK' }]
           );
           setProcessing(false);
 
@@ -1314,26 +1178,31 @@ export default function PaymentScreen() {
           setPaymentMessage(`⏰ Transaction timeout`);
 
           Alert.alert(
-            "⏰ Transaction Timeout",
-            "Card read timed out. Please try again.",
-            [{ text: "OK" }],
+            '⏰ Transaction Timeout',
+            'Card read timed out. Please try again.',
+            [{ text: 'OK' }]
           );
           setProcessing(false);
 
           // ✅ FAILED - Other errors
         } else {
           setPaymentStatus("failed");
-          const errorMsg = result.msg || result.error || "Payment declined";
+          const errorMsg = result.msg || result.error || 'Payment declined';
           setPaymentMessage(`❌ ${errorMsg}`);
 
-          Alert.alert("❌ Payment Failed", errorMsg, [{ text: "OK" }]);
+          Alert.alert(
+            '❌ Payment Failed',
+            errorMsg,
+            [{ text: 'OK' }]
+          );
           setProcessing(false);
         }
+
       } catch (error: any) {
-        console.error("❌ [MainPayment] Terminal error:", error);
+        console.error('❌ [MainPayment] Terminal error:', error);
         setPaymentStatus("failed");
         setPaymentMessage(`❌ ${error.message}`);
-        Alert.alert("Error", error.message || "Failed to connect to terminal");
+        Alert.alert('Error', error.message || 'Failed to connect to terminal');
         setProcessing(false);
       }
       return;
@@ -1452,14 +1321,8 @@ export default function PaymentScreen() {
     // If checkoutSessionId is empty the backend idempotency check is skipped,
     // which can create a SettlementHeader record that is never shown to the user.
     if (!checkoutSessionId || checkoutSessionId.length < 10) {
-      console.warn(
-        "[Payment] executeFinalPayment blocked: checkoutSessionId is empty or invalid.",
-      );
-      showToast({
-        type: "error",
-        message: "Session Error",
-        subtitle: "Payment session expired. Please go back and try again.",
-      });
+      console.warn('[Payment] executeFinalPayment blocked: checkoutSessionId is empty or invalid.');
+      showToast({ type: 'error', message: 'Session Error', subtitle: 'Payment session expired. Please go back and try again.' });
       return;
     }
 
@@ -1469,22 +1332,22 @@ export default function PaymentScreen() {
       const payModeId = selectedMode ? selectedMode.position || 1 : 1;
       const finalPayments = payments
         ? payments.map((p) => ({
-            payModeId: p.payModeId,
-            payMode:
-              (p as any).payMode ||
-              paymentMethods.find((x) => x.position === p.payModeId)?.payMode ||
-              "CASH",
-            amount: p.amount,
-            referenceNo: p.referenceNo || "",
-          }))
+          payModeId: p.payModeId,
+          payMode:
+            (p as any).payMode ||
+            paymentMethods.find((x) => x.position === p.payModeId)?.payMode ||
+            "CASH",
+          amount: p.amount,
+          referenceNo: p.referenceNo || "",
+        }))
         : [
-            {
-              payModeId,
-              payMode: method,
-              amount: total,
-              referenceNo: "",
-            },
-          ];
+          {
+            payModeId,
+            payMode: method,
+            amount: total,
+            referenceNo: "",
+          },
+        ];
 
       const payEndpoint = isMember
         ? `${API_URL}/api/members/pay`
@@ -1495,9 +1358,7 @@ export default function PaymentScreen() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: useAuthStore.getState().token
-              ? `Bearer ${useAuthStore.getState().token}`
-              : "",
+            Authorization: useAuthStore.getState().token ? `Bearer ${useAuthStore.getState().token}` : "",
           },
           body: JSON.stringify({
             memberId: memberId,
@@ -1520,8 +1381,11 @@ export default function PaymentScreen() {
                 ? total
                 : paidNum
               ).toFixed(2),
-              change: (payments && payments.length > 0 ? 0 : change).toFixed(2),
-              method: payments && payments.length > 0 ? "SPLIT" : method.trim(),
+              change: (payments && payments.length > 0 ? 0 : change).toFixed(
+                2,
+              ),
+              method:
+                payments && payments.length > 0 ? "SPLIT" : method.trim(),
               payments: payments ? JSON.stringify(payments) : "[]",
               orderId:
                 result.settlementId ||
@@ -1607,11 +1471,7 @@ export default function PaymentScreen() {
       totalAmount: total,
       paymentMethod: payments && payments.length > 0 ? "SPLIT" : method.trim(),
       payments: payments || null,
-      memberId:
-        memberOverride?.MemberId ||
-        selectedMember?.MemberId ||
-        rewardMemberId ||
-        null,
+      memberId: memberOverride?.MemberId || selectedMember?.MemberId || rewardMemberId || null,
       roundOff: displayedRoundOff,
       cashierId: user?.userId,
       tableId: context?.tableId,
@@ -1635,9 +1495,7 @@ export default function PaymentScreen() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(useAuthStore.getState().token
-            ? { Authorization: `Bearer ${useAuthStore.getState().token}` }
-            : {}),
+          ...(useAuthStore.getState().token ? { "Authorization": `Bearer ${useAuthStore.getState().token}` } : {})
         },
         body: JSON.stringify(saleData),
       });
@@ -1647,56 +1505,31 @@ export default function PaymentScreen() {
         // If a discount from a reward member was applied, deduct it from their backend wallet balance.
         // selectedMemId falls back to rewardMemberId (passed as param from summary screen)
         // in case the async member search didn't resolve before checkout was triggered.
-        const selectedMemId =
-          memberOverride?.MemberId ||
-          selectedMember?.MemberId ||
-          rewardMemberId ||
-          null;
-        console.log(
-          `[REWARD REDEMPTION CHECK] selectedMemId=${selectedMemId}, discountApplied=${discount?.applied}, label=${discount?.label}, discountAmount=${discountAmount}`,
-        );
-        if (
-          selectedMemId &&
-          discount?.applied &&
-          discount.label?.startsWith("Reward:") &&
-          discountAmount > 0
-        ) {
+        const selectedMemId = memberOverride?.MemberId || selectedMember?.MemberId || rewardMemberId || null;
+        console.log(`[REWARD REDEMPTION CHECK] selectedMemId=${selectedMemId}, discountApplied=${discount?.applied}, label=${discount?.label}, discountAmount=${discountAmount}`);
+        if (selectedMemId && discount?.applied && discount.label?.startsWith("Reward:") && discountAmount > 0) {
           try {
-            console.log(
-              `[REWARD REDEMPTION] Deducting redeemed points from wallet for member: ${selectedMemId}, amount: ${discountAmount}`,
-            );
+            console.log(`[REWARD REDEMPTION] Deducting redeemed points from wallet for member: ${selectedMemId}, amount: ${discountAmount}`);
             const redeemRes = await fetch(`${API_URL}/api/rewards/redeem`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                ...(useAuthStore.getState().token
-                  ? { Authorization: `Bearer ${useAuthStore.getState().token}` }
-                  : {}),
+                ...(useAuthStore.getState().token ? { "Authorization": `Bearer ${useAuthStore.getState().token}` } : {})
               },
               body: JSON.stringify({
                 memberId: selectedMemId,
                 amount: discountAmount,
                 billNo: result.billNo || result.orderId || displayOrderId || "",
-                billAmount: total,
-              }),
+                billAmount: total
+              })
             });
             const redeemData = await redeemRes.json();
             console.log(`[REWARD REDEMPTION] Result:`, redeemData);
           } catch (redeemErr: any) {
-            console.warn(
-              "⚠️ [REWARD REDEMPTION ERROR] Failed to sync reward deduction:",
-              redeemErr?.message || redeemErr,
-            );
+            console.warn("⚠️ [REWARD REDEMPTION ERROR] Failed to sync reward deduction:", redeemErr?.message || redeemErr);
           }
-        } else if (
-          discount?.applied &&
-          discount.label?.startsWith("Reward:") &&
-          discountAmount > 0
-        ) {
-          console.warn(
-            "[REWARD REDEMPTION] SKIPPED — no memberId resolved. rewardMemberId param:",
-            rewardMemberId,
-          );
+        } else if (discount?.applied && discount.label?.startsWith("Reward:") && discountAmount > 0) {
+          console.warn("[REWARD REDEMPTION] SKIPPED — no memberId resolved. rewardMemberId param:", rewardMemberId);
         }
 
         // Navigate first — let the success screen mount fully before mutating store state
@@ -1759,9 +1592,7 @@ export default function PaymentScreen() {
                     clearTable(ctxSnapshot.section!, ctxSnapshot.tableNo!);
                   }
                   if (ctxSnapshot.tableId) {
-                    useCartStore
-                      .getState()
-                      .clearTableSession(ctxSnapshot.tableId);
+                    useCartStore.getState().clearTableSession(ctxSnapshot.tableId);
                     closeActiveOrder(orderIdSnapshot || "");
                   }
                   useOrderContextStore.getState().clearOrderContext();
@@ -1808,7 +1639,7 @@ export default function PaymentScreen() {
       if (match && match[1]) {
         const host = match[1];
         if (host.includes("railway") || host.includes("production")) {
-          return "https://mersalclub-production.up.railway.app/customer-display";
+          return "https://clubdemo2026july-production.up.railway.app/customer-display";
         }
         return `http://${host}:8081/customer-display`;
       }
@@ -1978,9 +1809,7 @@ export default function PaymentScreen() {
           <TouchableWithoutFeedback>
             <View style={[styles.adjustModalContent, { maxWidth: 340 }]}>
               <View style={styles.adjustModalHeader}>
-                <Text style={styles.adjustModalTitle}>
-                  Edit Quick Cash Buttons
-                </Text>
+                <Text style={styles.adjustModalTitle}>Edit Quick Cash Buttons</Text>
                 <TouchableOpacity onPress={() => setIsEditingQuickCash(false)}>
                   <Ionicons name="close" size={22} color={Theme.textMuted} />
                 </TouchableOpacity>
@@ -2015,9 +1844,7 @@ export default function PaymentScreen() {
                         { paddingVertical: 6, paddingHorizontal: 8 },
                       ]}
                     >
-                      <Text style={styles.currencyPrefix}>
-                        {currencySymbol}
-                      </Text>
+                      <Text style={styles.currencyPrefix}>{currencySymbol}</Text>
                       <TextInput
                         style={[
                           styles.cashInput,
@@ -2052,9 +1879,7 @@ export default function PaymentScreen() {
                   style={styles.cancelBtn}
                   onPress={() => setIsEditingQuickCash(false)}
                 >
-                  <Text
-                    style={{ color: Theme.textMuted, fontFamily: Fonts.medium }}
-                  >
+                  <Text style={{ color: Theme.textMuted, fontFamily: Fonts.medium }}>
                     Cancel
                   </Text>
                 </TouchableOpacity>
@@ -2063,11 +1888,7 @@ export default function PaymentScreen() {
                   onPress={saveQuickCash}
                 >
                   <Text
-                    style={{
-                      color: "#fff",
-                      fontFamily: Fonts.semiBold,
-                      fontSize: 14,
-                    }}
+                    style={{ color: "#fff", fontFamily: Fonts.semiBold, fontSize: 14 }}
                   >
                     Save
                   </Text>
@@ -2083,6 +1904,7 @@ export default function PaymentScreen() {
   const renderTestDisplayModal = () => (
     <Modal
       visible={isTestModalVisible}
+
       transparent
       animationType="fade"
       onRequestClose={() => setIsTestModalVisible(false)}
@@ -2333,8 +2155,7 @@ export default function PaymentScreen() {
                     onPress={() => {
                       setRoundOff(p.target - baseTotal);
                       setRoundType(p.mode);
-                      if (isCashMethod(method))
-                        setCashInput(p.target.toFixed(2));
+                      if (isCashMethod(method)) setCashInput(p.target.toFixed(2));
                       setIsAdjustmentModalVisible(false);
                     }}
                   >
@@ -2393,18 +2214,9 @@ export default function PaymentScreen() {
     const baseTotal = (item.price || 0) * item.qty;
     const discountVal = Number(item.discountAmount ?? item.discount ?? 0);
     const discountType = item.discountType || "percentage";
-    const isCombo =
-      item.isCombo === true ||
-      String(item.isCombo) === "1" ||
-      item.isCombo === 1;
-    const discountBasis = isCombo
-      ? (item.basePrice ?? item.price ?? 0)
-      : (item.price ?? 0);
-    const isFixed =
-      discountType === "fixed" ||
-      (discountType === "percentage" &&
-        !item.discount &&
-        item.discountAmount > 0);
+    const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
+    const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
+    const isFixed = discountType === "fixed" || (discountType === "percentage" && !item.discount && item.discountAmount > 0);
 
     const itemDiscount = isFixed
       ? Math.min(discountVal, discountBasis) * item.qty
@@ -2412,12 +2224,9 @@ export default function PaymentScreen() {
 
     const finalPrice = baseTotal - itemDiscount;
 
-    const isTakeawayItem =
-      item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
+    const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
     const isSC =
-      !isTakeawayItem &&
-      (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true) &&
-      useGeneralSettingsStore.getState().settings.SVCIdentification !== false;
+      !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true) && useGeneralSettingsStore.getState().settings.SVCIdentification !== false;
 
     return (
       <View
@@ -2463,10 +2272,10 @@ export default function PaymentScreen() {
           </View>
 
           {(item.spicy && item.spicy !== "Medium") ||
-          (item.oil && item.oil !== "Normal") ||
-          (item.salt && item.salt !== "Normal") ||
-          (item.sugar && item.sugar !== "Normal") ||
-          item.note ? (
+            (item.oil && item.oil !== "Normal") ||
+            (item.salt && item.salt !== "Normal") ||
+            (item.sugar && item.sugar !== "Normal") ||
+            item.note ? (
             <Text style={styles.itemSubText} numberOfLines={2}>
               {[
                 item.spicy && item.spicy !== "Medium" ? `🌶 ${item.spicy}` : "",
@@ -2491,28 +2300,21 @@ export default function PaymentScreen() {
                   .join("  ·  ")}
               </Text>
             )}
-          {isSC &&
-            settingsStore.serviceChargePercentage > 0 &&
-            !isVoided &&
-            !scReduced && (
-              <Text
-                style={[
-                  styles.itemSubText,
-                  {
-                    color: Theme.primary,
-                    fontFamily: Fonts.bold,
-                    marginTop: 4,
-                  },
-                ]}
-              >
-                Item Service Charge ({settingsStore.serviceChargePercentage}%):{" "}
-                {currencySymbol}
-                {(
-                  (baseTotal - itemDiscount) *
-                  (settingsStore.serviceChargePercentage / 100)
-                ).toFixed(2)}
-              </Text>
-            )}
+          {isSC && settingsStore.serviceChargePercentage > 0 && !isVoided && !scReduced && (
+            <Text
+              style={[
+                styles.itemSubText,
+                { color: Theme.primary, fontFamily: Fonts.bold, marginTop: 4 },
+              ]}
+            >
+              Item Service Charge ({settingsStore.serviceChargePercentage}%):{" "}
+              {currencySymbol}
+              {(
+                (baseTotal - itemDiscount) *
+                (settingsStore.serviceChargePercentage / 100)
+              ).toFixed(2)}
+            </Text>
+          )}
         </View>
 
         <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
@@ -2654,6 +2456,7 @@ export default function PaymentScreen() {
                 </Text>
               )}
             </TouchableOpacity>
+
           </View>
         </View>
 
@@ -2743,8 +2546,8 @@ export default function PaymentScreen() {
                       payMode: pm.payMode,
                       description: pm.description,
                       position: pm.position,
-                      deviceSn: pm.deviceSn || "",
-                      deviceSalt: pm.deviceSalt || "",
+                      deviceSn: pm.deviceSn || '',
+                      deviceSalt: pm.deviceSalt || '',
                       yeahPayEnabled: pm.yeahPayEnabled,
                     }))}
                     selectedMember={selectedMember}
@@ -2798,9 +2601,7 @@ export default function PaymentScreen() {
                               style={[
                                 styles.methodCard,
                                 isSelected && styles.activeMethodCard,
-                                !isSelected &&
-                                  isYeahPay &&
-                                  styles.yeahpayMethodCard,
+                                !isSelected && isYeahPay && styles.yeahpayMethodCard,
                                 isMobile && { width: "30%", height: 80 },
                               ]}
                               onPress={() => handleSelectMethod(m)}
@@ -2815,16 +2616,17 @@ export default function PaymentScreen() {
                                 <FontAwesome5
                                   name={m.icon}
                                   size={isMobile ? 16 : 20}
-                                  color={isSelected ? "#fff" : Theme.primary}
+                                  color={
+                                    isSelected ? "#fff" :
+                                      Theme.primary
+                                  }
                                 />
                               </View>
                               <Text
                                 style={[
                                   styles.methodLabel,
                                   isSelected && styles.activeMethodLabel,
-                                  !isSelected &&
-                                    isYeahPay &&
-                                    styles.yeahpayLabel,
+                                  !isSelected && isYeahPay && styles.yeahpayLabel,
                                   isMobile && { fontSize: 10 },
                                 ]}
                               >
@@ -2836,51 +2638,35 @@ export default function PaymentScreen() {
                       </View>
                     )}
                     {paymentStatus !== "idle" && (
-                      <View
-                        style={[
-                          styles.statusContainer,
-                          paymentStatus === "success" && styles.statusSuccess,
-                          paymentStatus === "cancelled" &&
-                            styles.statusCancelled,
-                          paymentStatus === "failed" && styles.statusFailed,
-                          paymentStatus === "processing" &&
-                            styles.statusProcessing,
-                        ]}
-                      >
+                      <View style={[
+                        styles.statusContainer,
+                        paymentStatus === "success" && styles.statusSuccess,
+                        paymentStatus === "cancelled" && styles.statusCancelled,
+                        paymentStatus === "failed" && styles.statusFailed,
+                        paymentStatus === "processing" && styles.statusProcessing,
+                      ]}>
                         <Ionicons
                           name={
-                            paymentStatus === "success"
-                              ? "checkmark-circle"
-                              : paymentStatus === "cancelled"
-                                ? "close-circle"
-                                : paymentStatus === "failed"
-                                  ? "alert-circle"
-                                  : "sync"
+                            paymentStatus === "success" ? "checkmark-circle" :
+                              paymentStatus === "cancelled" ? "close-circle" :
+                                paymentStatus === "failed" ? "alert-circle" :
+                                  "sync"
                           }
                           size={24}
                           color={
-                            paymentStatus === "success"
-                              ? "#22c55e"
-                              : paymentStatus === "cancelled"
-                                ? "#f59e0b"
-                                : paymentStatus === "failed"
-                                  ? "#ef4444"
-                                  : "#3b82f6"
+                            paymentStatus === "success" ? "#22c55e" :
+                              paymentStatus === "cancelled" ? "#f59e0b" :
+                                paymentStatus === "failed" ? "#ef4444" :
+                                  "#3b82f6"
                           }
                         />
-                        <Text
-                          style={[
-                            styles.statusMessage,
-                            paymentStatus === "success" &&
-                              styles.statusMessageSuccess,
-                            paymentStatus === "cancelled" &&
-                              styles.statusMessageCancelled,
-                            paymentStatus === "failed" &&
-                              styles.statusMessageFailed,
-                            paymentStatus === "processing" &&
-                              styles.statusMessageProcessing,
-                          ]}
-                        >
+                        <Text style={[
+                          styles.statusMessage,
+                          paymentStatus === "success" && styles.statusMessageSuccess,
+                          paymentStatus === "cancelled" && styles.statusMessageCancelled,
+                          paymentStatus === "failed" && styles.statusMessageFailed,
+                          paymentStatus === "processing" && styles.statusMessageProcessing,
+                        ]}>
                           {paymentMessage}
                         </Text>
                       </View>
@@ -2888,150 +2674,150 @@ export default function PaymentScreen() {
 
                     {(method.trim().toUpperCase() === "MEMBER" ||
                       method.trim().toUpperCase() === "CREDIT") && (
-                      <View style={styles.creditMemberSection}>
-                        <View style={styles.sectionHeader}>
-                          <Text style={styles.sectionTitle}>
-                            {method.trim().toUpperCase() === "CREDIT"
-                              ? "Credit Customer Account"
-                              : "Member Account"}
-                          </Text>
-                        </View>
+                        <View style={styles.creditMemberSection}>
+                          <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>
+                              {method.trim().toUpperCase() === "CREDIT"
+                                ? "Credit Customer Account"
+                                : "Member Account"}
+                            </Text>
+                          </View>
 
-                        {selectedMember ? (
-                          <View style={styles.selectedCreditCard}>
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                              }}
-                            >
+                          {selectedMember ? (
+                            <View style={styles.selectedCreditCard}>
                               <View
                                 style={{
                                   flexDirection: "row",
+                                  justifyContent: "space-between",
                                   alignItems: "center",
-                                  gap: 10,
                                 }}
                               >
-                                <View style={styles.creditIconBadge}>
-                                  <FontAwesome5
-                                    name="user-tag"
-                                    size={14}
-                                    color="#fff"
-                                  />
-                                </View>
-                                <View>
-                                  <Text style={styles.creditCardName}>
-                                    {selectedMember.Name}
-                                  </Text>
-                                  <Text style={styles.creditCardPhone}>
-                                    {selectedMember.Phone}
-                                  </Text>
-                                </View>
-                              </View>
-                              <TouchableOpacity
-                                style={styles.changeCreditBtn}
-                                onPress={() => setShowMemberModal(true)}
-                              >
-                                <Text style={styles.changeCreditBtnText}>
-                                  Change
-                                </Text>
-                              </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.creditCardStatsRow}>
-                              <View style={styles.creditStatCol}>
-                                <Text style={styles.creditStatLabel}>
-                                  Available Credit
-                                </Text>
-                                <Text
-                                  style={[
-                                    styles.creditStatValue,
-                                    {
-                                      color:
-                                        (selectedMember.CreditLimit || 0) -
-                                          (selectedMember.CurrentBalance || 0) <
-                                        total
-                                          ? Theme.danger
-                                          : Theme.success,
-                                    },
-                                  ]}
+                                <View
+                                  style={{
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 10,
+                                  }}
                                 >
-                                  {formatMoney(
-                                    currencySymbol,
-                                    (selectedMember.CreditLimit || 0) -
-                                      (selectedMember.CurrentBalance || 0),
-                                  )}
-                                </Text>
+                                  <View style={styles.creditIconBadge}>
+                                    <FontAwesome5
+                                      name="user-tag"
+                                      size={14}
+                                      color="#fff"
+                                    />
+                                  </View>
+                                  <View>
+                                    <Text style={styles.creditCardName}>
+                                      {selectedMember.Name}
+                                    </Text>
+                                    <Text style={styles.creditCardPhone}>
+                                      {selectedMember.Phone}
+                                    </Text>
+                                  </View>
+                                </View>
+                                <TouchableOpacity
+                                  style={styles.changeCreditBtn}
+                                  onPress={() => setShowMemberModal(true)}
+                                >
+                                  <Text style={styles.changeCreditBtnText}>
+                                    Change
+                                  </Text>
+                                </TouchableOpacity>
                               </View>
-                              <View style={styles.creditStatCol}>
-                                <Text style={styles.creditStatLabel}>
-                                  Credit Limit
-                                </Text>
-                                <Text style={styles.creditStatValue}>
-                                  {formatMoney(
-                                    currencySymbol,
-                                    selectedMember.CreditLimit || 0,
-                                  )}
-                                </Text>
-                              </View>
-                              <View style={styles.creditStatCol}>
-                                <Text style={styles.creditStatLabel}>
-                                  Outstanding
-                                </Text>
-                                <Text style={styles.creditStatValue}>
-                                  {formatMoney(
-                                    currencySymbol,
-                                    selectedMember.CurrentBalance || 0,
-                                  )}
-                                </Text>
-                              </View>
-                            </View>
 
-                            {(selectedMember.CurrentBalance || 0) + total >
-                              (selectedMember.CreditLimit || 0) && (
-                              <View style={styles.limitExceededBanner}>
+                              <View style={styles.creditCardStatsRow}>
+                                <View style={styles.creditStatCol}>
+                                  <Text style={styles.creditStatLabel}>
+                                    Available Credit
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.creditStatValue,
+                                      {
+                                        color:
+                                          (selectedMember.CreditLimit || 0) -
+                                            (selectedMember.CurrentBalance || 0) <
+                                            total
+                                            ? Theme.danger
+                                            : Theme.success,
+                                      },
+                                    ]}
+                                  >
+                                    {formatMoney(
+                                      currencySymbol,
+                                      (selectedMember.CreditLimit || 0) -
+                                      (selectedMember.CurrentBalance || 0),
+                                    )}
+                                  </Text>
+                                </View>
+                                <View style={styles.creditStatCol}>
+                                  <Text style={styles.creditStatLabel}>
+                                    Credit Limit
+                                  </Text>
+                                  <Text style={styles.creditStatValue}>
+                                    {formatMoney(
+                                      currencySymbol,
+                                      selectedMember.CreditLimit || 0,
+                                    )}
+                                  </Text>
+                                </View>
+                                <View style={styles.creditStatCol}>
+                                  <Text style={styles.creditStatLabel}>
+                                    Outstanding
+                                  </Text>
+                                  <Text style={styles.creditStatValue}>
+                                    {formatMoney(
+                                      currencySymbol,
+                                      selectedMember.CurrentBalance || 0,
+                                    )}
+                                  </Text>
+                                </View>
+                              </View>
+
+                              {(selectedMember.CurrentBalance || 0) + total >
+                                (selectedMember.CreditLimit || 0) && (
+                                  <View style={styles.limitExceededBanner}>
+                                    <Ionicons
+                                      name="alert-circle"
+                                      size={16}
+                                      color={Theme.danger}
+                                    />
+                                    <Text style={styles.limitExceededText}>
+                                      Transaction exceeds Credit Limit by{" "}
+                                      {formatMoney(
+                                        currencySymbol,
+                                        (selectedMember.CurrentBalance || 0) +
+                                        total -
+                                        (selectedMember.CreditLimit || 0),
+                                      )}
+                                    </Text>
+                                  </View>
+                                )}
+                            </View>
+                          ) : (
+                            <TouchableOpacity
+                              style={styles.selectCreditPrompt}
+                              onPress={() => setShowMemberModal(true)}
+                              activeOpacity={0.7}
+                            >
+                              <View style={styles.selectCreditPromptInner}>
                                 <Ionicons
-                                  name="alert-circle"
-                                  size={16}
-                                  color={Theme.danger}
+                                  name="search-outline"
+                                  size={24}
+                                  color={Theme.primary}
                                 />
-                                <Text style={styles.limitExceededText}>
-                                  Transaction exceeds Credit Limit by{" "}
-                                  {formatMoney(
-                                    currencySymbol,
-                                    (selectedMember.CurrentBalance || 0) +
-                                      total -
-                                      (selectedMember.CreditLimit || 0),
-                                  )}
+                                <Text style={styles.selectCreditPromptTitle}>
+                                  No Customer Selected
+                                </Text>
+                                <Text style={styles.selectCreditPromptSub}>
+                                  Tap here to search existing or quick-add a new
+                                  credit customer
                                 </Text>
                               </View>
-                            )}
-                          </View>
-                        ) : (
-                          <TouchableOpacity
-                            style={styles.selectCreditPrompt}
-                            onPress={() => setShowMemberModal(true)}
-                            activeOpacity={0.7}
-                          >
-                            <View style={styles.selectCreditPromptInner}>
-                              <Ionicons
-                                name="search-outline"
-                                size={24}
-                                color={Theme.primary}
-                              />
-                              <Text style={styles.selectCreditPromptTitle}>
-                                No Customer Selected
-                              </Text>
-                              <Text style={styles.selectCreditPromptSub}>
-                                Tap here to search existing or quick-add a new
-                                credit customer
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    )}
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
 
                     {isCashMethod(method) && (
                       <View style={styles.cashSection}>
@@ -3277,7 +3063,7 @@ export default function PaymentScreen() {
                                 method.trim().toUpperCase() === "CREDIT" ||
                                 method.trim().toUpperCase() === "5" ||
                                 method.trim().toUpperCase() === "6") &&
-                              selectedMember
+                                selectedMember
                                 ? "Complement Settlement"
                                 : "Complete Settlement"}
                             </Text>
@@ -3311,10 +3097,9 @@ export default function PaymentScreen() {
                         </Text>
                       </View>
 
-                      {discountAmount + payItemDiscount + vipDiscountAmount >
-                        0 && (
+                      {(discountAmount + payItemDiscount + vipDiscountAmount) > 0 && (
                         <>
-                          {discountAmount + payItemDiscount > 0 && (
+                          {(discountAmount + payItemDiscount) > 0 && (
                             <View style={styles.breakRow}>
                               <Text
                                 style={[
@@ -3384,8 +3169,7 @@ export default function PaymentScreen() {
                       {currentTakeawayCharge > 0 && (
                         <View style={styles.breakRow}>
                           <Text style={styles.breakLabel}>
-                            Takeaway Charges ({currencySymbol}
-                            {takeawayCharges.toFixed(2)} * {takeawayQty})
+                            Takeaway Charges ({currencySymbol}{takeawayCharges.toFixed(2)} * {takeawayQty})
                           </Text>
                           <Text style={styles.breakValue}>
                             {currencySymbol}
@@ -3481,7 +3265,7 @@ export default function PaymentScreen() {
                                 style={[
                                   styles.roundingToggleBtn,
                                   roundType === "ten" &&
-                                    styles.activeRoundingBtn,
+                                  styles.activeRoundingBtn,
                                 ]}
                                 onPress={() => {
                                   if (roundType === "ten") {
@@ -3514,7 +3298,7 @@ export default function PaymentScreen() {
                                   style={[
                                     styles.roundingToggleText,
                                     roundType === "ten" &&
-                                      styles.activeRoundingText,
+                                    styles.activeRoundingText,
                                   ]}
                                 >
                                   {roundType === "ten"
@@ -4175,7 +3959,7 @@ export default function PaymentScreen() {
                                 {formatMoney(
                                   currencySymbol,
                                   selectedMember.CreditLimit -
-                                    selectedMember.CurrentBalance,
+                                  selectedMember.CurrentBalance,
                                 )}
                               </Text>
                             </View>
@@ -4401,8 +4185,8 @@ const styles = StyleSheet.create({
   // In the styles object, add these:
 
   statusContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 12,
     borderRadius: 12,
     marginVertical: 10,
@@ -4410,20 +4194,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusSuccess: {
-    backgroundColor: "rgba(16,185,129,0.12)",
-    borderColor: "#10B981",
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    borderColor: '#10B981',
   },
   statusCancelled: {
-    backgroundColor: "rgba(245,158,11,0.12)",
-    borderColor: "#F59E0B",
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderColor: '#F59E0B',
   },
   statusFailed: {
-    backgroundColor: "rgba(239,68,68,0.12)",
-    borderColor: "#EF4444",
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderColor: '#EF4444',
   },
   statusProcessing: {
-    backgroundColor: "rgba(59,130,246,0.12)",
-    borderColor: "#3B82F6",
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderColor: '#3B82F6',
   },
   statusMessage: {
     fontSize: 14,
@@ -4431,16 +4215,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statusMessageSuccess: {
-    color: "#16a34a",
+    color: '#16a34a',
   },
   statusMessageCancelled: {
-    color: "#d97706",
+    color: '#d97706',
   },
   statusMessageFailed: {
-    color: "#dc2626",
+    color: '#dc2626',
   },
   statusMessageProcessing: {
-    color: "#2563eb",
+    color: '#2563eb',
   },
   methodsGrid: {
     flexDirection: "row",
@@ -4488,21 +4272,21 @@ const styles = StyleSheet.create({
   },
   activeMethodLabel: { color: "#fff" },
   yeahpayMethodCard: {
-    borderColor: "#10B981",
+    borderColor: '#10B981',
     borderWidth: 2,
-    backgroundColor: "rgba(16,185,129,0.12)",
+    backgroundColor: 'rgba(16,185,129,0.12)',
   },
   yeahpayIconBox: {
-    backgroundColor: "rgba(16,185,129,0.18)",
+    backgroundColor: 'rgba(16,185,129,0.18)',
   },
   yeahpayLabel: {
-    color: "#10B981",
+    color: '#10B981',
     fontFamily: Fonts.black,
   },
   yeahpayBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(16,185,129,0.18)",
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16,185,129,0.18)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 10,
@@ -4512,7 +4296,7 @@ const styles = StyleSheet.create({
   yeahpayBadgeText: {
     fontSize: 8,
     fontFamily: Fonts.black,
-    color: "#10B981",
+    color: '#10B981',
   },
   cashSection: { marginTop: 5 },
   sectionHeader: { marginBottom: 8 },

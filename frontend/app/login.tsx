@@ -11,6 +11,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Modal,
   StatusBar,
   StyleSheet,
   Text,
@@ -312,6 +313,7 @@ export default function LoginScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+
 
       {/* ── Base gradient ── */}
       <LinearGradient

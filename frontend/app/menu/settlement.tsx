@@ -5,7 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useGeneralSettingsStore } from "../../stores/generalSettingsStore";
 import { useToast } from "../../components/Toast";
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
+import API from "../../api";
 import * as Print from "expo-print";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
@@ -632,7 +632,7 @@ const [artistSearch, setArtistSearch] = useState("");
   useEffect(() => {
     const fetchActiveDay = async () => {
       try {
-        const res = await axios.get(`${API_URL}/api/settlement/active-day`);
+        const res = await API.get(`/settlement/active-day`);
         if (res.data?.success && res.data?.active && res.data?.startDate) {
           const parts = res.data.startDate.split("-");
           if (parts.length === 3) {
@@ -654,7 +654,7 @@ const [artistSearch, setArtistSearch] = useState("");
   const loadTerminals = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/api/settlement/terminals`);
+      const res = await API.get(`/settlement/terminals`);
       const termData = res.data || [];
       setTerminals(termData);
       if (termData.length > 0) {
@@ -672,8 +672,8 @@ const [artistSearch, setArtistSearch] = useState("");
 
 const loadDishes = async () => {
   try {
-    const res = await axios.get(
-      `${API_URL}/api/settlement/artist-list`,
+    const res = await API.get(
+      `/settlement/artist-list`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -692,7 +692,7 @@ const loadDishes = async () => {
 const fetchDayHistory = async () => {
   try {
     setLoadingHistory(true);
-    const res = await axios.get(`${API_URL}/api/settlement/day-history`);
+    const res = await API.get(`/settlement/day-history`);
     if (res.data?.success) {
       setHistoryLogs(res.data.data || []);
     } else {
@@ -716,19 +716,19 @@ const fetchDayHistory = async () => {
 
       const dateStr = getLocalDateStr(selectedDate); // e.g. "2026-07-22"
 
-      const totalRes = await axios.get(`${API_URL}/api/settlement/total-sales/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: {} }));
-      const payRes = await axios.get(`${API_URL}/api/settlement/payment/${selectedTerminal}/${userId}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
-      const transRes = await axios.get(`${API_URL}/api/settlement/transactions/${selectedTerminal}/${userId}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
-      const salesRes = await axios.get(`${API_URL}/api/settlement/sales-summary/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
+      const totalRes = await API.get(`/settlement/total-sales/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: {} }));
+      const payRes = await API.get(`/settlement/payment/${selectedTerminal}/${userId}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
+      const transRes = await API.get(`/settlement/transactions/${selectedTerminal}/${userId}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
+      const salesRes = await API.get(`/settlement/sales-summary/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
 
       const outId = selectedTerminal === "ALL" ? 1 : selectedTerminal;
-      const openRes = await axios.get(`${API_URL}/api/settlement/opening-cash?outletId=${outId}&date=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const denomsRes = await axios.get(`${API_URL}/api/settlement/denominations?type=OPEN&date=${dateStr}&screenType=CB`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const closeDenomsRes = await axios.get(`${API_URL}/api/settlement/denominations?type=CLOSE&date=${dateStr}&screenType=CB`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const cashOutRes = await axios.get(`${API_URL}/api/settlement/cash-out/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const cashInRes = await axios.get(`${API_URL}/api/settlement/cash-in/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const cashBoxRes = await axios.get(`${API_URL}/api/settlement/artist-cashbox?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const dayLogRes = await axios.get(`${API_URL}/api/settlement/day-log?date=${dateStr}`).catch(() => ({ data: null }));
+      const openRes = await API.get(`/settlement/opening-cash?outletId=${outId}&date=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const denomsRes = await API.get(`/settlement/denominations?type=OPEN&date=${dateStr}&screenType=CB`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const closeDenomsRes = await API.get(`/settlement/denominations?type=CLOSE&date=${dateStr}&screenType=CB`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const cashOutRes = await API.get(`/settlement/cash-out/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const cashInRes = await API.get(`/settlement/cash-in/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const cashBoxRes = await API.get(`/settlement/artist-cashbox?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const dayLogRes = await API.get(`/settlement/day-log?date=${dateStr}`).catch(() => ({ data: null }));
 
       setTotalSales(totalRes.data || {});
       setPayments(payRes.data || []);
@@ -840,7 +840,7 @@ const fetchDayHistory = async () => {
         valueCardAmount: payments.find(p => p.PaymodeName?.toUpperCase() === 'VALUE CARD')?.Amount || 0,
       };
 
-      const res = await axios.post(`${API_URL}/api/settlement/finalize`, payload, {
+      const res = await API.post(`/settlement/finalize`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -878,7 +878,7 @@ const fetchDayHistory = async () => {
       const dateStr = getLocalDateStr(selectedDate);
       const outId = selectedTerminal === "ALL" ? 1 : selectedTerminal;
 
-      const res = await axios.post(`${API_URL}/api/settlement/save-denominations`, {
+      const res = await API.post(`/settlement/save-denominations`, {
         denominations: denomsPayload,
         type: lovMode,
         date: dateStr,
@@ -925,11 +925,11 @@ const fetchDayHistory = async () => {
 
       let res;
       if (cashOutForm.CashOutId) {
-        res = await axios.put(`${API_URL}/api/settlement/cash-out/${cashOutForm.CashOutId}`, payload, {
+        res = await API.put(`/settlement/cash-out/${cashOutForm.CashOutId}`, payload, {
           headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }
         });
       } else {
-        res = await axios.post(`${API_URL}/api/settlement/cash-out`, payload, {
+        res = await API.post(`/settlement/cash-out`, payload, {
           headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }
         });
       }
@@ -968,11 +968,11 @@ const fetchDayHistory = async () => {
 
       let res;
       if (cashInForm.CashInId) {
-        res = await axios.put(`${API_URL}/api/settlement/cash-in/${cashInForm.CashInId}`, payload, {
+        res = await API.put(`/settlement/cash-in/${cashInForm.CashInId}`, payload, {
           headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }
         });
       } else {
-        res = await axios.post(`${API_URL}/api/settlement/cash-in`, payload, {
+        res = await API.post(`/settlement/cash-in`, payload, {
           headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }
         });
       }
@@ -996,13 +996,13 @@ const fetchDayHistory = async () => {
       setLoading(true);
 
       if (cashBoxForm.CashBoxId) {
-        await axios.delete(`${API_URL}/api/settlement/artist-cashbox/${cashBoxForm.CashBoxId}`, {
+        await API.delete(`/settlement/artist-cashbox/${cashBoxForm.CashBoxId}`, {
           headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }
         });
       }
 
-      await axios.post(
-        `${API_URL}/api/settlement/artist-cashbox`,
+      await API.post(
+        `/settlement/artist-cashbox`,
         {
           ArtistName: cashBoxForm.ArtistName,
           Amount: parseFloat(cashBoxForm.Amount)
@@ -1036,7 +1036,7 @@ const fetchDayHistory = async () => {
   const executeDeleteCashBox = async (id: string) => {
     try {
       setLoading(true);
-      const res = await axios.delete(`${API_URL}/api/settlement/artist-cashbox/${id}`, {
+      const res = await API.delete(`/settlement/artist-cashbox/${id}`, {
         headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }
       });
       if (res.data.success) {
@@ -1065,7 +1065,7 @@ const fetchDayHistory = async () => {
   const executeDeleteCashOut = async (id: string) => {
     try {
       setLoading(true);
-      const res = await axios.delete(`${API_URL}/api/settlement/cash-out/${id}`, {
+      const res = await API.delete(`/settlement/cash-out/${id}`, {
         headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }
       });
       if (res.data.success) {
@@ -1094,7 +1094,7 @@ const fetchDayHistory = async () => {
   const executeDeleteCashIn = async (id: string) => {
     try {
       setLoading(true);
-      const res = await axios.delete(`${API_URL}/api/settlement/cash-in/${id}`, {
+      const res = await API.delete(`/settlement/cash-in/${id}`, {
         headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }
       });
       if (res.data.success) {

@@ -2200,7 +2200,7 @@ export default function Category() {
           setMoveStep("source");
         }}
       >
-        <SafeAreaView style={{ flex: 1, backgroundColor: Theme.bgMain }}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: Theme.bgMain }} edges={["bottom", "left", "right"]}>
           {/* Header */}
           <View
             style={{
@@ -2208,7 +2208,8 @@ export default function Category() {
               alignItems: "center",
               justifyContent: "space-between",
               paddingHorizontal: 16,
-              paddingVertical: 12,
+              paddingTop: Platform.OS === "ios" ? Math.max(insets.top, 20) : Math.max(insets.top, StatusBar.currentHeight || 0, 12),
+              paddingBottom: 12,
               borderBottomWidth: 1,
               borderBottomColor: Theme.border,
               backgroundColor: Theme.bgCard,
@@ -2903,19 +2904,17 @@ export default function Category() {
             {user && (
               <View style={styles.menuUserSection}>
                 <View style={styles.menuAvatar}>
-                  <Ionicons name="person" size={20} color={Theme.primary} />
+                  <Ionicons name="person" size={20} color="#8E8E93" />
                 </View>
-                <View>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.menuUserName}>{user.fullName}</Text>
                   <Text style={styles.menuUserRole}>{user.roleName}</Text>
                 </View>
               </View>
             )}
 
-            <View style={styles.menuDivider} />
-
             {/* Menu Options */}
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 10 }}>
               {/* 1. TABLES ACCORDION */}
               <TouchableOpacity
                 style={styles.menuItem}
@@ -4020,7 +4019,7 @@ export default function Category() {
           <Text style={styles.licenseCompanyName} numberOfLines={1}>
             {licenseInfo?.CompanyName || "Smart POS"}
           </Text>
-          <Text style={styles.licenseAddress} numberOfLines={2}>
+          <Text style={styles.licenseAddress} numberOfLines={1}>
             {licenseInfo?.Address || "Shop Address"}
           </Text>
           {licenseInfo && (() => {
@@ -4373,34 +4372,36 @@ const styles = StyleSheet.create({
     width: 260,
     backgroundColor: Theme.bgCard,
     borderRadius: 20,
-    padding: 10,
     borderWidth: 1,
     borderColor: Theme.primaryBorder,
+    overflow: "hidden",
     ...Theme.shadowLg,
   },
   menuUserSection: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: "#3D0066",
   },
   menuAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Theme.primary + "15",
+    backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
   },
   menuUserName: {
     fontSize: 15,
     fontFamily: Fonts.black,
-    color: Theme.textPrimary,
+    color: "#FFFFFF",
   },
   menuUserRole: {
     fontSize: 11,
     fontFamily: Fonts.medium,
-    color: Theme.textMuted,
+    color: "rgba(255, 255, 255, 0.75)",
     textTransform: "uppercase",
   },
   menuDivider: {
@@ -4488,33 +4489,33 @@ const styles = StyleSheet.create({
   },
   licenseCardContainer: {
     position: "absolute",
-    backgroundColor: "#11102E",                 // App's deep dark card base
+    backgroundColor: "#11102E",
     borderWidth: 1.5,
-    borderColor: "#A855F7",                     // Bright neon violet border
+    borderColor: "#A855F7",
     borderRadius: 14,
     padding: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    maxWidth: 360,                              // Increased slightly to prevent tight wrapping
-    minWidth: 320,                              // Increased slightly to prevent tight wrapping
+    gap: 10,
+    maxWidth: 240,                              // Compact on mobile so AI button is never covered
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.6,
     shadowRadius: 8,
     elevation: 6,
-    zIndex: 9999,
+    zIndex: 100,                                // Below AI button (zIndex 9999)
   },
   licenseLogoContainer: {
-    width: 52,                                  // Increased to match reference image proportions
-    height: 52,                                 // Increased to match reference image proportions
-    borderRadius: 12,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     backgroundColor: "#18163A",
     borderWidth: 1,
     borderColor: "#3D3875",
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
+    flexShrink: 0,
   },
   licenseLogo: {
     width: "100%",
@@ -4525,15 +4526,15 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   licenseCompanyName: {
-    fontSize: 13.5,                             // Well-balanced font size
+    fontSize: 12,
     fontFamily: Fonts.black,
     color: "#FFFFFF",
   },
   licenseAddress: {
-    fontSize: 9.5,                              // Well-balanced font size
+    fontSize: 8.5,
     fontFamily: Fonts.medium,
     color: "#9B8EC4",
-    lineHeight: 13,
+    lineHeight: 12,
   },
   licenseRow: {
     flexDirection: "row",
@@ -4541,7 +4542,7 @@ const styles = StyleSheet.create({
     marginVertical: 1,
   },
   licenseDateText: {
-    fontSize: 9.5,                              // Well-balanced font size
+    fontSize: 8.5,
     fontFamily: Fonts.bold,
     color: "#F0EEFF",
   },
@@ -4550,9 +4551,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   licenseCopyright: {
-    fontSize: 8.5,                              // Well-balanced font size
+    fontSize: 8,
     fontFamily: Fonts.medium,
     color: "#5A5080",
-    marginTop: 1.5,
+    marginTop: 1,
   },
 });

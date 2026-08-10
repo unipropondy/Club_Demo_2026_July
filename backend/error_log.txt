@@ -302,19 +302,3 @@
     at Socket.emit (node:events:520:35)
     at emitErrorNT (node:internal/streams/destroy:170:8)
     at emitErrorCloseNT (node:internal/streams/destroy:129:3)
-2026-08-04T05:15:29.968Z ConnectionError: Failed to connect to myerpcloud.dyndns.org:9199 - getaddrinfo ENOTFOUND myerpcloud.dyndns.org
-    at C:\Users\User\Desktop\Club_Demo_2026_July\backend\node_modules\mssql\lib\tedious\connection-pool.js:85:17
-    at Connection.onConnect (C:\Users\User\Desktop\Club_Demo_2026_July\backend\node_modules\tedious\lib\connection.js:874:9)
-    at Object.onceWrapper (node:events:623:26)
-    at Connection.emit (node:events:508:28)
-    at Connection.emit (C:\Users\User\Desktop\Club_Demo_2026_July\backend\node_modules\tedious\lib\connection.js:1013:18)
-    at C:\Users\User\Desktop\Club_Demo_2026_July\backend\node_modules\tedious\lib\connection.js:892:14
-    at process.processTicksAndRejections (node:internal/process/task_queues:84:11)
-2026-08-04T05:15:48.046Z ConnectionError: Failed to connect to myerpcloud.dyndns.org:9199 - getaddrinfo ENOTFOUND myerpcloud.dyndns.org
-    at C:\Users\User\Desktop\Club_Demo_2026_July\backend\node_modules\mssql\lib\tedious\connection-pool.js:85:17
-    at Connection.onConnect (C:\Users\User\Desktop\Club_Demo_2026_July\backend\node_modules\tedious\lib\connection.js:874:9)
-    at Object.onceWrapper (node:events:623:26)
-    at Connection.emit (node:events:508:28)
-    at Connection.emit (C:\Users\User\Desktop\Club_Demo_2026_July\backend\node_modules\tedious\lib\connection.js:1013:18)
-    at C:\Users\User\Desktop\Club_Demo_2026_July\backend\node_modules\tedious\lib\connection.js:892:14
-    at process.processTicksAndRejections (node:internal/process/task_queues:84:11)

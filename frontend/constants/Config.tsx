@@ -18,15 +18,30 @@ const getLocalBackendIP = (): string => {
 
 const localIP = getLocalBackendIP();
 
-const PRODUCTION_BACKEND = "https://clubdemo2026july-production.up.railway.app";
+const getApiUrl = (): string => {
+  if (__DEV__) {
+    return `http://${localIP}:3000`;
+  }
+  
+  let envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) {
+    envUrl = envUrl.trim();
+    if (!/^https?:\/\//i.test(envUrl)) {
+      envUrl = `https://${envUrl}`;
+    }
+    return envUrl;
+  }
+  
+  if (Platform.OS === "web" && typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}${window.location.port ? `:${window.location.port}` : ""}`;
+  }
+  
+  return "https://clubdemo2026july-production.up.railway.app";
+};
 
-export const API_URL =
-  (Platform.OS === "web" && typeof window !== "undefined")
-    ? (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
-        ? `http://localhost:3000`           // local web dev
-        : PRODUCTION_BACKEND)              // Cloudflare / any cloud → Railway HTTPS
-    : (__DEV__ ? `http://${localIP}:3000` : PRODUCTION_BACKEND);
+export const API_URL = getApiUrl();
 
 if (__DEV__) {
   console.log(`🌐 [Config] API_URL: ${API_URL} | Platform: ${Platform.OS}`);
 }
+

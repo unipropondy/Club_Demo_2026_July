@@ -1,9 +1,9 @@
-import { API_URL } from "@/constants/Config";
+﻿import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
+import API from '../../api';
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -319,7 +319,7 @@ const pickerStyles = StyleSheet.create({
 
 const pad = (n: number) => n.toString().padStart(2, "0");
 const fmtDate = (raw: string | null) => {
-  if (!raw) return "—";
+  if (!raw) return "â€”";
   const d = new Date(raw);
   return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}`;
 };
@@ -384,7 +384,7 @@ export default function ArtistReportsScreen() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const statsRes = await axios.get(
+      const statsRes = await API.get(
         `${API_URL}/api/artist-bonus/reports/performance?fromDate=${fromDate}&toDate=${toDate}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
@@ -400,7 +400,7 @@ export default function ArtistReportsScreen() {
         endpoint = `/api/artist-bonus/reports/performance?fromDate=${fromDate}&toDate=${toDate}`;
       }
 
-      const res = await axios.get(`${API_URL}${endpoint}`, {
+      const res = await API.get(`${API_URL}${endpoint}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -471,7 +471,7 @@ export default function ArtistReportsScreen() {
   useEffect(() => {
     const loadArtists = async () => {
       try {
-        const res = await axios.get(`${API_URL}/api/settlement/artist-list`, {
+        const res = await API.get(`/settlement/artist-list`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setArtistsList(res.data.data || []);
@@ -674,7 +674,7 @@ export default function ArtistReportsScreen() {
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ── KPI EXECUTIVE SUMMARY ── */}
+        {/* â”€â”€ KPI EXECUTIVE SUMMARY â”€â”€ */}
         <View style={styles.kpiGrid}>
           {[
             {
@@ -713,7 +713,7 @@ export default function ArtistReportsScreen() {
           ))}
         </View>
 
-        {/* ── TABS AS QUICK FILTERS ── */}
+        {/* â”€â”€ TABS AS QUICK FILTERS â”€â”€ */}
         <View style={styles.filterTabs}>
           {(
             [
@@ -810,7 +810,7 @@ export default function ArtistReportsScreen() {
                       )}
                       {row.SalesFromDate && (
                         <Text style={styles.metaText}>
-                          Cycle: {fmtDate(row.SalesFromDate)} ➔{" "}
+                          Cycle: {fmtDate(row.SalesFromDate)} âž”{" "}
                           {fmtDate(row.SalesToDate)}
                         </Text>
                       )}
