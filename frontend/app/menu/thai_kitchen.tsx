@@ -111,8 +111,8 @@ const DishCard = React.memo(
           isLandscape && !isTablet && { maxHeight: 135 },
           isSC && {
             borderWidth: 1.5,
-            borderColor: Theme.dangerBorder,
-            backgroundColor: Theme.dangerBg,
+            borderColor: "rgba(144,0,240,0.50)", // Subtle purple theme border
+            backgroundColor: "rgba(144,0,240,0.06)", // Soft purple theme background
           },
           pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
         ]}

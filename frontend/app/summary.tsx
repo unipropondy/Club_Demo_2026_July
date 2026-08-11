@@ -4813,23 +4813,28 @@ export default function SummaryScreen() {
         }}
         onPrintChit={async () => {
           try {
+            const activeCart = cart.filter((i: any) => i.status !== "VOIDED");
+            const portionRatio = splitChitItems.length > 0 && activeCart.length > 0
+              ? splitChitItems[0].qty / activeCart[0].qty 
+              : 1;
+
             const saleData = {
               items: splitChitItems,
-              total: splitChitItems.reduce((s: number, i: any) => s + (i.price || 0) * i.qty, 0),
+              total: grandTotal * portionRatio,
               subtotal: splitChitItems.reduce((s: number, i: any) => s + (i.price || 0) * i.qty, 0),
-              discount: null,
+              discount: discountInfo?.applied ? discountInfo : null,
               orderId: displayOrderId,
               tableNo: context?.tableNo,
               waiterName: context?.serverName,
               date: new Date(),
-              isCheckout: false,
-              serviceCharge: 0,
-              takeawayCharge: 0,
+              isCheckout: true, // Show guest check header
+              serviceCharge: serviceChargeAmount * portionRatio,
+              takeawayCharge: currentTakeawayCharge * portionRatio,
               mobileNo: "",
               memberRewardBalance: "0",
               isSplitChit: true,
             };
-            await UniversalPrinter.printCheckoutBill(saleData, user?.userId || "SYSTEM", undefined);
+            await UniversalPrinter.printCheckoutBill(saleData, user?.userId || "SYSTEM", discountInfo ?? undefined);
           } catch (e) {
             showToast({ type: "error", message: "Print failed" });
           }
