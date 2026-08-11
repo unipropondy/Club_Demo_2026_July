@@ -732,6 +732,7 @@ export default function Category() {
   const insets = useSafeAreaInsets();
   const isTablet = Math.min(width, height) >= 500;
   const isLandscape = width > height;
+  const isTabletOrDesktopWeb = isTablet || (Platform.OS === "web" && width >= 768);
 
   const { itemSize, numberFont, smallFont, columns, GAP, PADDING } =
     useMemo(() => {
@@ -4009,15 +4010,15 @@ export default function Category() {
           {
             bottom: Math.max(insets.bottom, 12) + 12,
             left: Math.max(insets.left, 12) + 12,
-            maxWidth: isTablet || Platform.OS === "web" ? 320 : 240,
-            padding: isTablet || Platform.OS === "web" ? 12 : 10,
+            maxWidth: isTabletOrDesktopWeb ? 360 : 236,
+            padding: isTabletOrDesktopWeb ? 12 : 10,
           },
         ]}
       >
         <View
           style={[
             styles.licenseLogoContainer,
-            (isTablet || Platform.OS === "web") && { width: 48, height: 48, borderRadius: 10 },
+            isTabletOrDesktopWeb && { width: 64, height: 64, borderRadius: 12 },
           ]}
         >
           {licenseInfo?.CompanyLogoUrl ? (
@@ -4029,7 +4030,7 @@ export default function Category() {
           ) : (
             <Ionicons
               name="restaurant-outline"
-              size={isTablet || Platform.OS === "web" ? 22 : 18}
+              size={isTabletOrDesktopWeb ? 28 : 22}
               color={Theme.primary}
             />
           )}
@@ -4039,7 +4040,7 @@ export default function Category() {
           <Text
             style={[
               styles.licenseCompanyName,
-              (isTablet || Platform.OS === "web") && { fontSize: 14 },
+              isTabletOrDesktopWeb && { fontSize: 14 },
             ]}
             numberOfLines={1}
           >
@@ -4048,7 +4049,7 @@ export default function Category() {
           <Text
             style={[
               styles.licenseAddress,
-              (isTablet || Platform.OS === "web") && { fontSize: 10, lineHeight: 14 },
+              isTabletOrDesktopWeb && { fontSize: 10, lineHeight: 14 },
             ]}
             numberOfLines={1}
           >
@@ -4072,7 +4073,7 @@ export default function Category() {
                 <View style={styles.licenseRow}>
                   <Ionicons
                     name="alert-circle-outline"
-                    size={isTablet || Platform.OS === "web" ? 14 : 12}
+                    size={isTabletOrDesktopWeb ? 14 : 12}
                     color="#EF4444"
                     style={{ marginRight: 3 }}
                   />
@@ -4080,7 +4081,7 @@ export default function Category() {
                     style={[
                       styles.licenseDateText,
                       { color: "#EF4444", fontWeight: "bold" },
-                      (isTablet || Platform.OS === "web") && { fontSize: 10 },
+                      isTabletOrDesktopWeb && { fontSize: 10 },
                     ]}
                   >
                     License Expired
@@ -4093,14 +4094,14 @@ export default function Category() {
               <View style={styles.licenseRow}>
                 <Ionicons
                   name="checkmark-circle-outline"
-                  size={isTablet || Platform.OS === "web" ? 14 : 12}
+                  size={isTabletOrDesktopWeb ? 14 : 12}
                   color="#22C55E"
                   style={{ marginRight: 3 }}
                 />
                 <Text
                   style={[
                     styles.licenseDateText,
-                    (isTablet || Platform.OS === "web") && { fontSize: 10 },
+                    isTabletOrDesktopWeb && { fontSize: 10 },
                   ]}
                 >
                   License:{" "}
@@ -4114,7 +4115,7 @@ export default function Category() {
           <Text
             style={[
               styles.licenseCopyright,
-              (isTablet || Platform.OS === "web") && { fontSize: 9 },
+              isTabletOrDesktopWeb && { fontSize: 9 },
             ]}
           >
             @ 2026 UNIPRO . All rights reserved.
@@ -4558,7 +4559,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    maxWidth: 240,                              // Set default to 240 on phone portrait
+    maxWidth: 236,                              // Set default to 236 on phone portrait
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.6,
@@ -4567,8 +4568,8 @@ const styles = StyleSheet.create({
     zIndex: 100,                                // Below AI button (zIndex 9999)
   },
   licenseLogoContainer: {
-    width: 40,
-    height: 40,
+    width: 46,
+    height: 46,
     borderRadius: 10,
     backgroundColor: "#18163A",
     borderWidth: 1,
