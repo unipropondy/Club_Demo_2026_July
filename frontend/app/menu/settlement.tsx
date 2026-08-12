@@ -445,19 +445,12 @@ export default function SettlementScreen() {
   const executeDayEnd = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/settlement/day-end`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          username: user?.userName || "admin",
-          businessDate: getLocalDateStr(selectedDate)
-        })
+      const res = await API.post("/settlement/day-end", {
+        username: user?.userName || "admin",
+        businessDate: getLocalDateStr(selectedDate)
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const data = res.data;
+      if (data.success) {
         const AsyncStorage = require("@react-native-async-storage/async-storage").default;
         await AsyncStorage.removeItem("selected_business_date");
         fetchData();
@@ -474,12 +467,13 @@ export default function SettlementScreen() {
           subtitle: data.error || "Failed to complete Day End."
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Day End Error:", err);
+      const errorMsg = err.response?.data?.error || err.message || "Failed to connect to the server.";
       showToast({
         type: "error",
-        message: "Network Error",
-        subtitle: "Failed to connect to the server."
+        message: "Day End Failed",
+        subtitle: errorMsg
       });
     } finally {
       setLoading(false);

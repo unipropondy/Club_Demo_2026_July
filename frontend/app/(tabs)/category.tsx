@@ -35,6 +35,7 @@ import {
   getSingaporeDateString,
   parseDatabaseDate,
 } from "../../utils/timezoneHelper";
+import API from "../../api";
 
 import StoreSettingsModal from "@/components/payment/StoreSettingsModal";
 import GeneralSettingsModal from "@/components/settings/GeneralSettingsModal";
@@ -490,8 +491,8 @@ export default function Category() {
 
   const checkActiveBusinessDay = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/settlement/active-day`);
-      const data = await res.json();
+      const res = await API.get("/settlement/active-day");
+      const data = res.data;
       if (data.success && data.active && data.startDate) {
         setIsDayStarted(true);
         setActiveBusinessDay(data.startDate);
@@ -523,16 +524,12 @@ export default function Category() {
 
     setIsStartingDay(true);
     try {
-      const res = await fetch(`${API_URL}/api/settlement/day-start`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startDate: selectedBusinessDate,
-          username: user?.userName || user?.username || "admin",
-        }),
+      const res = await API.post("/settlement/day-start", {
+        startDate: selectedBusinessDate,
+        username: user?.userName || user?.username || "admin",
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const data = res.data;
+      if (data.success) {
         await AsyncStorage.setItem(
           "selected_business_date",
           selectedBusinessDate,
@@ -551,12 +548,13 @@ export default function Category() {
           subtitle: data.error || "Could not start business day.",
         });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to start day:", err);
+      const errorMsg = err.response?.data?.error || err.message || "Failed to connect to the server.";
       showToast({
         type: "error",
-        message: "Network Error",
-        subtitle: "Failed to connect to the server.",
+        message: "Day Start Failed",
+        subtitle: errorMsg,
       });
     } finally {
       setIsStartingDay(false);

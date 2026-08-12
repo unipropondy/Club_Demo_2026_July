@@ -18,7 +18,7 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Theme } from "@/constants/theme";
 import { Fonts } from "@/constants/Fonts";
-import { API_URL } from "@/constants/Config";
+import API from "../api";
 import { useAuthStore } from "@/stores/authStore";
 import CalendarPicker from "../components/CalendarPicker";
 import { 
@@ -88,8 +88,8 @@ export default function DayEndScreen() {
   const fetchDaySummary = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/sales/day-end-summary?startDate=${dateRange.start}&endDate=${dateRange.end}`);
-      const json = await res.json();
+      const res = await API.get(`/sales/day-end-summary?startDate=${dateRange.start}&endDate=${dateRange.end}`);
+      const json = res.data;
       if (json.success) {
         setData(json);
       }
@@ -149,15 +149,11 @@ export default function DayEndScreen() {
   const executeDayEnd = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/settlement/day-end`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: user?.userName || "admin"
-        })
+      const res = await API.post("/settlement/day-end", {
+        username: user?.userName || "admin"
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const data = res.data;
+      if (data.success) {
         // Clear selected business date from AsyncStorage to reset
         await AsyncStorage.removeItem("selected_business_date");
         if (Platform.OS === 'web') {
@@ -180,12 +176,13 @@ export default function DayEndScreen() {
           Alert.alert("Error", data.error || "Failed to complete Day End.");
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Day End Error:", err);
+      const errorMsg = err.response?.data?.error || err.message || "Network error while completing Day End.";
       if (Platform.OS === 'web') {
-        alert("Network error while completing Day End.");
+        alert(errorMsg);
       } else {
-        Alert.alert("Error", "Network error while completing Day End.");
+        Alert.alert("Error", errorMsg);
       }
     } finally {
       setLoading(false);

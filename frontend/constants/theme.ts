@@ -152,20 +152,20 @@ export const Theme = {
 
   // ── Semantic Status Colors (neon dark-mode) ───────────────────────────────
   success:       '#10B981',
-  successBg:     'rgba(16,185,129,0.12)',
-  successBorder: 'rgba(16,185,129,0.35)',
+  successBg:     '#132E22',
+  successBorder: '#183D2F',
 
   warning:       '#F59E0B',
-  warningBg:     'rgba(245,158,11,0.12)',
-  warningBorder: 'rgba(245,158,11,0.35)',
+  warningBg:     '#2E2215',
+  warningBorder: '#3E2F1E',
 
   danger:        '#EF4444',
-  dangerBg:      'rgba(239,68,68,0.12)',
-  dangerBorder:  'rgba(239,68,68,0.35)',
+  dangerBg:      '#2D1620',
+  dangerBorder:  '#3D1F2D',
 
   info:          '#3B82F6',
-  infoBg:        'rgba(59,130,246,0.12)',
-  infoBorder:    'rgba(59,130,246,0.35)',
+  infoBg:        '#152238',
+  infoBorder:    '#1D304F',
 
   // ── Table / Zone status ───────────────────────────────────────────────────
   tableLocked:      { bg: 'rgba(239,68,68,0.15)',    border: '#EF4444' },

@@ -16,6 +16,16 @@ router.post("/day-start", async (req, res) => {
     }
     const pool = getPool();
     
+    // Check if an active business day already exists in DateEntry
+    const activeDayRes = await pool.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
+    if (activeDayRes.recordset.length > 0) {
+      const activeDate = activeDayRes.recordset[0].StartDate;
+      const formattedDate = activeDate instanceof Date ? activeDate.toISOString().split("T")[0] : activeDate;
+      return res.status(400).json({ 
+        error: `Cannot start a new day. The previous business day (${formattedDate}) is still active. Please perform Day End first.` 
+      });
+    }
+    
     // Clear previous active records
     await pool.request().query("DELETE FROM DateEntry");
     
