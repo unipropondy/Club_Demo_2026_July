@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Sales Report PDF Generation Example Component
  * Shows how to integrate professional PDF download/email features
  * 
@@ -23,6 +23,7 @@
 
 import pdfHandler from '@/utils/pdfReportHandler';
 import React, { useState } from 'react';
+import { Theme } from "../constants/theme";
 import {
     ActivityIndicator,
     Alert,

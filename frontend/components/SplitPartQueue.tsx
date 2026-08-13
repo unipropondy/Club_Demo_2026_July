@@ -222,7 +222,7 @@ export default function SplitPartQueue({
                 return (
                   <View key={part} style={[styles.partRow, status === "active" && styles.partRowActive]}>
                     {/* Left: Part indicator */}
-                    <View style={[styles.partBubble, styles[`bubble_${status}` as keyof typeof styles]]}>
+                    <View style={[styles.partBubble, (styles as any)[`bubble_${status}`]]}>
                       {status === "paid" ? (
                         <Ionicons name="checkmark" size={16} color="#fff" />
                       ) : status === "active" ? (

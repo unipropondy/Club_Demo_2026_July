@@ -1139,6 +1139,7 @@ export default function SalesReport() {
           acc.TotalVoids += s.VoidQty || 0;
           acc.TotalVoidAmount += s.VoidAmount || 0;
           acc.TotalVIPDiscount += s.VIPDiscountAmount || 0;
+          acc.TotalDiscount += Math.max(0, (s.DiscountAmount || 0) - (s.VIPDiscountAmount || 0)) + (s.TotalLineItemDiscountAmount || 0);
           acc.ServiceCharge += Number(s.ServiceCharge) || 0;
           acc.TotalTax += Number(s.TotalTax) || 0;
         }
@@ -1177,6 +1178,7 @@ export default function SalesReport() {
         TotalVoids: 0,
         TotalVoidAmount: 0,
         TotalVIPDiscount: 0,
+        TotalDiscount: 0,
         CancelledCount: 0,
         CancelledAmount: 0,
         MemberPaymentsCollected: 0,
@@ -2327,6 +2329,12 @@ export default function SalesReport() {
           formatCurrency(filteredMetrics.TotalVIPDiscount),
           "gift-outline",
           "#a855f7",
+        )}
+        {renderMetricTile(
+          "Discount Savings",
+          formatCurrency(filteredMetrics.TotalDiscount),
+          "pricetag-outline",
+          "#f43f5e",
         )}
       </View>
 

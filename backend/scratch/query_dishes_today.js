@@ -3,21 +3,10 @@ const { poolPromise } = require("../config/db");
 async function run() {
   try {
     const pool = await poolPromise;
-    console.log("=== SettlementItemDetail ===");
-    const sidRes = await pool.request().query(`
-      SELECT SettlementID, DishName, Qty, Price, DiscountType, DiscountAmount, VIPDiscountAmount, Status
-      FROM SettlementItemDetail
-    `);
-    console.log(sidRes.recordset);
+    const dateStr = '2026-08-13';
+    const appDateWhereSql = `sh.LastSettlementDate >= '2026-08-13T00:00:00' AND sh.LastSettlementDate < '2026-08-14T00:00:00'`;
 
-    console.log("=== SettlementHeader ===");
-    const shRes = await pool.request().query(`
-      SELECT SettlementID, BillNo, IsCancelled, LastSettlementDate
-      FROM SettlementHeader
-    `);
-    console.log(shRes.recordset);
-
-    console.log("=== AppReport query output ===");
+    console.log("=== Running exact AppReport query for 2026-08-13 ===");
     const qRes = await pool.request().query(`
       SELECT
         ISNULL(NULLIF(LTRIM(RTRIM(sid.DishName)), ''), ISNULL(d.Name, 'Unknown')) AS dishName,
@@ -39,7 +28,7 @@ async function run() {
       LEFT JOIN DishMaster d ON sid.DishId = d.DishId
       LEFT JOIN DishGroupMaster dg ON COALESCE(sid.DishGroupId, d.DishGroupId) = dg.DishGroupId
       LEFT JOIN CategoryMaster cm ON COALESCE(sid.CategoryId, dg.CategoryId) = cm.CategoryId
-      WHERE ISNULL(sh.IsCancelled, 0) = 0
+      WHERE ${appDateWhereSql} AND ISNULL(sh.IsCancelled, 0) = 0
       GROUP BY 
         ISNULL(NULLIF(LTRIM(RTRIM(sid.DishName)), ''), ISNULL(d.Name, 'Unknown')), 
         ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), ISNULL(cm.CategoryName, 'Unmapped')), 
