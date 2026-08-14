@@ -522,6 +522,7 @@ export default function SettlementScreen() {
 
   const [uploading, setUploading] = useState(false);
   const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
+  const [showAllMediaModal, setShowAllMediaModal] = useState(false);
 
   // Cash In State
   const [cashInEntries, setCashInEntries] = useState<any[]>([]);
@@ -1846,7 +1847,7 @@ const fetchDayHistory = async () => {
             <Text style={styles.loadingText}>Fetching Settlement...</Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content}>
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {/* Day Start & End Timestamps */}
             {dayLog && (
               <View style={{
@@ -2035,9 +2036,28 @@ const fetchDayHistory = async () => {
                 <View style={styles.tableHeader}>
                   <Text style={[styles.tableHeaderText, { flex: 2 }]}>Paymode</Text>
                   <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Cash In</Text>
-                  <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Cash Out</Text>
+                  <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.tableHeaderText}>Cash Out</Text>
+                    {cashOutEntries.some(co => co.AttachmentUrl) && (
+                      <TouchableOpacity 
+                        onPress={() => setShowAllMediaModal(true)}
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: 6,
+                          borderWidth: 1.5,
+                          borderColor: Theme.success,
+                          backgroundColor: Theme.success + "15",
+                          justifyContent: 'center',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <Ionicons name="images" size={12} color={Theme.success} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-                <ScrollView style={styles.cardBodyScroll} nestedScrollEnabled>
+                <View style={styles.cardBodyScroll}>
                   {displayOpeningAmount > 0 && (
                     <View style={styles.tableRow}>
                       <Text style={[styles.tableCellText, { flex: 2 }]}>Opening Balance</Text>
@@ -2168,7 +2188,7 @@ const fetchDayHistory = async () => {
                     );
                   })}
                   {payments.length === 0 && displayOpeningAmount === 0 && transactions.length === 0 && cashOutEntries.length === 0 && cashInEntries.length === 0 && <Text style={styles.emptyText}>No sales</Text>}
-                </ScrollView>
+                </View>
                 {/* 1. Total (All Modes) */}
                 <View style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, backgroundColor: Theme.bgNav, borderTopWidth: 1, borderTopColor: Theme.border, alignItems: "center" }}>
                   <View style={{ flex: 2, alignItems: 'flex-end', paddingRight: 15 }}>
@@ -2539,6 +2559,98 @@ const fetchDayHistory = async () => {
           >
             <Ionicons name="close" size={24} color="#fff" />
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* All Cash Out Media Gallery Modal */}
+      <Modal
+        visible={showAllMediaModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAllMediaModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setShowAllMediaModal(false)}
+          />
+          <View style={[styles.modalContent, { maxWidth: 600, width: '90%', maxHeight: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Cash Out Receipts Gallery</Text>
+              <TouchableOpacity onPress={() => setShowAllMediaModal(false)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={20} color={Theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalDivider} />
+
+            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingVertical: 10 }} showsVerticalScrollIndicator={false}>
+              {cashOutEntries.filter(co => co.AttachmentUrl).length > 0 ? (
+                cashOutEntries.filter(co => co.AttachmentUrl).map((co, idx) => (
+                  <View key={idx} style={{ 
+                    flexDirection: 'row', 
+                    backgroundColor: Theme.bgMuted, 
+                    borderRadius: 12, 
+                    padding: 12, 
+                    marginBottom: 12, 
+                    borderWidth: 1, 
+                    borderColor: Theme.border,
+                    alignItems: 'center'
+                  }}>
+                    <TouchableOpacity onPress={() => {
+                      setShowAllMediaModal(false);
+                      setViewerImageUrl(co.AttachmentUrl);
+                    }}>
+                      <Image 
+                        source={{ uri: co.AttachmentUrl.startsWith('http') ? co.AttachmentUrl : `${API_URL}${co.AttachmentUrl}` }} 
+                        style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12, resizeMode: 'cover' }} 
+                      />
+                    </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: Theme.textPrimary }}>
+                        {co.Reason || 'Cash Out'}
+                      </Text>
+                      <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, marginTop: 2 }}>
+                        Ref: {co.ReferenceNo || 'N/A'}
+                      </Text>
+                      <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted, marginTop: 2 }}>
+                        By: {co.CreatedBy || 'Admin'}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ fontFamily: Fonts.black, fontSize: 15, color: Theme.danger }}>
+                        -{formatCurrency(co.Amount)}
+                      </Text>
+                      <TouchableOpacity 
+                        onPress={() => {
+                          setShowAllMediaModal(false);
+                          setViewerImageUrl(co.AttachmentUrl);
+                        }}
+                        style={{ 
+                          marginTop: 8, 
+                          flexDirection: 'row', 
+                          alignItems: 'center', 
+                          gap: 4, 
+                          backgroundColor: Theme.primary + '20', 
+                          paddingHorizontal: 8, 
+                          paddingVertical: 4, 
+                          borderRadius: 6 
+                        }}
+                      >
+                        <Ionicons name="eye-outline" size={14} color={Theme.primary} />
+                        <Text style={{ fontFamily: Fonts.bold, fontSize: 11, color: Theme.primary }}>View</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+                  <Text style={{ fontFamily: Fonts.medium, fontSize: 14, color: Theme.textMuted }}>No receipts attached for today's cash outs.</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
@@ -3312,7 +3424,6 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   cardBodyScroll: {
-    height: 280,
     paddingHorizontal: 12,
   },
   row: {
