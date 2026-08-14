@@ -1428,6 +1428,18 @@ const fetchDayHistory = async () => {
                   <td>EXPECTED CASH</td>
                   <td class="right">${formatCurrency(totalCashIn - totalCashOutSum)}</td>
                 </tr>
+                ${totalClosing > 0 ? `
+                <tr>
+                  <td colspan="2"><div class="line-divider"></div></td>
+                </tr>
+                <tr class="bold">
+                  <td>CLOSING AMOUNT</td>
+                  <td class="right">${formatCurrency(totalClosing)}</td>
+                </tr>
+                <tr>
+                  <td>Variance</td>
+                  <td class="right" style="color: ${totalClosing >= (totalCashIn - totalCashOutSum) ? '#2e7d32' : '#c62828'}">${totalClosing >= (totalCashIn - totalCashOutSum) ? '+' : ''}${formatCurrency(totalClosing - (totalCashIn - totalCashOutSum))}</td>
+                </tr>` : ''}
               </table>
 
               <div class="divider">========================================</div>
@@ -1488,6 +1500,11 @@ const fetchDayHistory = async () => {
       text += formatTwoCols48("Cash Out:", formatCurrency(totalCashOutSum));
       text += "[L]----------------------------------------\n";
       text += formatTwoCols48("<font size='big'><B>EXPECTED CASH:</B></font>", "<font size='big'><B>" + formatCurrency(totalCashIn - totalCashOutSum) + "</B></font>\n");
+      if (totalClosing > 0) {
+        text += formatTwoCols48("<B>CLOSING AMOUNT:</B>", "<B>" + formatCurrency(totalClosing) + "</B>\n");
+        const variance = totalClosing - (totalCashIn - totalCashOutSum);
+        text += formatTwoCols48("Variance:", (variance >= 0 ? '+' : '') + formatCurrency(variance) + "\n");
+      }
       text += "[C]========================================\n";
       text += "[C]SMART-POS BY UNIPROSG\n";
       text += "[C]========================================\n\n\n\n";
@@ -2030,32 +2047,32 @@ const fetchDayHistory = async () => {
 
               {/* === SALES === */}
               <View style={[styles.card, isTablet && styles.cardTablet]}>
-                <View style={styles.cardHeader}>
+                <View style={[styles.cardHeader, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
                   <Text style={styles.cardHeaderTitle}>SALES</Text>
+                  {cashOutEntries.some(co => co.AttachmentUrl) && (
+                    <TouchableOpacity
+                      onPress={() => setShowAllMediaModal(true)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 5,
+                        backgroundColor: Theme.success + '20',
+                        borderWidth: 1,
+                        borderColor: Theme.success + '60',
+                        borderRadius: 8,
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                      }}
+                    >
+                      <Ionicons name="images" size={13} color={Theme.success} />
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 11, color: Theme.success }}>Receipts</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 <View style={styles.tableHeader}>
                   <Text style={[styles.tableHeaderText, { flex: 2 }]}>Paymode</Text>
-                  <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>Cash In</Text>
-                  <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
-                    <Text style={styles.tableHeaderText}>Cash Out</Text>
-                    {cashOutEntries.some(co => co.AttachmentUrl) && (
-                      <TouchableOpacity 
-                        onPress={() => setShowAllMediaModal(true)}
-                        style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: 6,
-                          borderWidth: 1.5,
-                          borderColor: Theme.success,
-                          backgroundColor: Theme.success + "15",
-                          justifyContent: 'center',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <Ionicons name="images" size={12} color={Theme.success} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
+                  <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Cash In</Text>
+                  <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Cash Out</Text>
                 </View>
                 <View style={styles.cardBodyScroll}>
                   {displayOpeningAmount > 0 && (
