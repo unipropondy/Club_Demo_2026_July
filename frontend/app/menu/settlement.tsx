@@ -1370,6 +1370,10 @@ const fetchDayHistory = async () => {
                   <td class="right">${formatCurrency(totalSales.Tips)}</td>
                 </tr>
                 <tr>
+                  <td>Round Off</td>
+                  <td class="right">${formatCurrency(totalSales.RoundedBy)}</td>
+                </tr>
+                <tr>
                   <td colspan="2"><div class="line-divider"></div></td>
                 </tr>
                 <tr class="bold">
@@ -1478,6 +1482,7 @@ const fetchDayHistory = async () => {
       text += formatTwoCols48("Service Charge:", formatCurrency(totalSales.ServiceCharge));
       text += formatTwoCols48("GST Collected:", formatCurrency(totalSales.TotalTax));
       text += formatTwoCols48("Tips:", formatCurrency(totalSales.Tips));
+      text += formatTwoCols48("Round Off:", formatCurrency(totalSales.RoundedBy));
       text += "[L]----------------------------------------\n";
       text += formatTwoCols48("<B>NET SALES:</B>", "<B>" + formatCurrency(netSales) + "</B>\n");
 
@@ -2390,7 +2395,7 @@ const fetchDayHistory = async () => {
               <View style={{ marginBottom: 15 }}>
                 {/* <Text style={{ fontFamily: Fonts.bold, marginBottom: 8, color: Theme.textPrimary }}>Today's Entries</Text> */}
                 {cashOutEntries.length > 0 ? (
-                  <ScrollView style={{ maxHeight: 150 }} nestedScrollEnabled>
+                  <View>
                     {cashOutEntries.map((co, idx) => (
                       <View key={idx} style={[styles.tableRow, { alignItems: 'center' }]}>
                         <Text style={[styles.tableCellText, { flex: 2 }]}>{co.Reason || 'Cash Out'}</Text>
@@ -2410,7 +2415,7 @@ const fetchDayHistory = async () => {
                         </View>
                       </View>
                     ))}
-                  </ScrollView>
+                  </View>
                 ) : (
                   <View style={{ paddingVertical: 15, alignItems: 'center', backgroundColor: '#FAFAFA', borderRadius: 8, borderWidth: 1, borderColor: Theme.border }}>
                     <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textMuted }}>No cash out entries found for the selected time period.</Text>
@@ -2698,7 +2703,7 @@ const fetchDayHistory = async () => {
               {/* List of Today's Cash In */}
               <View style={{ marginBottom: 15 }}>
                 {cashInEntries.length > 0 ? (
-                  <ScrollView style={{ maxHeight: 150 }} nestedScrollEnabled>
+                  <View>
                     {cashInEntries.map((ci, idx) => (
                       <View key={idx} style={[styles.tableRow, { alignItems: 'center' }]}>
                         <Text style={[styles.tableCellText, { flex: 2 }]}>{ci.Reason || 'Cash In'}</Text>
@@ -2713,7 +2718,7 @@ const fetchDayHistory = async () => {
                         </View>
                       </View>
                     ))}
-                  </ScrollView>
+                  </View>
                 ) : (
                   <View style={{ paddingVertical: 15, alignItems: 'center', backgroundColor: '#FAFAFA', borderRadius: 8, borderWidth: 1, borderColor: Theme.border }}>
                     <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textMuted }}>No cash in entries found for the selected time period.</Text>
@@ -2802,7 +2807,7 @@ const fetchDayHistory = async () => {
               {/* List of Today's Artist Cash Box */}
               <View style={{ marginBottom: 15 }}>
                 {cashBoxEntries.length > 0 ? (
-                  <ScrollView style={{ maxHeight: 150 }} nestedScrollEnabled>
+                  <View>
                     {cashBoxEntries.map((co, idx) => (
                       <View key={idx} style={[styles.tableRow, { alignItems: 'center' }]}>
                         <Text style={[styles.tableCellText, { flex: 2, fontFamily: Fonts.bold }]}>{co.ArtistName || 'Artist'}</Text>
@@ -2817,7 +2822,7 @@ const fetchDayHistory = async () => {
                         </View>
                       </View>
                     ))}
-                  </ScrollView>
+                  </View>
                 ) : (
                   <View style={{ paddingVertical: 15, alignItems: 'center', backgroundColor: Theme.bgInput, borderRadius: 8, borderWidth: 1, borderColor: Theme.border }}>
                     <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textMuted }}>No cash box entries found for the selected time period.</Text>
@@ -3568,7 +3573,7 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   modalList: {
-    maxHeight: 300,
+    // no maxHeight - let modal content expand naturally
   },
   sectionHeader: {
     backgroundColor: Theme.bgMuted,
