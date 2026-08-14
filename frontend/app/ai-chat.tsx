@@ -672,7 +672,6 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 16,
   },
-  // Row wrapper for each message — user rows right-align, assistant rows use full width
   messageRow: {
     flexDirection: "row",
     gap: 8,
@@ -684,7 +683,6 @@ const styles = StyleSheet.create({
   },
   assistantRow: {
     justifyContent: "flex-start",
-    // Allow full-width so analytics cards get all available space
   },
   assistantAvatar: {
     width: 24,
@@ -701,17 +699,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   userBubble: {
-    backgroundColor: Theme.primary,
+    backgroundColor: Theme.primaryDark,
     borderColor: Theme.primary,
     borderBottomRightRadius: 2,
-    maxWidth: "80%",        // User messages stay capped at 80%
+    maxWidth: "80%",
   },
   assistantBubble: {
     backgroundColor: Theme.bgCard,
     borderColor: Theme.border,
     borderBottomLeftRadius: 2,
-    flex: 1,               // Assistant bubbles take up all remaining space in the row
-    minWidth: 0,           // Allow flex to shrink below content width (RN web fix)
+    flex: 1,
+    minWidth: 0,
   },
   messageText: {
     fontSize: 13,
@@ -773,7 +771,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: Theme.border,
-    backgroundColor: Theme.bgMuted,
+    backgroundColor: Theme.bgInput,
     minWidth: 120,
   },
   promptBtnWide: {
@@ -787,7 +785,7 @@ const styles = StyleSheet.create({
   },
   promptBtnText: {
     fontSize: 11,
-    color: Theme.neonViolet,
+    color: Theme.primary,
     fontWeight: "700",
   },
   inputBar: {
@@ -820,7 +818,7 @@ const styles = StyleSheet.create({
   },
   dashboardCard: {
     marginTop: 14,
-    backgroundColor: Theme.bgMuted,
+    backgroundColor: Theme.bgCard,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Theme.border,
@@ -866,7 +864,7 @@ const styles = StyleSheet.create({
   },
   barBg: {
     height: 6,
-    backgroundColor: Theme.bgCard,
+    backgroundColor: Theme.bgInput,
     borderRadius: 3,
     overflow: "hidden",
   },
@@ -884,7 +882,7 @@ const styles = StyleSheet.create({
   kpiCard: {
     flex: 1,
     minWidth: 110,
-    backgroundColor: Theme.bgMuted,
+    backgroundColor: Theme.bgInput,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Theme.border,
@@ -911,7 +909,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(8, 7, 26, 0.6)",
+    backgroundColor: Theme.bgOverlay,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
@@ -944,7 +942,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 6,
-    backgroundColor: Theme.bgMuted,
+    backgroundColor: Theme.bgInput,
     borderWidth: 1,
     borderColor: Theme.border,
     minWidth: 70,
@@ -952,17 +950,17 @@ const styles = StyleSheet.create({
   },
   filterBtnText: {
     fontSize: 11,
-    color: Theme.textPrimary,
+    color: Theme.textSecondary,
     fontWeight: "700",
   },
   customRangeBtn: {
-    backgroundColor: Theme.primaryGlow,
-    borderColor: Theme.primaryBorder,
+    backgroundColor: Theme.primaryLight,
+    borderColor: Theme.border,
     minWidth: 150,
   },
   customRangeBtnText: {
     fontSize: 11,
-    color: Theme.neonViolet,
+    color: Theme.primary,
     fontWeight: "800",
   },
   customDateContainer: {
@@ -1010,7 +1008,7 @@ const styles = StyleSheet.create({
   },
   paymentCard: {
     marginTop: 14,
-    backgroundColor: Theme.bgMuted,
+    backgroundColor: Theme.bgCard,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: Theme.border,
@@ -1037,7 +1035,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tableRowAlt: {
-    backgroundColor: "rgba(255, 255, 255, 0.02)",
+    backgroundColor: Theme.bgMain,
   },
   tableCellText: {
     fontSize: 11,

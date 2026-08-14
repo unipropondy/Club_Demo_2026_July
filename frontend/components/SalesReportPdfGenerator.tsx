@@ -23,7 +23,6 @@
 
 import pdfHandler from '@/utils/pdfReportHandler';
 import React, { useState } from 'react';
-import { Theme } from "../constants/theme";
 import {
     ActivityIndicator,
     Alert,
@@ -34,6 +33,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { Theme } from "../constants/theme";
 
 interface SalesReportPdfProps {
   onClose?: () => void;

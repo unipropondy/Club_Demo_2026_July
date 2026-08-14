@@ -30,6 +30,17 @@ export function formatToSingaporeDate(
   }).format(sgt);
 }
 
+export function formatToSingaporeDateDMY(dateInput: Date | string | number): string {
+  if (!dateInput) return "";
+  const date = parseDatabaseDate(dateInput);
+  if (isNaN(date.getTime())) return "";
+  const sgt = toSgtDate(date);
+  const year = sgt.getUTCFullYear();
+  const month = String(sgt.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(sgt.getUTCDate()).padStart(2, '0');
+  return `${day}-${month}-${year}`;
+}
+
 export function formatToSingaporeTime(
   dateInput: Date | string | number,
   options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: true }

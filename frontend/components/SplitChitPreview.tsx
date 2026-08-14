@@ -140,10 +140,6 @@ export default function SplitChitPreview({
 
   const fmt = (n: number) => `${currencySymbol}${Math.max(0, n).toFixed(2)}`;
 
-  const progressPercent = totalParts && currentPart
-    ? Math.round(((currentPart - 1) / totalParts) * 100)
-    : null;
-
   return (
     <Modal
       visible={visible}

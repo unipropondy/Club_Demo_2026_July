@@ -5,6 +5,7 @@ import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import API from "../../api";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -35,7 +36,6 @@ import {
   getSingaporeDateString,
   parseDatabaseDate,
 } from "../../utils/timezoneHelper";
-import API from "../../api";
 
 import StoreSettingsModal from "@/components/payment/StoreSettingsModal";
 import GeneralSettingsModal from "@/components/settings/GeneralSettingsModal";
@@ -550,11 +550,10 @@ export default function Category() {
       }
     } catch (err: any) {
       console.error("Failed to start day:", err);
-      const errorMsg = err.response?.data?.error || err.message || "Failed to connect to the server.";
       showToast({
         type: "error",
         message: "Day Start Failed",
-        subtitle: errorMsg,
+        subtitle: err.response?.data?.error || err.message || "Failed to connect to the server.",
       });
     } finally {
       setIsStartingDay(false);

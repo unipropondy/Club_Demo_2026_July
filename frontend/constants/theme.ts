@@ -150,7 +150,6 @@ export const Theme = {
     elevation: Platform.OS === 'android' ? 6 : 6,
   },
 
-  // ── Semantic Status Colors (neon dark-mode) ───────────────────────────────
   success:       '#10B981',
   successBg:     '#132E22',
   successBorder: '#183D2F',

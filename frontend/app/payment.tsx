@@ -1570,6 +1570,7 @@ export default function PaymentScreen() {
             // Split-by-parts tracking — forwarded to success screen
             splitTotalParts: splitTotalParts > 0 ? String(splitTotalParts) : "0",
             splitCurrentPart: splitCurrentPart > 0 ? String(splitCurrentPart) : "0",
+            splitReturnToQueue: params.splitReturnToQueue === "true" ? "true" : "false",
           },
         });
         // Snapshot context/splitItems before the delayed cleanup

@@ -1638,8 +1638,8 @@ class UniversalPrinter {
       const name = (item.name || item.DishName || item.ProductName || "")
         .substring(0, 26)
         .padEnd(26);
-      const rawQty = parseFloat(String(item.qty || item.quantity || item.Quantity || 1)) || 1;
-      const qtyNum = Number.isInteger(rawQty) ? rawQty : parseFloat(rawQty.toFixed(3));
+      const qtyNum =
+        parseFloat(String(item.qty || item.quantity || item.Quantity || 1)) || 1;
       const qtyStr = Number.isInteger(qtyNum) ? String(qtyNum) : qtyNum.toFixed(1);
       const qty = `[${qtyStr}]`.padStart(5);
 
@@ -1760,11 +1760,8 @@ class UniversalPrinter {
       }
     }
     
-    // Pro-rate order discount if it is a split bill chit and wasn't pre-divided
+    // Pro-rate order discount if it is a split bill chit
     if (saleData.isSplitChit && orderDiscount > 0) {
-      // Find proportion ratio based on grossTotal vs original full cart if items are pro-rated
-      // In printAllChits, items are already divided (qty: qty / partCount), so subtotal is already proportional.
-      // But if orderDiscount is still full-bill level (e.g. from global discountInfo), we must divide it.
       const originalCart = useCartStore.getState().carts[useCartStore.getState().currentContextId!] || [];
       const originalSubtotal = originalCart.reduce((sum: number, item: any) => {
         if (item.status === "VOIDED") return sum;
@@ -1776,7 +1773,6 @@ class UniversalPrinter {
         orderDiscount = orderDiscount * ratio;
       }
     }
-
     const hasAnyDiscount = totalItemDiscount > 0 || orderDiscount > 0 || totalVipDiscount > 0;
     let currentSubtotal = grossTotal;
 
@@ -1858,14 +1854,13 @@ class UniversalPrinter {
       ? Math.round((serviceChargeAmount / currentSubtotal) * 100)
       : scPercentage;
 
+    const savedTakeawayCharge = saleData.takeawayCharge != null ? parseFloat(String(saleData.takeawayCharge)) : null;
     const companySettings = useCompanySettingsStore.getState().settings;
     const takeawayRate = companySettings?.takeawayCharges || 0;
-    const savedTW = saleData.takeawayCharge != null ? parseFloat(String(saleData.takeawayCharge)) : null;
-    let takeawayCharge = 0;
     let takeawayQty = 0;
-    if (savedTW !== null) {
-      takeawayCharge = savedTW;
-      // Pro-proportion takeawayQty label value for printed display
+    let takeawayCharge = 0;
+    if (savedTakeawayCharge !== null) {
+      takeawayCharge = savedTakeawayCharge;
       takeawayQty = (saleData.items || []).reduce((sum: number, item: any) => {
         const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
         const isVoided = item.status === "VOIDED" || item.StatusCode === 0;
@@ -1885,7 +1880,6 @@ class UniversalPrinter {
       }, 0);
       takeawayCharge = takeawayQty * takeawayRate;
     }
-
     const taxableAmount = currentSubtotal + serviceChargeAmount + takeawayCharge;
     const gstAmountRaw = hasGST ? taxableAmount * (gstRate / 100) : 0;
     const gstAmount = Math.round(gstAmountRaw * 100) / 100;

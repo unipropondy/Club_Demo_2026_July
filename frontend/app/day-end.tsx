@@ -18,8 +18,9 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Theme } from "@/constants/theme";
 import { Fonts } from "@/constants/Fonts";
-import API from "../api";
+import { API_URL } from "@/constants/Config";
 import { useAuthStore } from "@/stores/authStore";
+import API from "../api";
 import CalendarPicker from "../components/CalendarPicker";
 import { 
   format, 
@@ -178,11 +179,11 @@ export default function DayEndScreen() {
       }
     } catch (err: any) {
       console.error("Day End Error:", err);
-      const errorMsg = err.response?.data?.error || err.message || "Network error while completing Day End.";
+      const errMsg = err.response?.data?.error || err.message || "Network error while completing Day End.";
       if (Platform.OS === 'web') {
-        alert(errorMsg);
+        alert(errMsg);
       } else {
-        Alert.alert("Error", errorMsg);
+        Alert.alert("Error", errMsg);
       }
     } finally {
       setLoading(false);

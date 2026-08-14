@@ -34,7 +34,7 @@ import TransactionCard from "../components/TransactionCard";
 import UniversalPrinter from "../components/UniversalPrinter";
 import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
-import { getSingaporeDateString, parseDatabaseDate, formatToSingaporeDate } from "../utils/timezoneHelper";
+import { getSingaporeDateString, parseDatabaseDate, formatToSingaporeDate, formatToSingaporeDateDMY } from "../utils/timezoneHelper";
 import { useAuthStore } from "../stores/authStore";
 
 type FilterType = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
@@ -199,6 +199,7 @@ export default function SalesReport() {
   const [dishReport, setDishReport] = useState<any[]>([]);
   const [settlementReport, setSettlementReport] = useState<any[]>([]);
   const [artistTargetReport, setArtistTargetReport] = useState<any[]>([]);
+  const [selectedArtistForBreakdown, setSelectedArtistForBreakdown] = useState<any | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [showPrintPrompt, setShowPrintPrompt] = useState(false);
   const [isReprinting, setIsReprinting] = useState(false);
@@ -214,6 +215,7 @@ export default function SalesReport() {
   const [showDownloadPanel, setShowDownloadPanel] = useState(false);
   const [downloadFilter, setDownloadFilter] = useState<FilterType>("DAILY");
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloadingCsv, setIsDownloadingCsv] = useState(false);
   const [downloadRangeStart, setDownloadRangeStart] = useState<string | null>(null);
   const [downloadRangeEnd, setDownloadRangeEnd] = useState<string | null>(null);
   const [showDownloadDatePicker, setShowDownloadDatePicker] = useState(false);
@@ -468,6 +470,7 @@ export default function SalesReport() {
                 Achieved: row.Achieved ?? 0,
                 Left: row.Left ?? 0,
                 Status: row.Status || "Not Achieved",
+                Breakdown: row.Breakdown || [],
               }))
               : [],
           );
@@ -803,6 +806,53 @@ export default function SalesReport() {
       alert("An error occurred while generating the PDF.");
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleDownloadCsv = async () => {
+    try {
+      setIsDownloadingCsv(true);
+      const filter = downloadFilter.toLowerCase();
+      const targetDateStr = format(selectedDate, "yyyy-MM-dd");
+      
+      let url = `${API_URL}/api/sales/consolidated-report/csv?filter=${filter}&date=${targetDateStr}`;
+      if (filter === "custom" && downloadRangeStart && downloadRangeEnd) {
+        url += `&startDate=${downloadRangeStart}&endDate=${downloadRangeEnd}`;
+      }
+
+      const filename = `Consolidated_Sales_Report_${filter}_${targetDateStr}.xlsx`;
+
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to generate Excel report");
+
+      const arrayBuffer = await response.arrayBuffer();
+
+      if (Platform.OS === "web") {
+        const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = downloadUrl;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(downloadUrl);
+      } else {
+        const uri = `${FileSystemLegacy.documentDirectory}${filename}`;
+        await FileSystemLegacy.writeAsStringAsync(uri, arrayBufferToBase64(arrayBuffer), {
+          encoding: FileSystemLegacy.EncodingType.Base64,
+        });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri);
+        } else {
+          alert("Downloaded to: " + uri);
+        }
+      }
+
+      setShowDownloadPanel(false);
+    } catch (error) {
+      console.error("CSV Download error:", error);
+      alert("An error occurred while generating the Excel/CSV report.");
+    } finally {
+      setIsDownloadingCsv(false);
     }
   };
 
@@ -1767,8 +1817,10 @@ export default function SalesReport() {
               {(() => {
                 if (isArtistTarget) {
                   return rows.slice(0, 100).map((row, idx) => (
-                    <View
+                    <TouchableOpacity
                       key={`artist-target-${idx}`}
+                      activeOpacity={0.7}
+                      onPress={() => setSelectedArtistForBreakdown(row)}
                       style={[
                         styles.reportTableRow,
                         idx % 2 === 0 && styles.reportTableRowAlt,
@@ -1802,7 +1854,7 @@ export default function SalesReport() {
                           { textAlign: "center" }
                         ]}
                       >
-                        {row.FromDate ? formatToSingaporeDate(row.FromDate, { day: "numeric", month: "numeric", year: "numeric" }) : "N/A"}
+                        {row.FromDate ? formatToSingaporeDateDMY(row.FromDate) : "N/A"}
                       </Text>
                       <Text
                         style={[
@@ -1812,7 +1864,7 @@ export default function SalesReport() {
                           { textAlign: "center" }
                         ]}
                       >
-                        {row.ToDate ? formatToSingaporeDate(row.ToDate, { day: "numeric", month: "numeric", year: "numeric" }) : "N/A"}
+                        {row.ToDate ? formatToSingaporeDateDMY(row.ToDate) : "N/A"}
                       </Text>
                       <Text
                         style={[
@@ -1858,7 +1910,7 @@ export default function SalesReport() {
                       >
                         {row.Status || "Not Achieved"}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                    ));
                 }
 
@@ -2331,7 +2383,7 @@ export default function SalesReport() {
           "#a855f7",
         )}
         {renderMetricTile(
-          "Discount Savings",
+          "Total Discount",
           formatCurrency(filteredMetrics.TotalDiscount),
           "pricetag-outline",
           "#f43f5e",
@@ -3851,6 +3903,44 @@ export default function SalesReport() {
                     </TouchableOpacity>
                   </View>
 
+                  {/* Option C: Excel / CSV Export */}
+                  <View style={styles.downloadOptionCard}>
+                    <View style={styles.optionHeader}>
+                      <View style={[styles.optionIconBox, { backgroundColor: '#ecfdf5' }]}>
+                        <MaterialCommunityIcons name="microsoft-excel" size={20} color="#059669" />
+                      </View>
+                      <View>
+                        <Text style={styles.optionTitle}>Excel Export</Text>
+                        <Text style={styles.optionDesc}>Generate Excel sheet and save to device</Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={handleDownloadCsv}
+                      disabled={isDownloadingCsv || isSendingEmail || (downloadFilter === "CUSTOM" && (!downloadRangeStart || !downloadRangeEnd || new Date(downloadRangeEnd) < new Date(downloadRangeStart)))}
+                      activeOpacity={0.8}
+                    >
+                      <LinearGradient
+                        colors={["#059669", "#10b981"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={[
+                          styles.premiumActionBtn,
+                          (isDownloadingCsv || isSendingEmail || (downloadFilter === "CUSTOM" && (!downloadRangeStart || !downloadRangeEnd || new Date(downloadRangeEnd) < new Date(downloadRangeStart)))) && { opacity: 0.5 }
+                        ]}
+                      >
+                        {isDownloadingCsv ? (
+                          <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <>
+                            <Ionicons name="cloud-download" size={20} color="#fff" style={{ marginRight: 8 }} />
+                            <Text style={styles.premiumActionBtnText}>Download Excel (CSV)</Text>
+                          </>
+                        )}
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+
                   {/* Option B: Send to Email */}
                   <View style={styles.downloadOptionCard}>
                     <View style={styles.optionHeader}>
@@ -4085,6 +4175,71 @@ export default function SalesReport() {
               </View>
             </Modal>
           )}
+
+          {/* Artist Target Breakdown Modal */}
+          <Modal visible={!!selectedArtistForBreakdown} transparent animationType="fade">
+            <View style={styles.modalOverlay}>
+              <TouchableOpacity
+                style={styles.modalDismiss}
+                onPress={() => setSelectedArtistForBreakdown(null)}
+              />
+              <View style={[styles.modalContent, { width: SCREEN_W > 600 ? 400 : "92%" }]}>
+                <View style={styles.modalHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modalTitle} numberOfLines={1}>
+                      {selectedArtistForBreakdown?.CustomerName}
+                    </Text>
+                    <Text style={styles.modalSub}>Target Sales Breakdown</Text>
+                    {selectedArtistForBreakdown?.FromDate && selectedArtistForBreakdown?.ToDate && (
+                      <Text style={[styles.modalSub, { fontSize: 11, color: Theme.primary, marginTop: 3 }]}>
+                        Period: {formatToSingaporeDateDMY(selectedArtistForBreakdown.FromDate)} to {formatToSingaporeDateDMY(selectedArtistForBreakdown.ToDate)}
+                      </Text>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    style={styles.reportCloseBtn}
+                    onPress={() => setSelectedArtistForBreakdown(null)}
+                  >
+                    <Ionicons name="close" size={20} color="#dc2626" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.modalDivider} />
+
+                <View style={{ marginVertical: 12 }}>
+                  {selectedArtistForBreakdown?.Breakdown?.map((item: any, i: number) => (
+                    <View key={`breakdown-${i}`} style={{ flexDirection: "row", justifyContent: "space-between", marginVertical: 4 }}>
+                      <Text style={{ color: Theme.textMuted, fontSize: 13, fontFamily: Fonts.black }}>{item.name}:</Text>
+                      <Text style={{ color: Theme.textPrimary, fontSize: 14, fontFamily: Fonts.black, fontWeight: "600" }}>
+                        {formatCurrency(item.amount || 0)}
+                      </Text>
+                    </View>
+                  ))}
+                  
+                  <View style={[styles.modalDivider, { marginVertical: 10 }]} />
+                  
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginVertical: 4 }}>
+                    <Text style={{ color: Theme.textPrimary, fontSize: 14, fontFamily: Fonts.black, fontWeight: "bold" }}>Total Achieved:</Text>
+                    <Text style={{ color: Theme.primary, fontSize: 15, fontFamily: Fonts.black, fontWeight: "bold" }}>
+                      {formatCurrency(selectedArtistForBreakdown?.Achieved || 0)}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginVertical: 4 }}>
+                    <Text style={{ color: Theme.textPrimary, fontSize: 14, fontFamily: Fonts.black, fontWeight: "bold" }}>Target Amount:</Text>
+                    <Text style={{ color: Theme.success, fontSize: 15, fontFamily: Fonts.black, fontWeight: "bold" }}>
+                      {formatCurrency(selectedArtistForBreakdown?.TargetAmount || 0)}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginVertical: 4 }}>
+                    <Text style={{ color: Theme.textPrimary, fontSize: 14, fontFamily: Fonts.black, fontWeight: "bold" }}>Left to Target:</Text>
+                    <Text style={{ color: Number(selectedArtistForBreakdown?.Left || 0) > 0 ? "#dc2626" : Theme.success, fontSize: 15, fontFamily: Fonts.black, fontWeight: "bold" }}>
+                      {formatCurrency(selectedArtistForBreakdown?.Left || 0)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </View>
       </SafeAreaView>
     </View>

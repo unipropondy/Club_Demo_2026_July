@@ -469,11 +469,10 @@ export default function SettlementScreen() {
       }
     } catch (err: any) {
       console.error("Day End Error:", err);
-      const errorMsg = err.response?.data?.error || err.message || "Failed to connect to the server.";
       showToast({
         type: "error",
         message: "Day End Failed",
-        subtitle: errorMsg
+        subtitle: err.response?.data?.error || err.message || "Failed to connect to the server."
       });
     } finally {
       setLoading(false);
@@ -805,10 +804,28 @@ const fetchDayHistory = async () => {
     })
     .reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0);
 
-  const sysCash = salesCash + transactionsTotal;
+  const dbHasCashSalesInCashIn = cashInEntries.some(entry => entry.Reason === 'Cash Sale' || entry.Reason === 'Cash Box Entry');
 
-  const totalCashIn = paymentsTotal + displayOpeningAmount + totalCashInEntries + transactions.filter(t => t.TransactionType === "IN").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
-  const totalCashOutSum = totalCashOut + transactions.filter(t => t.TransactionType === "OUT").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
+  const cashInTransactionsSum = transactions.filter(t => t.TransactionType === "IN").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
+  const cashOutTransactionsSum = transactions.filter(t => t.TransactionType === "OUT").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
+
+  const displayManualCashIn = dbHasCashSalesInCashIn
+    ? Math.max(0, totalCashInEntries - salesCash)
+    : totalCashInEntries;
+
+  const displayCashInCard = dbHasCashSalesInCashIn
+    ? totalCashInEntries + cashInTransactionsSum
+    : totalCashInEntries + salesCash + cashInTransactionsSum;
+
+  const displayCashOutCard = totalCashOut + cashOutTransactionsSum;
+
+  const totalCashIn = paymentsTotal + displayOpeningAmount + displayManualCashIn + cashInTransactionsSum;
+
+  const totalCashOutSum = totalCashOut + cashOutTransactionsSum;
+
+  const sysCash = dbHasCashSalesInCashIn
+    ? displayOpeningAmount + totalCashInEntries - totalCashOut + baseTransactionsTotal
+    : displayOpeningAmount + totalCashInEntries + salesCash - totalCashOut + baseTransactionsTotal;
 
   const handleFinalize = async () => {
     try {
@@ -1774,7 +1791,7 @@ const fetchDayHistory = async () => {
                   <Ionicons name="add-circle-outline" size={isTablet ? 16 : 14} color={Theme.success} />
                   <Text style={{ fontFamily: Fonts.bold, color: Theme.success, fontSize: isTablet ? 12 : 11 }}>Cash In</Text>
                 </View>
-                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: Theme.success, marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(totalCashInEntries)}</Text>
+                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: Theme.success, marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(displayCashInCard)}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1791,7 +1808,7 @@ const fetchDayHistory = async () => {
                   <Ionicons name="remove-circle-outline" size={isTablet ? 16 : 14} color={Theme.danger} />
                   <Text style={{ fontFamily: Fonts.bold, color: Theme.danger, fontSize: isTablet ? 12 : 11 }}>Cash Out</Text>
                 </View>
-                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: Theme.danger, marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(totalCashOut)}</Text>
+                <Text style={{ fontFamily: Fonts.black, fontSize: isTablet ? 22 : 16, color: Theme.danger, marginTop: 5 }} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(displayCashOutCard)}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -1899,7 +1916,7 @@ const fetchDayHistory = async () => {
                       </Text>
                     </View>
                   )}
-                  {cashInEntries.map((ci, i) => (
+                  {cashInEntries.filter(ci => ci.Reason !== 'Cash Sale' && ci.Reason !== 'Cash Box Entry').map((ci, i) => (
                     <TouchableOpacity
                       key={`ci-${i}`}
                       style={[styles.tableRow, { alignItems: 'center' }]}

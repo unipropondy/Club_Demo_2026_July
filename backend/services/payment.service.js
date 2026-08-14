@@ -43,10 +43,23 @@ async function processSplitPayments({
     }
 
     // Resolve paymode
-    let dbPaymode = activePaymodes.find(pm => 
-      pm.Position === Number(payment.payModeId) || 
-      String(pm.PayMode).trim().toUpperCase() === String(payment.payModeId || payment.payMode || "").trim().toUpperCase()
-    );
+    let dbPaymode = activePaymodes.find(pm => {
+      if (pm.Position === Number(payment.payModeId)) return true;
+      const pmUpper = String(pm.PayMode).trim().toUpperCase();
+      const inputMode = String(payment.payModeId || payment.payMode || "").trim().toUpperCase();
+      if (pmUpper === inputMode) return true;
+      
+      // Virtual mapping fallbacks
+      if (pmUpper === 'QR' && (inputMode === 'Q-R' || inputMode === 'Q.R.')) return true;
+      if (pmUpper === 'PAYNOW' && inputMode === 'PAY_NOW') return true;
+      if (pmUpper === 'PAY-NOW' && inputMode === 'PAY_NOW') return true;
+      if (pmUpper === 'UPI' && inputMode === 'U-P-I') return true;
+      if (pmUpper === 'GPAY' && inputMode === 'G-PAY') return true;
+      if (pmUpper === 'PHONE' && inputMode === 'P-H-O-N-E') return true;
+      if (pmUpper === 'PAYTM' && inputMode === 'P-A-Y-T-M') return true;
+      
+      return false;
+    });
 
     if (!dbPaymode) {
       throw new Error(`Invalid or inactive payment mode specified: ${payment.payModeId || payment.payMode}`);
@@ -216,6 +229,56 @@ if (!gatewayResponse.success) {
         @ReferenceNo, GETDATE(), @CreatedBy
       )
     `);
+
+    // ============================================================
+    // 🆕 AUTO CASH IN ENTRY FOR CASH PAYMENTS
+    // ============================================================
+    const isCashMode = payModeName.toUpperCase().trim() === 'CASH';
+    if (isCashMode) {
+      let startDate = null;
+      const activeDayRes = await transaction.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
+      if (activeDayRes.recordset.length > 0) {
+        startDate = activeDayRes.recordset[0].StartDate;
+      }
+
+      let cashierName = 'Admin';
+      if (cashierId && cashierId !== '00000000-0000-0000-0000-000000000000') {
+        const userRes = await transaction.request()
+          .input("UserId", sql.UniqueIdentifier, cashierId)
+          .query("SELECT TOP 1 UserName FROM UserMaster WHERE UserId = @UserId");
+        if (userRes.recordset.length > 0) {
+          cashierName = userRes.recordset[0].UserName;
+        }
+      }
+
+      let terminalCode = '';
+      if (referenceType === 'BILL') {
+        const termRes = await transaction.request()
+          .input("SettlementID", sql.UniqueIdentifier, referenceId)
+          .query("SELECT TOP 1 TerminalCode FROM SettlementHeader WHERE SettlementID = @SettlementID");
+        terminalCode = termRes.recordset[0]?.TerminalCode || '';
+      }
+
+      const dateStr = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' }).replace(/-/g, '');
+      const randId = Math.floor(1000 + Math.random() * 9000);
+      const cashInNo = `CI-${dateStr}-${randId}`;
+
+      const cashInReq = new sql.Request(transaction);
+      await cashInReq
+        .input('CashInNo', sql.VarChar, cashInNo)
+        .input('Amount', sql.Decimal(18, 2), amount)
+        .input('Reason', sql.VarChar, referenceType === 'BILL' ? 'Cash Sale' : 'Ledger Payment')
+        .input('Remarks', sql.VarChar, `Auto Cash In from ${referenceType}: ${referenceId}`)
+        .input('PaymentMode', sql.VarChar, 'Cash')
+        .input('ReferenceNo', sql.VarChar, referenceId)
+        .input('TerminalCode', sql.VarChar, terminalCode)
+        .input('CreatedBy', sql.VarChar, cashierName)
+        .input('startDate', sql.Date, startDate)
+        .query(`
+          INSERT INTO CashInEntry (CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date)
+          VALUES (@CashInNo, GETDATE(), @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, GETDATE(), @startDate)
+        `);
+    }
 
     // ============================================================
     // 4️⃣ If BILL, write to legacy tables

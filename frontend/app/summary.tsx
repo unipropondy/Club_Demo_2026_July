@@ -556,7 +556,6 @@ export default function SummaryScreen() {
     }
   }, [params.openPartQueue, context]);
 
-
   const settings = useCompanySettingsStore((state: any) => state.settings);
   const currencySymbol = settings.currencySymbol || "$";
   const gstRate = (settings.gstPercentage || 0) / 100;
@@ -4753,7 +4752,7 @@ export default function SummaryScreen() {
                   const activeCart = cart.filter((i: any) => i.status !== "VOIDED");
 
                   if (splitType === "parts") {
-                    // ── SPLIT BY PARTS: Open Part Queue ─────────────────────
+                    // ── SPLIT BY PARTS: Open Part Queue ────────────────────────
                     // Reset any old paid-parts tracking and open the queue screen
                     setPartQueuePaidParts([]);
                     useCartStore.getState().setSplitSession({
@@ -4765,7 +4764,7 @@ export default function SummaryScreen() {
                     setShowSplitModal(false);
                     setShowPartQueue(true);
                   } else {
-                    // ── SPLIT BY ITEMS: Show Bill Chit Preview first ─────────
+                    // ── SPLIT BY ITEMS: Show Bill Chit Preview first ───────────
                     const selectedItems = [
                       ...activeCart
                         .map((item: any) => ({

@@ -55,7 +55,10 @@ const normalizeReportPayModeSql = (columnName = "sts.PayMode", settlementIdColum
 
   const rawSql = `
     UPPER(ISNULL(
-      (SELECT TOP 1 LTRIM(RTRIM(Description)) 
+      (SELECT TOP 1 
+         CASE WHEN LTRIM(RTRIM(pm.Description)) = 'QR' OR LTRIM(RTRIM(pm.PayMode)) = 'QR' OR LTRIM(RTRIM(pm.Description)) = 'Q-R' OR LTRIM(RTRIM(pm.PayMode)) = 'Q-R' THEN 'Q-R'
+              ELSE LTRIM(RTRIM(pm.Description)) 
+         END
        FROM Paymode pm 
        WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))
           OR LTRIM(RTRIM(pm.Description)) = LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))
@@ -71,6 +74,7 @@ const normalizeReportPayModeSql = (columnName = "sts.PayMode", settlementIdColum
         WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('NETS', '2') OR UPPER(${resolvedPayMode}) LIKE '%NETS%' THEN 'NETS'
         WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('UPI', '4') OR UPPER(${resolvedPayMode}) LIKE '%UPI%' OR UPPER(${resolvedPayMode}) LIKE '%GPAY%' THEN 'UPI'
         WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('MEMBER', '5') OR UPPER(${resolvedPayMode}) LIKE '%MEMBER%' THEN 'MEMBER'
+        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('QR', 'Q-R') THEN 'Q-R'
         ELSE UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, 'CASH'))))
       END
     ))
@@ -150,7 +154,7 @@ const getReportDateWhereSqlForRange = (startDateStr, endDateStr, saleDateColumn 
 
 const normalizeReportFilter = (filter = "daily") => {
   const normalized = String(filter || "daily").toLowerCase();
-  return ["daily", "weekly", "monthly", "yearly"].includes(normalized) ? normalized : "daily";
+  return ["daily", "weekly", "monthly", "yearly", "custom"].includes(normalized) ? normalized : "daily";
 };
 
 const parseCsv = (value) => String(value || "")
@@ -161,6 +165,12 @@ const parseCsv = (value) => String(value || "")
 const normalizePayMode = (paymentMethod = "CASH") => {
   const raw = String(paymentMethod || "CASH").toUpperCase().trim();
   
+  if (raw === "Q-R" || raw === "Q.R.") return "QR";
+  if (raw === "PAY_NOW") return "PAYNOW";
+  if (raw === "U-P-I") return "UPI";
+  if (raw === "G-PAY") return "GPAY";
+  if (raw === "P-H-O-N-E") return "PHONE";
+  if (raw === "P-A-Y-T-M") return "PAYTM";
   if (raw.includes("CASH") || raw === "CAS") return "CASH";
   if (raw.includes("YEAHPAY PAYNOW") || raw === "YEAHPAY PAYNOW") return "Yeahpay Paynow";
   if (raw.includes("YEAHPAY CARD") || raw === "YEAHPAY CARD") return "Yeahpay Card";
@@ -773,15 +783,7 @@ router.get("/category", async (req, res) => {
             ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), ISNULL(cm.CategoryName, 'Unmapped')) AS categoryName,
             SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED' THEN CAST(ISNULL(sid.Qty, 0) AS decimal(18, 3)) ELSE 0 END) AS totalQty,
             SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') = 'VOIDED' THEN CAST(ISNULL(sid.Qty, 0) AS decimal(18, 3)) ELSE 0 END) AS voidQty,
-            SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
-                     THEN CAST(
-                       CASE 
-                         WHEN sid.DiscountType = 'percentage' 
-                         THEN CASE WHEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (1 - ISNULL(sid.DiscountAmount, 0) / 100) - ISNULL(sid.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (1 - ISNULL(sid.DiscountAmount, 0) / 100) - ISNULL(sid.VIPDiscountAmount, 0) END
-                         ELSE CASE WHEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (ISNULL(sid.Qty, 0) * ISNULL(sid.DiscountAmount, 0)) - ISNULL(sid.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (ISNULL(sid.Qty, 0) * ISNULL(sid.DiscountAmount, 0)) - ISNULL(sid.VIPDiscountAmount, 0) END
-                       END AS decimal(18, 2))
-                     ELSE 0
-                END) AS totalAmount
+            SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED' THEN CAST(CASE WHEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (CASE WHEN sid.DiscountType = 'percentage' THEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (ISNULL(sid.DiscountAmount, 0) / 100.0) ELSE ISNULL(sid.Qty, 0) * (CASE WHEN ISNULL(sid.DiscountAmount, 0) > ISNULL(sid.Price, 0) THEN ISNULL(sid.Price, 0) ELSE ISNULL(sid.DiscountAmount, 0) END) END) - ISNULL(sid.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (CASE WHEN sid.DiscountType = 'percentage' THEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (ISNULL(sid.DiscountAmount, 0) / 100.0) ELSE ISNULL(sid.Qty, 0) * (CASE WHEN ISNULL(sid.DiscountAmount, 0) > ISNULL(sid.Price, 0) THEN ISNULL(sid.Price, 0) ELSE ISNULL(sid.DiscountAmount, 0) END) END) - ISNULL(sid.VIPDiscountAmount, 0) END AS decimal(18, 2)) ELSE 0 END) AS totalAmount
           FROM SettlementHeader sh
           INNER JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID
           LEFT JOIN DishMaster d ON sid.DishId = d.DishId
@@ -881,15 +883,7 @@ router.get("/dish", async (req, res) => {
             ISNULL(NULLIF(LTRIM(RTRIM(sid.SubCategoryName)), ''), ISNULL(dg.DishGroupName, 'Unmapped')) AS subCategoryName,
             SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED' THEN CAST(ISNULL(sid.Qty, 0) AS decimal(18, 3)) ELSE 0 END) AS totalQty,
             SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') = 'VOIDED' THEN CAST(ISNULL(sid.Qty, 0) AS decimal(18, 3)) ELSE 0 END) AS voidQty,
-            SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
-                     THEN CAST(
-                       CASE 
-                         WHEN sid.DiscountType = 'percentage' 
-                         THEN CASE WHEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (1 - ISNULL(sid.DiscountAmount, 0) / 100) - ISNULL(sid.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (1 - ISNULL(sid.DiscountAmount, 0) / 100) - ISNULL(sid.VIPDiscountAmount, 0) END
-                         ELSE CASE WHEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (ISNULL(sid.Qty, 0) * ISNULL(sid.DiscountAmount, 0)) - ISNULL(sid.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (ISNULL(sid.Qty, 0) * ISNULL(sid.DiscountAmount, 0)) - ISNULL(sid.VIPDiscountAmount, 0) END
-                       END AS decimal(18, 2))
-                     ELSE 0
-                END) AS totalAmount
+            SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED' THEN CAST(CASE WHEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (CASE WHEN sid.DiscountType = 'percentage' THEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (ISNULL(sid.DiscountAmount, 0) / 100.0) ELSE ISNULL(sid.Qty, 0) * (CASE WHEN ISNULL(sid.DiscountAmount, 0) > ISNULL(sid.Price, 0) THEN ISNULL(sid.Price, 0) ELSE ISNULL(sid.DiscountAmount, 0) END) END) - ISNULL(sid.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (CASE WHEN sid.DiscountType = 'percentage' THEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (ISNULL(sid.DiscountAmount, 0) / 100.0) ELSE ISNULL(sid.Qty, 0) * (CASE WHEN ISNULL(sid.DiscountAmount, 0) > ISNULL(sid.Price, 0) THEN ISNULL(sid.Price, 0) ELSE ISNULL(sid.DiscountAmount, 0) END) END) - ISNULL(sid.VIPDiscountAmount, 0) END AS decimal(18, 2)) ELSE 0 END) AS totalAmount
           FROM SettlementHeader sh
           INNER JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID
           LEFT JOIN DishMaster d ON sid.DishId = d.DishId
@@ -1070,57 +1064,114 @@ router.get("/settlement", async (req, res) => {
 router.get("/artist-target", async (req, res) => {
   try {
     const pool = await poolPromise;
-    const result = await pool.request().query(`
+    
+    // 1. Fetch active Dish Groups to initialize breakdown keys
+    const groupsRes = await pool.request().query(`
+      SELECT DISTINCT DishGroupName 
+      FROM DishGroupMaster 
+      WHERE IsActive = 1 
+        AND DishGroupName IN ('Solo', 'Group', 'Mala', 'Crown', 'VIP', 'SP1', 'SPP')
+    `);
+    const activeGroups = groupsRes.recordset.map(g => g.DishGroupName);
+
+    // 2. Fetch main targets
+    const targetsRes = await pool.request().query(`
       SELECT 
         a.Id,
         a.CustomerName,
         a.FromDate,
         a.ToDate,
         COALESCE(a.TargetAmount, a.Amount, 0) AS TargetAmount,
-        COALESCE(a.TargetAmount, a.Amount, 0) AS Amount, -- Backward compatibility for frontend
-        ISNULL(sales.Achieved, 0) + ISNULL(cb.CashBoxAchieved, 0) AS Achieved,
-        CASE 
-          WHEN COALESCE(a.TargetAmount, a.Amount, 0) - (ISNULL(sales.Achieved, 0) + ISNULL(cb.CashBoxAchieved, 0)) > 0 
-          THEN COALESCE(a.TargetAmount, a.Amount, 0) - (ISNULL(sales.Achieved, 0) + ISNULL(cb.CashBoxAchieved, 0))
-          ELSE 0 
-        END AS [Left],
-        CASE 
-          WHEN (ISNULL(sales.Achieved, 0) + ISNULL(cb.CashBoxAchieved, 0)) >= COALESCE(a.TargetAmount, a.Amount, 0) 
-          THEN 'Achieved'
-          ELSE 'Not Achieved'
-        END AS [Status],
+        COALESCE(a.TargetAmount, a.Amount, 0) AS Amount, -- Backward compatibility
         a.CreatedDate
       FROM dishOrderItemShare a
-      OUTER APPLY (
-        SELECT SUM(CAST(
-          CASE 
-            WHEN b.DiscountType = 'percentage' 
-            THEN CASE WHEN (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) * (1 - ISNULL(b.DiscountAmount, 0) / 100) - ISNULL(b.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) * (1 - ISNULL(b.DiscountAmount, 0) / 100) - ISNULL(b.VIPDiscountAmount, 0) END
-            ELSE CASE WHEN (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) - (ISNULL(b.Qty, 0) * ISNULL(b.DiscountAmount, 0)) - ISNULL(b.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) - (ISNULL(b.Qty, 0) * ISNULL(b.DiscountAmount, 0)) - ISNULL(b.VIPDiscountAmount, 0) END
-          END AS decimal(18,2))) AS Achieved
-        FROM settlementitemdetail b
-        INNER JOIN SettlementHeader sh ON b.SettlementID = sh.SettlementID
-        WHERE (
-          b.DishId = a.DishId 
-          OR LTRIM(RTRIM(b.DishName)) = LTRIM(RTRIM(a.CustomerName))
-          OR b.DishName LIKE '%' + LTRIM(RTRIM(a.CustomerName)) + '%'
-        )
-          AND sh.IsCancelled = 0
-          AND ISNULL(sh.OrderType, '') <> 'CASHBOX'
-          AND ISNULL(b.Status, 'NORMAL') <> 'VOIDED'
-          AND b.OrderDateTime >= CAST(a.FromDate AS DATETIME)
-          AND b.OrderDateTime < DATEADD(DAY, 1, CAST(a.ToDate AS DATETIME))
-      ) sales
-      OUTER APPLY (
-        SELECT SUM(cb_inner.Amount) AS CashBoxAchieved
-        FROM ArtistCashBox cb_inner
-        WHERE LTRIM(RTRIM(cb_inner.ArtistName)) = LTRIM(RTRIM(a.CustomerName))
-          AND CAST(cb_inner.CreatedDate AS DATE) >= CAST(a.FromDate AS DATE)
-          AND CAST(cb_inner.CreatedDate AS DATE) <= CAST(a.ToDate AS DATE)
-      ) cb
       ORDER BY a.CreatedDate DESC, a.CustomerName ASC
     `);
-    res.json(result.recordset || []);
+    const targets = targetsRes.recordset;
+
+    // 3. Fetch Group Sales Breakdown
+    const groupSalesRes = await pool.request().query(`
+      SELECT 
+        a.Id AS TargetId,
+        ISNULL(NULLIF(LTRIM(RTRIM(b.SubCategoryName)), ''), ISNULL(dg.DishGroupName, 'Others')) AS GroupName,
+        SUM(CASE WHEN (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) - (CASE WHEN b.DiscountType = 'percentage' THEN (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) * (ISNULL(b.DiscountAmount, 0) / 100.0) ELSE ISNULL(b.Qty, 0) * (CASE WHEN ISNULL(b.DiscountAmount, 0) > ISNULL(b.Price, 0) THEN ISNULL(b.Price, 0) ELSE ISNULL(b.DiscountAmount, 0) END) END) - ISNULL(b.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) - (CASE WHEN b.DiscountType = 'percentage' THEN (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) * (ISNULL(b.DiscountAmount, 0) / 100.0) ELSE ISNULL(b.Qty, 0) * (CASE WHEN ISNULL(b.DiscountAmount, 0) > ISNULL(b.Price, 0) THEN ISNULL(b.Price, 0) ELSE ISNULL(b.DiscountAmount, 0) END) END) - ISNULL(b.VIPDiscountAmount, 0) END) AS GroupSales
+      FROM dishOrderItemShare a
+      INNER JOIN settlementitemdetail b ON (
+        b.DishId = a.DishId 
+        OR LTRIM(RTRIM(b.DishName)) = LTRIM(RTRIM(a.CustomerName))
+        OR b.DishName LIKE '%' + LTRIM(RTRIM(a.CustomerName)) + '%'
+      )
+      INNER JOIN SettlementHeader sh ON b.SettlementID = sh.SettlementID
+      LEFT JOIN DishGroupMaster dg ON b.DishGroupId = dg.DishGroupId
+      WHERE sh.IsCancelled = 0
+        AND ISNULL(sh.OrderType, '') <> 'CASHBOX'
+        AND ISNULL(b.Status, 'NORMAL') <> 'VOIDED'
+        AND b.OrderDateTime >= CAST(a.FromDate AS DATETIME)
+        AND b.OrderDateTime < DATEADD(DAY, 1, CAST(a.ToDate AS DATETIME))
+      GROUP BY a.Id, ISNULL(NULLIF(LTRIM(RTRIM(b.SubCategoryName)), ''), ISNULL(dg.DishGroupName, 'Others'))
+    `);
+    const groupSales = groupSalesRes.recordset;
+
+    // 4. Fetch Cash Box Sales
+    const cashBoxRes = await pool.request().query(`
+      SELECT 
+        a.Id AS TargetId,
+        SUM(cb.Amount) AS CashBoxSales
+      FROM dishOrderItemShare a
+      INNER JOIN ArtistCashBox cb ON LTRIM(RTRIM(cb.ArtistName)) = LTRIM(RTRIM(a.CustomerName))
+      WHERE CAST(cb.CreatedDate AS DATE) >= CAST(a.FromDate AS DATE)
+        AND CAST(cb.CreatedDate AS DATE) <= CAST(a.ToDate AS DATE)
+      GROUP BY a.Id
+    `);
+    const cashBoxSales = cashBoxRes.recordset;
+
+    // 5. Merge and calculate
+    const resultRows = targets.map(t => {
+      const tGroupSales = groupSales.filter(gs => gs.TargetId === t.Id);
+      const tCashBox = cashBoxSales.find(cb => cb.TargetId === t.Id);
+      const cbAmt = tCashBox ? tCashBox.CashBoxSales : 0;
+
+      const totalGroupSales = tGroupSales.reduce((acc, curr) => acc + (curr.GroupSales || 0), 0);
+      const achieved = totalGroupSales + cbAmt;
+
+      // Construct dynamic breakdown
+      const breakdownObj = {};
+      
+      // Initialize active Entertainment groups to 0
+      activeGroups.forEach(g => {
+        breakdownObj[g] = 0;
+      });
+
+      // Populate actual sales
+      tGroupSales.forEach(gs => {
+        const name = gs.GroupName;
+        breakdownObj[name] = (breakdownObj[name] || 0) + (gs.GroupSales || 0);
+      });
+
+      // Add Cash Box
+      breakdownObj["Cash Box"] = cbAmt;
+
+      // Map object to array format for easy frontend rendering
+      const breakdown = Object.entries(breakdownObj).map(([name, amount]) => ({
+        name,
+        amount
+      }));
+
+      // Calculate Left and Status
+      const targetAmount = t.TargetAmount;
+      const left = targetAmount - achieved > 0 ? targetAmount - achieved : 0;
+      const status = achieved >= targetAmount ? 'Achieved' : 'Not Achieved';
+
+      return {
+        ...t,
+        Achieved: achieved,
+        Left: left,
+        Status: status,
+        Breakdown: breakdown
+      };
+    });
+
+    res.json(resultRows);
   } catch (err) {
     console.error("[REPORT API] artist-target error:", err.message);
     res.status(500).json({ error: err.message });
@@ -2813,7 +2864,20 @@ router.get("/payment-methods", async (req, res) => {
         FROM [dbo].[Paymode] 
         ORDER BY Position ASC
       `);
-      res.json(result.recordset || []);
+      const mapped = (result.recordset || []).map(item => {
+        if (!item.payMode) return item;
+        const trimmedMode = item.payMode.trim().toUpperCase();
+        let virtualMode = item.payMode.trim();
+        if (trimmedMode === 'QR') virtualMode = 'Q-R';
+        else if (trimmedMode === 'PAYNOW') virtualMode = 'PAY_NOW';
+        else if (trimmedMode === 'PAY-NOW') virtualMode = 'PAY_NOW';
+        else if (trimmedMode === 'UPI') virtualMode = 'U-P-I';
+        else if (trimmedMode === 'GPAY') virtualMode = 'G-PAY';
+        else if (trimmedMode === 'PHONE') virtualMode = 'P-H-O-N-E';
+        else if (trimmedMode === 'PAYTM') virtualMode = 'P-A-Y-T-M';
+        return { ...item, payMode: virtualMode };
+      });
+      res.json(mapped);
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2861,6 +2925,9 @@ router.get("/consolidated-report/pdf", async (req, res) => {
     } else if (filter === 'yearly') {
       const start = new Date(targetDate.getFullYear(), 0, 1);
       startDateStr = start.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    } else if (filter === 'custom' && req.query.startDate && req.query.endDate) {
+      startDateStr = req.query.startDate;
+      endDateStr = req.query.endDate;
     }
 
     const { fetchFullReportData } = require('../utils/reportDataFetcher');
@@ -2877,6 +2944,256 @@ router.get("/consolidated-report/pdf", async (req, res) => {
   } catch (err) {
     console.error('[SALES/consolidated-report] Error:', err.message);
     res.status(500).json({ error: 'Failed to generate report PDF', details: err.message });
+  }
+});
+
+/**
+ * Generate comprehensive consolidated sales report CSV (Excel format)
+ * Supports daily, weekly, monthly, yearly, and custom ranges
+ */
+router.get("/consolidated-report/csv", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    if (!pool) {
+      return res.status(503).json({ error: 'Database connection unavailable' });
+    }
+
+    const filter = normalizeReportFilter(req.query.filter || 'daily');
+    const targetDateStr = req.query.date || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    const targetDate = new Date(targetDateStr);
+    let startDateStr = targetDateStr;
+    let endDateStr = targetDateStr;
+
+    if (filter === 'weekly') {
+      const start = new Date(targetDate);
+      start.setDate(start.getDate() - 6);
+      startDateStr = start.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    } else if (filter === 'monthly') {
+      const start = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      startDateStr = start.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    } else if (filter === 'yearly') {
+      const start = new Date(targetDate.getFullYear(), 0, 1);
+      startDateStr = start.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    } else if (filter === 'custom' && req.query.startDate && req.query.endDate) {
+      startDateStr = req.query.startDate;
+      endDateStr = req.query.endDate;
+    }
+
+    console.log(`[SALES/consolidated-report-csv] Query params: filter=${filter}, date=${req.query.date}, startDate=${req.query.startDate}, endDate=${req.query.endDate}`);
+    console.log(`[SALES/consolidated-report-csv] Computed Range: ${startDateStr} to ${endDateStr}`);
+
+    const { fetchFullReportData } = require('../utils/reportDataFetcher');
+    const reportData = await fetchFullReportData(startDateStr, endDateStr, pool);
+
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Sales Report');
+
+    worksheet.views = [{ showGridLines: true }];
+
+    const titleFont = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
+    const sectionHeaderFont = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF1E293B' } };
+    const tableHeaderFont = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+    const normalFont = { name: 'Arial', size: 10 };
+    const boldFont = { name: 'Arial', size: 10, bold: true };
+
+    const titleFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4F46E5' } };
+    const tableHeaderFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF64748B' } };
+    const zebraFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+
+    worksheet.mergeCells('A1:E1');
+    const titleCell = worksheet.getCell('A1');
+    titleCell.value = 'CONSOLIDATED SALES REPORT';
+    titleCell.font = titleFont;
+    titleCell.fill = titleFill;
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    worksheet.getRow(1).height = 35;
+
+    worksheet.addRow([]);
+    worksheet.addRow(['Filter Type', filter.toUpperCase()]).font = boldFont;
+    worksheet.addRow(['Date Range', `${startDateStr} to ${endDateStr}`]).font = boldFont;
+    worksheet.addRow(['Generated On', reportData.printedOn]).font = boldFont;
+    worksheet.addRow([]);
+
+    const summaryRow = worksheet.addRow(['FINANCIAL SUMMARY']);
+    summaryRow.getCell(1).font = sectionHeaderFont;
+    worksheet.addRow([]);
+
+    const summaryHeaders = worksheet.addRow(['Metric', 'Value']);
+    summaryHeaders.eachCell(cell => {
+      cell.font = tableHeaderFont;
+      cell.fill = tableHeaderFill;
+    });
+
+    const metrics = [
+      ['Total Sales', reportData.totalSales || 0],
+      ['Total Collections', reportData.totalCollections || 0],
+      ['Credit Payments Collected', reportData.creditPaymentsCollected || 0],
+      ['Member Payments Collected', reportData.memberPaymentsCollected || 0],
+      ['Total Orders', reportData.totalOrders || 0],
+      ['Total Items Sold', reportData.totalItems || 0],
+      ['Void Quantity', reportData.voidQty || 0],
+      ['Void Amount', reportData.voidAmount || 0],
+      ['Cancelled Orders Count', reportData.cancelledCount || 0],
+      ['Cancelled Orders Amount', reportData.cancelledAmount || 0],
+      ['Total VIP Discount', reportData.totalVIPDiscount || 0]
+    ];
+
+    metrics.forEach((m, idx) => {
+      const r = worksheet.addRow([m[0], m[1]]);
+      r.getCell(1).font = normalFont;
+      r.getCell(2).font = boldFont;
+      const isCurrency = typeof m[1] === 'number' && 
+          !m[0].includes('Orders') && 
+          !m[0].includes('Sold') && 
+          !m[0].includes('Qty') && 
+          !m[0].includes('Count') && 
+          !m[0].includes('Quantity');
+        if (isCurrency) {
+          r.getCell(2).numFmt = '$#,##0.00';
+        } else {
+          r.getCell(2).numFmt = '#,##0';
+        }
+      if (idx % 2 === 1) {
+        r.eachCell(c => c.fill = zebraFill);
+      }
+    });
+    worksheet.addRow([]);
+
+    const paymentHeader = worksheet.addRow(['PAYMENT METHOD BREAKDOWN']);
+    paymentHeader.getCell(1).font = sectionHeaderFont;
+    worksheet.addRow([]);
+
+    const paymentHeaders = worksheet.addRow(['Payment Mode', 'System Amount', 'Count']);
+    paymentHeaders.eachCell(cell => {
+      cell.font = tableHeaderFont;
+      cell.fill = tableHeaderFill;
+    });
+
+    if (reportData.activePaymodes) {
+      reportData.activePaymodes.forEach((pm, idx) => {
+        const mode = String(pm.payMode || '').toUpperCase().trim();
+        const amt = reportData.paymentBreakdown[mode] || 0;
+        const count = reportData.paymentCounts[mode] || 0;
+        const r = worksheet.addRow([pm.description, amt, count]);
+        r.getCell(1).font = normalFont;
+        r.getCell(2).font = normalFont;
+        r.getCell(2).numFmt = '$#,##0.00';
+        r.getCell(3).font = normalFont;
+        if (idx % 2 === 1) {
+          r.eachCell(c => c.fill = zebraFill);
+        }
+      });
+    }
+    worksheet.addRow([]);
+
+    const categoryHeader = worksheet.addRow(['CATEGORY SALES']);
+    categoryHeader.getCell(1).font = sectionHeaderFont;
+    worksheet.addRow([]);
+
+    const catHeaders = worksheet.addRow(['Category Name', 'Quantity Sold', 'Sales Amount']);
+    catHeaders.eachCell(cell => {
+      cell.font = tableHeaderFont;
+      cell.fill = tableHeaderFill;
+    });
+
+    if (reportData.categories) {
+      reportData.categories.forEach((cat, idx) => {
+        const r = worksheet.addRow([cat.Category || 'Unmapped', cat.Qty || 0, cat.Sales || 0]);
+        r.getCell(1).font = normalFont;
+        r.getCell(2).font = normalFont;
+        r.getCell(3).font = normalFont;
+        r.getCell(3).numFmt = '$#,##0.00';
+        if (idx % 2 === 1) {
+          r.eachCell(c => c.fill = zebraFill);
+        }
+      });
+    }
+    worksheet.addRow([]);
+
+    const itemHeader = worksheet.addRow(['ITEM SALES']);
+    itemHeader.getCell(1).font = sectionHeaderFont;
+    worksheet.addRow([]);
+
+    const itemHeaders = worksheet.addRow(['Item Name', 'Category', 'Quantity Sold', 'Sales Amount']);
+    itemHeaders.eachCell(cell => {
+      cell.font = tableHeaderFont;
+      cell.fill = tableHeaderFill;
+    });
+
+    if (reportData.items) {
+      reportData.items.forEach((item, idx) => {
+        const r = worksheet.addRow([item.Item || 'Unknown', item.Category || 'Unmapped', item.Qty || 0, item.Sales || 0]);
+        r.getCell(1).font = normalFont;
+        r.getCell(2).font = normalFont;
+        r.getCell(3).font = normalFont;
+        r.getCell(4).font = normalFont;
+        r.getCell(4).numFmt = '$#,##0.00';
+        if (idx % 2 === 1) {
+          r.eachCell(c => c.fill = zebraFill);
+        }
+      });
+    }
+    worksheet.addRow([]);
+
+    const artistHeader = worksheet.addRow(['ARTIST PERFORMANCE TARGETS']);
+    artistHeader.getCell(1).font = sectionHeaderFont;
+    worksheet.addRow([]);
+
+    const artHeaders = worksheet.addRow(['Artist Name', 'Target Amount', 'Achieved Amount', 'Left to Target', 'Status']);
+    artHeaders.eachCell(cell => {
+      cell.font = tableHeaderFont;
+      cell.fill = tableHeaderFill;
+    });
+
+    if (reportData.artistSales) {
+      reportData.artistSales.forEach((art, idx) => {
+        const target = art.TargetAmount || 0;
+        const achieved = art.ActualSales || 0;
+        const left = target - achieved > 0 ? target - achieved : 0;
+        const status = achieved >= target ? 'Achieved' : 'Not Achieved';
+        const r = worksheet.addRow([art.Name || 'Unknown', target, achieved, left, status]);
+        r.getCell(1).font = normalFont;
+        r.getCell(2).font = normalFont;
+        r.getCell(2).numFmt = '$#,##0.00';
+        r.getCell(3).font = normalFont;
+        r.getCell(3).numFmt = '$#,##0.00';
+        r.getCell(4).font = normalFont;
+        r.getCell(4).numFmt = '$#,##0.00';
+        r.getCell(5).font = boldFont;
+        if (status === 'Achieved') {
+          r.getCell(5).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FF10B981' } };
+        } else {
+          r.getCell(5).font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFEF4444' } };
+        }
+        if (idx % 2 === 1) {
+          r.eachCell(c => c.fill = zebraFill);
+        }
+      });
+    }
+
+    worksheet.columns.forEach(column => {
+      let maxLen = 0;
+      column.eachCell({ includeEmpty: false }, cell => {
+        if (cell.row === 1) return;
+        const valStr = cell.value ? String(cell.value) : '';
+        if (valStr.length > maxLen) {
+          maxLen = valStr.length;
+        }
+      });
+      column.width = Math.max(maxLen + 4, 15);
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `Consolidated_Sales_Report_${filter}_${startDateStr}.xlsx`;
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+
+  } catch (err) {
+    console.error('[SALES/consolidated-report-csv] Error:', err.message);
+    res.status(500).json({ error: 'Failed to generate Excel report', details: err.message });
   }
 });
 

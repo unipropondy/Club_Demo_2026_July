@@ -16,16 +16,18 @@ router.post("/day-start", async (req, res) => {
     }
     const pool = getPool();
     
-    // Check if an active business day already exists in DateEntry
+    // Check if there is already an active business day
     const activeDayRes = await pool.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
     if (activeDayRes.recordset.length > 0) {
       const activeDate = activeDayRes.recordset[0].StartDate;
-      const formattedDate = activeDate instanceof Date ? activeDate.toISOString().split("T")[0] : activeDate;
+      const formattedDate = activeDate instanceof Date 
+        ? activeDate.toISOString().split("T")[0] 
+        : activeDate;
       return res.status(400).json({ 
         error: `Cannot start a new day. The previous business day (${formattedDate}) is still active. Please perform Day End first.` 
       });
     }
-    
+
     // Clear previous active records
     await pool.request().query("DELETE FROM DateEntry");
     
@@ -1279,12 +1281,7 @@ router.get('/artist-target-live', authenticateToken, async (req, res) => {
             ISNULL(d.Name, 'Unknown')
           ) AS ArtistName,
           SUM(CASE WHEN ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
-                   THEN CAST(
-                     CASE 
-                       WHEN sid.DiscountType = 'percentage' 
-                       THEN CASE WHEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (1 - ISNULL(sid.DiscountAmount, 0) / 100) - ISNULL(sid.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (1 - ISNULL(sid.DiscountAmount, 0) / 100) - ISNULL(sid.VIPDiscountAmount, 0) END
-                       ELSE CASE WHEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (ISNULL(sid.Qty, 0) * ISNULL(sid.DiscountAmount, 0)) - ISNULL(sid.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (ISNULL(sid.Qty, 0) * ISNULL(sid.DiscountAmount, 0)) - ISNULL(sid.VIPDiscountAmount, 0) END
-                     END AS decimal(18,2))
+                   THEN CAST(CASE WHEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (CASE WHEN sid.DiscountType = 'percentage' THEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (ISNULL(sid.DiscountAmount, 0) / 100.0) ELSE ISNULL(sid.Qty, 0) * (CASE WHEN ISNULL(sid.DiscountAmount, 0) > ISNULL(sid.Price, 0) THEN ISNULL(sid.Price, 0) ELSE ISNULL(sid.DiscountAmount, 0) END) END) - ISNULL(sid.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) - (CASE WHEN sid.DiscountType = 'percentage' THEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (ISNULL(sid.DiscountAmount, 0) / 100.0) ELSE ISNULL(sid.Qty, 0) * (CASE WHEN ISNULL(sid.DiscountAmount, 0) > ISNULL(sid.Price, 0) THEN ISNULL(sid.Price, 0) ELSE ISNULL(sid.DiscountAmount, 0) END) END) - ISNULL(sid.VIPDiscountAmount, 0) END AS decimal(18,2))
                    ELSE 0 END) AS totalAmount
         FROM SettlementHeader sh
         INNER JOIN SettlementItemDetail sid ON sh.SettlementID = sid.SettlementID

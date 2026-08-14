@@ -156,7 +156,7 @@ export default function CustomerDisplayContent() {
           }
           @font-face {
             font-family: 'Inter_900Black';
-            src: url('https://unpkg.com/@fontsource/inter@5.0.1/files/inter-latin-800-normal.woff2') format('woff2');
+            src: url('https://unpkg.com/@fontsource/inter@5.0.1/files/inter-latin-900-normal.woff2') format('woff2');
           }
         `));
         document.head.appendChild(style);

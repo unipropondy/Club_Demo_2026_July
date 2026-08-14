@@ -2,7 +2,11 @@ const express = require("express");
 const router = express.Router();
 const sql = require("mssql");
 const { poolPromise } = require("../config/db");
-const { getAppSettings, getCompanySettings, invalidateCache } = require("../utils/settingsCache");
+const {
+  getAppSettings,
+  getCompanySettings,
+  invalidateCache,
+} = require("../utils/settingsCache");
 const { syncKitchensToPrintMaster } = require("../config/init");
 
 // 🔹 GET Settings
@@ -10,7 +14,9 @@ router.get("/", async (req, res) => {
   try {
     const pool = await poolPromise;
     // Self-heal AppSettings to add EnableKDSPrint, SVCIdentification, and EnableCombo if missing
-    await pool.query(`
+    await pool
+      .query(
+        `
       IF NOT EXISTS (
         SELECT * FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'EnableKDSPrint'
@@ -112,12 +118,21 @@ router.get("/", async (req, res) => {
       BEGIN
         ALTER TABLE AppSettings ADD VipRuleDiscountValue DECIMAL(18, 2) DEFAULT 0.00 WITH VALUES;
       END
-    `).catch(err => console.warn("Failed self-healing AppSettings column:", err.message));
+    `,
+      )
+      .catch((err) =>
+        console.warn("Failed self-healing AppSettings column:", err.message),
+      );
 
     const settings = await getAppSettings();
     res.json({
       ...(settings || {}),
-      SVCIdentification: settings?.SVCIdentification !== undefined ? (settings.SVCIdentification ? 1 : 0) : 1
+      SVCIdentification:
+        settings?.SVCIdentification !== undefined
+          ? settings.SVCIdentification
+            ? 1
+            : 0
+          : 1,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -127,43 +142,137 @@ router.get("/", async (req, res) => {
 // 🔹 UPDATE Settings
 router.post("/update", async (req, res) => {
   try {
-    const { 
-      upiId, shopName, qrCodeUrl, enableKOT, enableKDS, enableCheckoutBill, enableCheckoutFlow, 
-      enableDirectProcessToPay, customerSideDisplay, enableGuestDetailsPopup, enableCashDrawer, 
-      SVCIdentification, enableKDSPrint, enableCombo, showBillTime, showLoyalty, showRewardPoints, 
-      showPromoCode, vipThreshold,
-      vipRuleEnabled, vipRuleTargetType, vipRuleDishId, vipRuleDishGroupId, vipRuleDiscountType, vipRuleDiscountValue
+    const {
+      upiId,
+      shopName,
+      qrCodeUrl,
+      enableKOT,
+      enableKDS,
+      enableCheckoutBill,
+      enableCheckoutFlow,
+      enableDirectProcessToPay,
+      customerSideDisplay,
+      enableGuestDetailsPopup,
+      enableCashDrawer,
+      SVCIdentification,
+      enableKDSPrint,
+      enableCombo,
+      showBillTime,
+      showLoyalty,
+      showRewardPoints,
+      showPromoCode,
+      vipThreshold,
+      vipRuleEnabled,
+      vipRuleTargetType,
+      vipRuleDishId,
+      vipRuleDishGroupId,
+      vipRuleDiscountType,
+      vipRuleDiscountValue,
     } = req.body;
     const pool = await poolPromise;
 
     // Use an UPSERT logic (Update if exists, Insert if not)
-    await pool.request()
+    await pool
+      .request()
       .input("UPI", sql.NVarChar, upiId || null)
       .input("Shop", sql.NVarChar, shopName || "My Restaurant")
       .input("QR", sql.NVarChar, qrCodeUrl || null)
       .input("EnableKOT", sql.Bit, enableKOT !== undefined ? enableKOT : 1)
       .input("EnableKDS", sql.Bit, enableKDS !== undefined ? enableKDS : 1)
-      .input("EnableCheckoutBill", sql.Bit, enableCheckoutBill !== undefined ? enableCheckoutBill : 1)
-      .input("EnableCheckoutFlow", sql.Bit, enableCheckoutFlow !== undefined ? enableCheckoutFlow : 1)
-      .input("EnableDirectProcessToPay", sql.Bit, enableDirectProcessToPay !== undefined ? enableDirectProcessToPay : 0)
-      .input("CustomerSideDisplay", sql.Bit, customerSideDisplay !== undefined ? customerSideDisplay : 1)
-      .input("EnableGuestDetailsPopup", sql.Bit, enableGuestDetailsPopup !== undefined ? enableGuestDetailsPopup : 1)
-      .input("EnableCashDrawer", sql.Bit, enableCashDrawer !== undefined ? enableCashDrawer : 1)
-      .input("EnableKDSPrint", sql.Bit, enableKDSPrint !== undefined ? enableKDSPrint : 1)
-      .input("SVCIdentification", sql.Bit, SVCIdentification !== undefined ? SVCIdentification : 1)
-      .input("EnableCombo", sql.Bit, enableCombo !== undefined ? enableCombo : 1)
-      .input("ShowBillTime", sql.Bit, showBillTime !== undefined ? showBillTime : 1)
-      .input("ShowLoyalty", sql.Bit, showLoyalty !== undefined ? showLoyalty : 1)
-      .input("ShowRewardPoints", sql.Bit, showRewardPoints !== undefined ? showRewardPoints : 1)
-      .input("ShowPromoCode", sql.Bit, showPromoCode !== undefined ? showPromoCode : 1)
-      .input("VIPThreshold", sql.Decimal(18, 2), vipThreshold !== undefined ? parseFloat(vipThreshold) : 5000.00)
-      .input("VipRuleEnabled", sql.Bit, vipRuleEnabled !== undefined ? vipRuleEnabled : 0)
+      .input(
+        "EnableCheckoutBill",
+        sql.Bit,
+        enableCheckoutBill !== undefined ? enableCheckoutBill : 1,
+      )
+      .input(
+        "EnableCheckoutFlow",
+        sql.Bit,
+        enableCheckoutFlow !== undefined ? enableCheckoutFlow : 1,
+      )
+      .input(
+        "EnableDirectProcessToPay",
+        sql.Bit,
+        enableDirectProcessToPay !== undefined ? enableDirectProcessToPay : 0,
+      )
+      .input(
+        "CustomerSideDisplay",
+        sql.Bit,
+        customerSideDisplay !== undefined ? customerSideDisplay : 1,
+      )
+      .input(
+        "EnableGuestDetailsPopup",
+        sql.Bit,
+        enableGuestDetailsPopup !== undefined ? enableGuestDetailsPopup : 1,
+      )
+      .input(
+        "EnableCashDrawer",
+        sql.Bit,
+        enableCashDrawer !== undefined ? enableCashDrawer : 1,
+      )
+      .input(
+        "EnableKDSPrint",
+        sql.Bit,
+        enableKDSPrint !== undefined ? enableKDSPrint : 1,
+      )
+      .input(
+        "SVCIdentification",
+        sql.Bit,
+        SVCIdentification !== undefined ? SVCIdentification : 1,
+      )
+      .input(
+        "EnableCombo",
+        sql.Bit,
+        enableCombo !== undefined ? enableCombo : 1,
+      )
+      .input(
+        "ShowBillTime",
+        sql.Bit,
+        showBillTime !== undefined ? showBillTime : 1,
+      )
+      .input(
+        "ShowLoyalty",
+        sql.Bit,
+        showLoyalty !== undefined ? showLoyalty : 1,
+      )
+      .input(
+        "ShowRewardPoints",
+        sql.Bit,
+        showRewardPoints !== undefined ? showRewardPoints : 1,
+      )
+      .input(
+        "ShowPromoCode",
+        sql.Bit,
+        showPromoCode !== undefined ? showPromoCode : 1,
+      )
+      .input(
+        "VIPThreshold",
+        sql.Decimal(18, 2),
+        vipThreshold !== undefined ? parseFloat(vipThreshold) : 5000.0,
+      )
+      .input(
+        "VipRuleEnabled",
+        sql.Bit,
+        vipRuleEnabled !== undefined ? vipRuleEnabled : 0,
+      )
       .input("VipRuleTargetType", sql.NVarChar(50), vipRuleTargetType || null)
       .input("VipRuleDishId", sql.NVarChar(sql.MAX), vipRuleDishId || null)
-      .input("VipRuleDishGroupId", sql.NVarChar(sql.MAX), vipRuleDishGroupId || null)
-      .input("VipRuleDiscountType", sql.NVarChar(50), vipRuleDiscountType || null)
-      .input("VipRuleDiscountValue", sql.Decimal(18, 2), vipRuleDiscountValue !== undefined ? parseFloat(vipRuleDiscountValue) : 0.00)
-      .query(`
+      .input(
+        "VipRuleDishGroupId",
+        sql.NVarChar(sql.MAX),
+        vipRuleDishGroupId || null,
+      )
+      .input(
+        "VipRuleDiscountType",
+        sql.NVarChar(50),
+        vipRuleDiscountType || null,
+      )
+      .input(
+        "VipRuleDiscountValue",
+        sql.Decimal(18, 2),
+        vipRuleDiscountValue !== undefined
+          ? parseFloat(vipRuleDiscountValue)
+          : 0.0,
+      ).query(`
         IF EXISTS (SELECT 1 FROM AppSettings)
         BEGIN
           UPDATE AppSettings
@@ -215,9 +324,13 @@ router.post("/update", async (req, res) => {
       `);
 
     if (SVCIdentification !== undefined) {
-      await pool.request()
+      await pool
+        .request()
         .input("SVCIdentification", sql.Bit, SVCIdentification ? 1 : 0)
-        .query("UPDATE CompanySettings SET SVCIdentification = @SVCIdentification WHERE Id = '1'").catch(() => {});
+        .query(
+          "UPDATE CompanySettings SET SVCIdentification = @SVCIdentification WHERE Id = '1'",
+        )
+        .catch(() => {});
     }
 
     invalidateCache();
@@ -227,15 +340,15 @@ router.post("/update", async (req, res) => {
   }
 });
 
-
-
 // 🔹 GET Kitchen Printers
 router.get("/kitchen-printers", async (req, res) => {
   try {
     const pool = await poolPromise;
 
     // Self-heal: insert missing active categories into CategoryKitchenType so they get mapped to a unique KitchenTypeCode
-    await pool.query(`
+    await pool
+      .query(
+        `
       INSERT INTO CategoryKitchenType (CategoryId, KitchenTypeCode, KitchenTypeName)
       SELECT 
         cm.CategoryId, 
@@ -244,28 +357,45 @@ router.get("/kitchen-printers", async (req, res) => {
       FROM CategoryMaster cm
       LEFT JOIN CategoryKitchenType ckt ON cm.CategoryId = ckt.CategoryId
       WHERE cm.IsActive = 1 AND ckt.CategoryId IS NULL AND cm.CategoryName NOT LIKE '%TEST%'
-    `).catch(err => console.warn("Failed self-healing CategoryKitchenType mapping:", err.message));
+    `,
+      )
+      .catch((err) =>
+        console.warn(
+          "Failed self-healing CategoryKitchenType mapping:",
+          err.message,
+        ),
+      );
 
     // 1. Self-healing check for Cashier Printer (PrinterType = 1)
-    const cashierCheck = await pool.request()
-      .query("SELECT COUNT(*) as count FROM PrintMaster WHERE PrinterType = 1 AND IsActive = 1");
+    const cashierCheck = await pool
+      .request()
+      .query(
+        "SELECT COUNT(*) as count FROM PrintMaster WHERE PrinterType = 1 AND IsActive = 1",
+      );
     if (cashierCheck.recordset[0].count === 0) {
-      console.log("🛠️ Inserting default Cashier Printer row into PrintMaster...");
-      const compSettings = await pool.request().query("SELECT TOP 1 PrinterIP FROM CompanySettings");
+      console.log(
+        "🛠️ Inserting default Cashier Printer row into PrintMaster...",
+      );
+      const compSettings = await pool
+        .request()
+        .query("SELECT TOP 1 PrinterIP FROM CompanySettings");
       const defaultIP = compSettings.recordset[0]?.PrinterIP || "192.168.0.20";
-      await pool.request()
-        .input("ip", sql.NVarChar, defaultIP)
-        .query(`
+      await pool.request().input("ip", sql.NVarChar, defaultIP).query(`
           INSERT INTO PrintMaster (PrinterId, PrinterName, PrinterPath, PrinterIP, PrinterType, PrintSection, KitchenTypeName, KitchenTypeValue, IsActive, PrintCopy)
           VALUES (NEWID(), 'Receipt Printer', @ip, @ip, 1, 1, 'Receipt Print', 0, 1, 1)
         `);
     }
 
     // 2. Self-healing check for TakeAway Printer (PrinterType = 3)
-    const takeawayCheck = await pool.request()
-      .query("SELECT COUNT(*) as count FROM PrintMaster WHERE PrinterType = 3 AND IsActive = 1");
+    const takeawayCheck = await pool
+      .request()
+      .query(
+        "SELECT COUNT(*) as count FROM PrintMaster WHERE PrinterType = 3 AND IsActive = 1",
+      );
     if (takeawayCheck.recordset[0].count === 0) {
-      console.log("🛠️ Inserting default TakeAway Printer row into PrintMaster...");
+      console.log(
+        "🛠️ Inserting default TakeAway Printer row into PrintMaster...",
+      );
       await pool.request().query(`
         INSERT INTO PrintMaster (PrinterId, PrinterName, PrinterPath, PrinterIP, PrinterType, PrintSection, KitchenTypeName, KitchenTypeValue, IsActive, PrintCopy)
         VALUES (NEWID(), 'TakeAway', '192.168.0.20', '192.168.0.20', 3, 1, 'TakeAway', 6, 1, 1)
@@ -273,8 +403,11 @@ router.get("/kitchen-printers", async (req, res) => {
     }
 
     // 2.5 Self-healing check for KDS Printer (PrinterType = 4)
-    const kdsCheck = await pool.request()
-      .query("SELECT COUNT(*) as count FROM PrintMaster WHERE PrinterType = 4 AND IsActive = 1");
+    const kdsCheck = await pool
+      .request()
+      .query(
+        "SELECT COUNT(*) as count FROM PrintMaster WHERE PrinterType = 4 AND IsActive = 1",
+      );
     if (kdsCheck.recordset[0].count === 0) {
       console.log("🛠️ Inserting default KDS Printer row into PrintMaster...");
       await pool.request().query(`
@@ -294,7 +427,8 @@ router.get("/kitchen-printers", async (req, res) => {
 
     // Filter out TEST categories/kitchens (same as menuStore)
     const activeCats = rawActiveCats.filter(
-      k => k.KitchenTypeName && !k.KitchenTypeName.toUpperCase().includes("TEST")
+      (k) =>
+        k.KitchenTypeName && !k.KitchenTypeName.toUpperCase().includes("TEST"),
     );
 
     // 4. Fetch all active printers from PrintMaster
@@ -307,28 +441,30 @@ router.get("/kitchen-printers", async (req, res) => {
     const responsePrinters = [];
 
     // Add Cashier printer (PrinterType = 1)
-    const cashierPrinter = allPrinters.find(p => p.PrinterType === 1);
+    const cashierPrinter = allPrinters.find((p) => p.PrinterType === 1);
     if (cashierPrinter) responsePrinters.push(cashierPrinter);
 
     // Add TakeAway printer (PrinterType = 3)
-    const takeawayPrinter = allPrinters.find(p => p.PrinterType === 3);
+    const takeawayPrinter = allPrinters.find((p) => p.PrinterType === 3);
     if (takeawayPrinter) responsePrinters.push(takeawayPrinter);
 
     // Add KDS printer (PrinterType = 4)
-    const kdsPrinter = allPrinters.find(p => p.PrinterType === 4);
+    const kdsPrinter = allPrinters.find((p) => p.PrinterType === 4);
     if (kdsPrinter) responsePrinters.push(kdsPrinter);
 
     // Map active categories to kitchen printers (PrinterType = 2)
     const seenCodes = new Set();
     for (const cat of activeCats) {
       // Default to code 2 (Indian) if no KitchenTypeCode is mapped in ckt (same as dishes query default)
-      const code = parseInt(cat.KitchenTypeCode || '2');
-      
+      const code = parseInt(cat.KitchenTypeCode || "2");
+
       // Deduplicate on KitchenTypeValue so each printer code only has one configuration input
       if (seenCodes.has(code)) continue;
       seenCodes.add(code);
 
-      const match = allPrinters.find(p => p.PrinterType === 2 && p.KitchenTypeValue === code);
+      const match = allPrinters.find(
+        (p) => p.PrinterType === 2 && p.KitchenTypeValue === code,
+      );
       if (match) {
         responsePrinters.push({
           PrinterId: match.PrinterId,
@@ -336,7 +472,7 @@ router.get("/kitchen-printers", async (req, res) => {
           KitchenTypeName: cat.KitchenTypeName,
           PrinterPath: match.PrinterPath,
           PrinterType: 2,
-          IsActive: match.IsActive
+          IsActive: match.IsActive,
         });
       } else {
         // Virtual record for missing printer
@@ -346,7 +482,7 @@ router.get("/kitchen-printers", async (req, res) => {
           KitchenTypeName: cat.KitchenTypeName,
           PrinterPath: "",
           PrinterType: 2,
-          IsActive: 1
+          IsActive: 1,
         });
       }
     }
@@ -365,31 +501,35 @@ router.post("/kitchen-printers/update", async (req, res) => {
 
     for (const printer of printers) {
       const targetId = printer.printerId || printer.id;
-      const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(targetId));
+      const isGuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          String(targetId),
+        );
 
       const printerIp = printer.ip || "";
-      const isActive = printer.isActive !== undefined ? (printer.isActive ? 1 : 0) : 1;
+      const isActive =
+        printer.isActive !== undefined ? (printer.isActive ? 1 : 0) : 1;
 
       if (isGuid) {
         // Existing printer: update path, name, and isActive
-        await pool.request()
+        await pool
+          .request()
           .input("printerId", sql.UniqueIdentifier, targetId)
           .input("ip", sql.NVarChar, printerIp)
           .input("name", sql.NVarChar, printer.name || "Kitchen Printer")
-          .input("isActive", sql.Bit, isActive)
-          .query(`
+          .input("isActive", sql.Bit, isActive).query(`
             UPDATE PrintMaster 
             SET PrinterPath = @ip, PrinterIP = @ip, KitchenTypeName = @name, PrinterName = @name, IsActive = @isActive
             WHERE PrinterId = @printerId
           `);
       } else if (printer.type === 2) {
         // New/Virtual kitchen printer: insert it!
-        await pool.request()
+        await pool
+          .request()
           .input("name", sql.NVarChar, printer.name || "Kitchen Printer")
           .input("ip", sql.NVarChar, printerIp || "192.168.0.20")
           .input("code", sql.Int, parseInt(printer.id))
-          .input("isActive", sql.Bit, isActive)
-          .query(`
+          .input("isActive", sql.Bit, isActive).query(`
             INSERT INTO PrintMaster (
               PrinterId, PrinterName, PrinterPath, PrinterIP, 
               PrinterType, PrintSection, KitchenTypeName, 
@@ -403,16 +543,20 @@ router.post("/kitchen-printers/update", async (req, res) => {
           `);
       } else {
         // Cashier or Takeaway fallback by type
-        await pool.request()
+        await pool
+          .request()
           .input("ip", sql.NVarChar, printerIp)
           .input("type", sql.Int, printer.type)
           .input("isActive", sql.Bit, isActive)
-          .query("UPDATE PrintMaster SET PrinterPath = @ip, PrinterIP = @ip, IsActive = @isActive WHERE PrinterType = @type");
+          .query(
+            "UPDATE PrintMaster SET PrinterPath = @ip, PrinterIP = @ip, IsActive = @isActive WHERE PrinterType = @type",
+          );
       }
 
       // Sync to CompanySettings table if it's the Cashier printer
       if (printer.type === 1 || parseInt(printer.id) === 0) {
-        await pool.request()
+        await pool
+          .request()
           .input("ip", sql.NVarChar, printerIp)
           .query("UPDATE CompanySettings SET PrinterIP = @ip");
       }
@@ -429,11 +573,11 @@ router.post("/kitchen-printers/add", async (req, res) => {
   try {
     const { name, ip } = req.body;
     const pool = await poolPromise;
-    
-    await pool.request()
+
+    await pool
+      .request()
       .input("name", sql.NVarChar, name)
-      .input("ip", sql.NVarChar, ip)
-      .query(`
+      .input("ip", sql.NVarChar, ip).query(`
         DECLARE @nextVal INT = (SELECT ISNULL(MAX(KitchenTypeValue), 0) + 1 FROM PrintMaster);
         INSERT INTO PrintMaster (
           PrinterId, PrinterName, PrinterPath, PrinterIP, 
@@ -458,12 +602,18 @@ router.post("/kitchen-printers/delete", async (req, res) => {
   try {
     const { id } = req.body; // KitchenTypeValue
     const pool = await poolPromise;
-    
-    await pool.request()
-      .input("id", sql.Int, id)
-      .query("UPDATE PrintMaster SET IsActive = 0 WHERE KitchenTypeValue = @id");
 
-    res.json({ success: true, message: "Kitchen printer deleted successfully" });
+    await pool
+      .request()
+      .input("id", sql.Int, id)
+      .query(
+        "UPDATE PrintMaster SET IsActive = 0 WHERE KitchenTypeValue = @id",
+      );
+
+    res.json({
+      success: true,
+      message: "Kitchen printer deleted successfully",
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -474,7 +624,11 @@ router.post("/sync-kitchens", async (req, res) => {
   try {
     const pool = await poolPromise;
     await syncKitchensToPrintMaster(pool);
-    res.json({ success: true, message: "Kitchen sync completed. New kitchens auto-added to PrintMaster." });
+    res.json({
+      success: true,
+      message:
+        "Kitchen sync completed. New kitchens auto-added to PrintMaster.",
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

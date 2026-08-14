@@ -168,19 +168,16 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
 }
 
   private static getDefaultSettings(): CompanySettings {
-    const cached = this.settingsCache['1']?.data;
-    if (cached) return cached;
     return {
-      name: 'MY CLUB',
-      address: '10 ABC ROAD, SINGAPORE 123456',
-      gstNo: 'M9-1234567-X',
-      gstPercentage: 9,
-      phone: '62241234',
-      email: 'info@myclub.com',
+      name: '',
+      address: '',
+      gstNo: '',
+      gstPercentage: 0,
+      phone: '',
+      email: '',
       cashierName: '',
       currency: 'SGD',
       currencySymbol: '$',
-      serviceChargePercentage: 10,
     };
   }
   
@@ -354,7 +351,6 @@ private static escapeHtml(str: string): string {
         orderDiscount = orderDiscount * ratio;
       }
     }
-
     if (totalVipDiscount > 0) {
       orderDiscount = Math.max(0, orderDiscount - totalVipDiscount);
     }
@@ -496,7 +492,7 @@ private static escapeHtml(str: string): string {
                 <td class="item-name">
                     ${item.name || item.DishName || ''}
                     ${item.songName || item.SongName ? `<div style="font-size: 7.5px; color: #555; font-style: italic; margin-top: 0.3mm;">🎵 ${item.songName || item.SongName}</div>` : ''}
-                    ${(Number(item.isServiceCharge) === 1 || item.isServiceCharge === true) && !allItemsHaveSC ? `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">[Service Charge ${scPercentage}%]</div>` : ''}
+                    ${(Number(item.isServiceCharge) === 1 || item.isServiceCharge === true) && !allItemsHaveSC ? `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">[Service Charge ${company.serviceChargePercentage}%]</div>` : ''}
                     ${modifiersHTML}
                     ${comboSelectionsHTML}
                     ${(() => {

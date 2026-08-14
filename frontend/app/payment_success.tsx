@@ -86,7 +86,7 @@ export default function PaymentSuccess() {
   React.useEffect(() => {
     CustomerDisplaySync.isPaymentActive = false;
     // Clear cart and context on success screen mount (skip if split payment with remaining balance)
-    if (params.isSplit === "true") {
+    if (params.isSplit === "true" || isPartsSplit) {
       console.log("[payment_success] Split payment: skipping cart/context cleanup.");
       return;
     }
@@ -101,7 +101,7 @@ export default function PaymentSuccess() {
       }
     };
     cleanup();
-  }, [params.isSplit]);
+  }, [params.isSplit, isPartsSplit]);
 
   const handleDone = () => {
     CustomerDisplaySync.isSuccessActive = false;
@@ -123,7 +123,7 @@ export default function PaymentSuccess() {
         },
       });
     } else if (splitReturnToQueue && isPartsSplit && partsRemaining === 0) {
-      // All parts done via queue — clean up and go home
+      // All parts done via queue ── clean up and go home
       try {
         const { useCartStore: CS } = require("../stores/cartStore");
         CS.getState().setSplitSession(null);
@@ -140,9 +140,9 @@ export default function PaymentSuccess() {
       // Split-by-items: show the original balance remaining modal
       setShowSplitConfirmModal(true);
     } else {
-      // All parts paid (or not a split) — clean up and go home
+      // All parts paid (or not a split) ── clean up and go home
       if (isPartsSplit) {
-        // Last part complete — clean up the split session
+        // Last part complete ── clean up the split session
         try {
           const { useCartStore: CS } = require("../stores/cartStore");
           CS.getState().setSplitSession(null);
