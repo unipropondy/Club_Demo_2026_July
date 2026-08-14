@@ -666,7 +666,7 @@ router.get('/cash-out/:terminal', authenticateToken, async (req, res) => {
     }
 
     let query = `
-      SELECT CashOutId, CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date 
+      SELECT CashOutId, CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date, AttachmentUrl
       FROM CashOutEntry 
       WHERE ${dateFilter}
     `;
@@ -697,7 +697,7 @@ router.get('/cash-in/:terminal', authenticateToken, async (req, res) => {
     }
 
     let query = `
-      SELECT CashInId, CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date 
+      SELECT CashInId, CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date, AttachmentUrl 
       FROM CashInEntry 
       WHERE ${dateFilter}
     `;
@@ -715,7 +715,7 @@ router.get('/cash-in/:terminal', authenticateToken, async (req, res) => {
 // POST new Cash In entry
 router.post('/cash-in', authenticateToken, async (req, res) => {
   try {
-    const { amount, reason, remarks, paymentMode, referenceNo, terminalCode, date } = req.body;
+    const { amount, reason, remarks, paymentMode, referenceNo, terminalCode, date, attachmentUrl } = req.body;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: 'Valid amount is required' });
@@ -739,10 +739,11 @@ router.post('/cash-in', authenticateToken, async (req, res) => {
       .input('TerminalCode', sql.VarChar, terminalCode || '')
       .input('CreatedBy', sql.VarChar, createdBy)
       .input('targetDate', sql.Date, targetDate)
+      .input('AttachmentUrl', sql.VarChar(500), attachmentUrl || null)
       .query(`
-        INSERT INTO CashInEntry (CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date)
+        INSERT INTO CashInEntry (CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date, AttachmentUrl)
         OUTPUT inserted.*
-        VALUES (@CashInNo, @targetDate, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, @targetDate, @targetDate)
+        VALUES (@CashInNo, @targetDate, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, @targetDate, @targetDate, @AttachmentUrl)
       `);
 
     res.json({ success: true, data: result.recordset[0] });
@@ -771,7 +772,7 @@ router.delete('/cash-in/:id', authenticateToken, async (req, res) => {
 router.put('/cash-in/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { amount, reason, remarks, paymentMode, referenceNo, terminalCode } = req.body;
+    const { amount, reason, remarks, paymentMode, referenceNo, terminalCode, attachmentUrl } = req.body;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: 'Valid amount is required' });
@@ -786,10 +787,11 @@ router.put('/cash-in/:id', authenticateToken, async (req, res) => {
       .input('PaymentMode', sql.VarChar, paymentMode || 'Cash')
       .input('ReferenceNo', referenceNo || '')
       .input('TerminalCode', sql.VarChar, terminalCode || '')
+      .input('AttachmentUrl', sql.VarChar(500), attachmentUrl || null)
       .query(`
         UPDATE CashInEntry
         SET Amount = @Amount, Reason = @Reason, Remarks = @Remarks, PaymentMode = @PaymentMode, 
-            ReferenceNo = @ReferenceNo, TerminalCode = @TerminalCode
+            ReferenceNo = @ReferenceNo, TerminalCode = @TerminalCode, AttachmentUrl = @AttachmentUrl
         OUTPUT inserted.*
         WHERE CashInId = @CashInId
       `);
@@ -808,7 +810,7 @@ router.put('/cash-in/:id', authenticateToken, async (req, res) => {
 // POST new Cash Out entry
 router.post('/cash-out', authenticateToken, async (req, res) => {
   try {
-    const { amount, reason, remarks, paymentMode, referenceNo, terminalCode, date } = req.body;
+    const { amount, reason, remarks, paymentMode, referenceNo, terminalCode, date, attachmentUrl } = req.body;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: 'Valid amount is required' });
@@ -833,10 +835,11 @@ router.post('/cash-out', authenticateToken, async (req, res) => {
       .input('TerminalCode', sql.VarChar, terminalCode || '')
       .input('CreatedBy', sql.VarChar, createdBy)
       .input('targetDate', sql.Date, targetDate)
+      .input('AttachmentUrl', sql.VarChar(500), attachmentUrl || null)
       .query(`
-        INSERT INTO CashOutEntry (CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date)
+        INSERT INTO CashOutEntry (CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date, AttachmentUrl)
         OUTPUT inserted.*
-        VALUES (@CashOutNo, @targetDate, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, @targetDate, @targetDate)
+        VALUES (@CashOutNo, @targetDate, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, @targetDate, @targetDate, @AttachmentUrl)
       `);
 
     res.json({ success: true, data: result.recordset[0] });
@@ -850,7 +853,7 @@ router.post('/cash-out', authenticateToken, async (req, res) => {
 router.put('/cash-out/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const { amount, reason, remarks, paymentMode, referenceNo, terminalCode } = req.body;
+    const { amount, reason, remarks, paymentMode, referenceNo, terminalCode, attachmentUrl } = req.body;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ error: 'Valid amount is required' });
@@ -865,10 +868,11 @@ router.put('/cash-out/:id', authenticateToken, async (req, res) => {
       .input('PaymentMode', sql.VarChar, paymentMode || 'Cash')
       .input('ReferenceNo', sql.VarChar, referenceNo || '')
       .input('TerminalCode', sql.VarChar, terminalCode || '')
+      .input('AttachmentUrl', sql.VarChar(500), attachmentUrl || null)
       .query(`
         UPDATE CashOutEntry
         SET Amount = @Amount, Reason = @Reason, Remarks = @Remarks, PaymentMode = @PaymentMode, 
-            ReferenceNo = @ReferenceNo, TerminalCode = @TerminalCode
+            ReferenceNo = @ReferenceNo, TerminalCode = @TerminalCode, AttachmentUrl = @AttachmentUrl
         OUTPUT inserted.*
         WHERE CashOutId = @CashOutId
       `);

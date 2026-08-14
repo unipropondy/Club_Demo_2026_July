@@ -20,7 +20,8 @@ router.post('/log', authenticateToken, async (req, res) => {
 
     const {
       outletId, terminalCode, actionType, amount, tenderedAmount, changeAmount,
-      orderId, reason, remark, openedByUserId, approvedByUserId, openSource, isSuccess
+      orderId, reason, remark, openedByUserId, approvedByUserId, openSource, isSuccess,
+      attachmentUrl
     } = req.body;
 
     const cashierName = req.user?.userName || req.user?.username || 'Admin';
@@ -102,9 +103,10 @@ router.post('/log', authenticateToken, async (req, res) => {
           .input('TerminalCode', sql.VarChar(50), null)
           .input('CreatedBy', sql.VarChar(100), cashierName)
           .input('startDate', sql.Date, formattedStartDate)
+          .input('AttachmentUrl', sql.VarChar(500), attachmentUrl || null)
           .query(`
-            INSERT INTO CashInEntry (CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date)
-            VALUES (@CashInNo, CAST(GETDATE() AS DATE), @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, GETDATE(), @startDate)
+            INSERT INTO CashInEntry (CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date, AttachmentUrl)
+            VALUES (@CashInNo, CAST(GETDATE() AS DATE), @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, GETDATE(), @startDate, @AttachmentUrl)
           `);
       } else if (actionType === 'CASH_OUT' && amount > 0) {
         // Fetch SGT date directly from remote SQL server clock (myerpcloud.dyndns.org)
@@ -124,9 +126,10 @@ router.post('/log', authenticateToken, async (req, res) => {
           .input('TerminalCode', sql.VarChar(50), null)
           .input('CreatedBy', sql.VarChar(100), cashierName)
           .input('startDate', sql.Date, formattedStartDate)
+          .input('AttachmentUrl', sql.VarChar(500), attachmentUrl || null)
           .query(`
-            INSERT INTO CashOutEntry (CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date)
-            VALUES (@CashOutNo, CAST(GETDATE() AS DATE), @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, GETDATE(), @startDate)
+            INSERT INTO CashOutEntry (CashOutNo, CashOutDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date, AttachmentUrl)
+            VALUES (@CashOutNo, CAST(GETDATE() AS DATE), @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, GETDATE(), @startDate, @AttachmentUrl)
           `);
       } else if (actionType === 'OPENING_FLOAT' && amount > 0) {
         // Update settlement opening totals

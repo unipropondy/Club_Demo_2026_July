@@ -2587,7 +2587,7 @@ export default function SalesReport() {
                     <View style={styles.statRow}>
                       <View style={styles.statLabel}>
                         <Text style={styles.statIcon}>🪑</Text>
-                        <Text style={styles.statName}>Dine-In</Text>
+                        <Text style={styles.statName}>Dine-In ({dineIn})</Text>
                       </View>
                       <Text
                         style={[styles.statValue, { color: Theme.primary }]}
@@ -2598,7 +2598,7 @@ export default function SalesReport() {
                     <View style={styles.statRow}>
                       <View style={styles.statLabel}>
                         <Text style={styles.statIcon}>🛍️</Text>
-                        <Text style={styles.statName}>Takeaway</Text>
+                        <Text style={styles.statName}>Takeaway ({takeaway})</Text>
                       </View>
                       <Text
                         style={[styles.statValue, { color: Theme.warning }]}

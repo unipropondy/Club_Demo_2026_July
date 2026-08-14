@@ -5,6 +5,9 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  Modal,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -14,6 +17,8 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import API from "../api";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { API_URL } from "../constants/Config";
 import { Fonts } from "../constants/Fonts";
@@ -88,6 +93,9 @@ export default function CashDrawerScreen() {
   const [remark, setRemark] = useState("");
   const [opening, setOpening] = useState(false);
   const [drawerSuccess, setDrawerSuccess] = useState<boolean | null>(null);
+  const [attachmentUrl, setAttachmentUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [viewerImageUrl, setViewerImageUrl] = useState<string | null>(null);
 
   // Focus input automatically on step change
   const pinInputRef = React.useRef<TextInput>(null);
@@ -165,6 +173,7 @@ export default function CashDrawerScreen() {
         openedByUserId: user?.userId || "1",
         approvedByUserId: user?.userId || "1",
         openSource: "MANUAL",
+        attachmentUrl: attachmentUrl || null,
       });
       setDrawerSuccess(success);
       setStep(5);
@@ -177,6 +186,86 @@ export default function CashDrawerScreen() {
     }
   };
 
+  const handleSelectImage = async (mode: 'camera' | 'library') => {
+    try {
+      let permissionResult;
+      if (mode === 'camera') {
+        permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+      } else {
+        permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      }
+
+      if (!permissionResult.granted) {
+        Alert.alert("Permission Denied", `We need access to your ${mode === 'camera' ? 'camera' : 'photo library'} to upload receipts.`);
+        return;
+      }
+
+      const pickerResult = mode === 'camera'
+        ? await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.3,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.3,
+          });
+
+      if (pickerResult.canceled || !pickerResult.assets || pickerResult.assets.length === 0) {
+        return;
+      }
+
+      const fileUri = pickerResult.assets[0].uri;
+      await handleUploadImage(fileUri);
+    } catch (err) {
+      console.error("❌ SELECT IMAGE ERROR", err);
+      Alert.alert("Error", "Failed to select image");
+    }
+  };
+
+  const handleUploadImage = async (fileUri: string) => {
+    try {
+      setUploading(true);
+      const formData = new FormData();
+
+      if (Platform.OS === 'web') {
+        const response = await fetch(fileUri);
+        const blob = await response.blob();
+        formData.append('image', blob, 'receipt.png');
+      } else {
+        const filename = fileUri.split('/').pop() || 'receipt.jpg';
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+        formData.append('image', {
+          uri: fileUri,
+          name: filename,
+          type,
+        } as any);
+      }
+
+      const response = await API.post('/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.data && response.data.success) {
+        setAttachmentUrl(response.data.imageUrl);
+        Alert.alert("Success", "Receipt uploaded successfully!");
+      } else {
+        Alert.alert("Upload Failed", "Could not upload image to server.");
+      }
+    } catch (err: any) {
+      console.error("❌ UPLOAD IMAGE ERROR", err);
+      Alert.alert("Error", "Failed to upload image");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const resetFlow = () => {
     setStep(1);
     setPin("");
@@ -184,6 +273,7 @@ export default function CashDrawerScreen() {
     setActionType("OTHER");
     setAmount("");
     setRemark("");
+    setAttachmentUrl("");
     setDrawerSuccess(null);
   };
 
@@ -371,6 +461,80 @@ export default function CashDrawerScreen() {
               onChangeText={setRemark}
             />
 
+            {/* Attachment Section - Only for CASH_IN and CASH_OUT */}
+            {(actionType === 'CASH_IN' || actionType === 'CASH_OUT') && (
+              <View style={{ width: "100%", marginBottom: 20 }}>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 13, marginBottom: 8, color: Theme.textSecondary }}>Receipt Attachment</Text>
+                
+                {uploading ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 }}>
+                    <ActivityIndicator size="small" color={Theme.primary} />
+                    <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textMuted }}>Uploading receipt...</Text>
+                  </View>
+                ) : attachmentUrl ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Theme.bgMuted, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: Theme.border, width: "100%" }}>
+                    <Ionicons name="document-attach-outline" size={24} color={Theme.success} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }} numberOfLines={1}>
+                        {attachmentUrl.split('/').pop()}
+                      </Text>
+                      <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted }}>Compressed receipt photo</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TouchableOpacity onPress={() => setViewerImageUrl(attachmentUrl)} style={{ padding: 4 }}>
+                        <Ionicons name="eye-outline" size={20} color={Theme.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setAttachmentUrl("")} style={{ padding: 4 }}>
+                        <Ionicons name="trash-outline" size={20} color={Theme.danger} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: 12, width: "100%" }}>
+                    <TouchableOpacity 
+                      onPress={() => handleSelectImage('camera')}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        backgroundColor: Theme.bgCard,
+                        borderWidth: 1.5,
+                        borderColor: Theme.primary + '30',
+                        borderStyle: 'dashed',
+                        paddingVertical: 12,
+                        borderRadius: 8
+                      }}
+                    >
+                      <Ionicons name="camera-outline" size={18} color={Theme.primary} />
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.primary }}>Take Photo</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      onPress={() => handleSelectImage('library')}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        backgroundColor: Theme.bgCard,
+                        borderWidth: 1.5,
+                        borderColor: Theme.primary + '30',
+                        borderStyle: 'dashed',
+                        paddingVertical: 12,
+                        borderRadius: 8
+                      }}
+                    >
+                      <Ionicons name="image-outline" size={18} color={Theme.primary} />
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.primary }}>Upload Image</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
             <TouchableOpacity
               style={[styles.primaryButton, opening && styles.disabledButton]}
               onPress={handleConfirmAndOpen}
@@ -424,6 +588,31 @@ export default function CashDrawerScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Full-Screen Image Viewer Modal */}
+      <Modal visible={!!viewerImageUrl} transparent animationType="fade" onRequestClose={() => setViewerImageUrl(null)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.9)', justifyContent: 'center', alignItems: 'center' }}>
+          <TouchableOpacity 
+            style={StyleSheet.absoluteFill} 
+            activeOpacity={1} 
+            onPress={() => setViewerImageUrl(null)} 
+          />
+          <View style={{ width: '90%', height: '80%', justifyContent: 'center', alignItems: 'center' }}>
+            {!!viewerImageUrl && (
+              <Image 
+                source={{ uri: viewerImageUrl.startsWith('http') ? viewerImageUrl : `${API_URL}${viewerImageUrl}` }} 
+                style={{ width: '100%', height: '100%', resizeMode: 'contain' }} 
+              />
+            )}
+          </View>
+          <TouchableOpacity 
+            onPress={() => setViewerImageUrl(null)} 
+            style={{ position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(255,255,255,0.2)', padding: 10, borderRadius: 20 }}
+          >
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

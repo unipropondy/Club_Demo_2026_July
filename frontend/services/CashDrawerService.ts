@@ -22,6 +22,7 @@ export interface CashDrawerLogPayload {
   openedByUserId: string;
   approvedByUserId?: string | null;
   openSource: 'SALE' | 'MANUAL';
+  attachmentUrl?: string | null;
 }
 
 export default class CashDrawerService {

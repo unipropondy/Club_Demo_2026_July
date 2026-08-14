@@ -662,6 +662,10 @@ async function initDB(pool) {
     await runQuery("CashInEntry - start_date", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CashInEntry]') AND name = 'start_date') ALTER TABLE [dbo].[CashInEntry] ADD start_date DATE");
     await runQuery("CashOutEntry - start_date", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CashOutEntry]') AND name = 'start_date') ALTER TABLE [dbo].[CashOutEntry] ADD start_date DATE");
 
+    // Add AttachmentUrl to CashInEntry and CashOutEntry for receipt image attachments
+    await runQuery("CashInEntry - AttachmentUrl", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CashInEntry]') AND name = 'AttachmentUrl') ALTER TABLE [dbo].[CashInEntry] ADD AttachmentUrl NVARCHAR(500) NULL");
+    await runQuery("CashOutEntry - AttachmentUrl", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CashOutEntry]') AND name = 'AttachmentUrl') ALTER TABLE [dbo].[CashOutEntry] ADD AttachmentUrl NVARCHAR(500) NULL");
+
     // 19. dishOrderItemShare updates
     await runQuery("dishOrderItemShare - TargetAmount", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[dishOrderItemShare]') AND name = 'TargetAmount') ALTER TABLE [dbo].[dishOrderItemShare] ADD TargetAmount DECIMAL(18, 2) DEFAULT 0");
 
