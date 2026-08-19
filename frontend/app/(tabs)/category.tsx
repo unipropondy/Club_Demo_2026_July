@@ -1371,6 +1371,25 @@ export default function Category() {
 
   const handleTablePress = React.useCallback(
     async (item: TableItem, tableData: any, isCheckoutAction?: boolean) => {
+      // 🌹 LICENSE EXPIRY CHECK
+      if (licenseInfo) {
+        const today = new Date();
+        const toDateStr = licenseInfo.ToDate ? licenseInfo.ToDate.split("T")[0] : null;
+        if (toDateStr) {
+          const toDateObj = new Date(toDateStr);
+          today.setHours(0, 0, 0, 0);
+          toDateObj.setHours(0, 0, 0, 0);
+          if (today > toDateObj) {
+            if (Platform.OS === "web") {
+              window.alert("License Expired, Pls renew your License to continue taking orders");
+            } else {
+              Alert.alert("License Expired", "Pls renew your License to continue taking orders");
+            }
+            return;
+          }
+        }
+      }
+
       if (!isDayStarted) {
         showToast({
           type: "warning",
