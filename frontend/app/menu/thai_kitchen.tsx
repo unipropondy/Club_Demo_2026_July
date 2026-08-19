@@ -570,7 +570,7 @@ export default function MenuScreen() {
           items: cart.filter((i: any) => i.status !== "VOIDED"),
           kitchenName: "KDS",
         };
-        await UniversalPrinter.printKDSOrder(kdsData, "SYSTEM");
+        await UniversalPrinter.printKDSOrder(kdsData, "SYSTEM", undefined, true);
       } catch (kdsErr) {
         console.warn("KDS Reprint failed:", kdsErr);
       }

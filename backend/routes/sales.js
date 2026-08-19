@@ -56,7 +56,7 @@ const normalizeReportPayModeSql = (columnName = "sts.PayMode", settlementIdColum
   const rawSql = `
     UPPER(ISNULL(
       (SELECT TOP 1 
-         CASE WHEN LTRIM(RTRIM(pm.Description)) = 'QR' OR LTRIM(RTRIM(pm.PayMode)) = 'QR' OR LTRIM(RTRIM(pm.Description)) = 'Q-R' OR LTRIM(RTRIM(pm.PayMode)) = 'Q-R' THEN 'Q-R'
+         CASE WHEN LTRIM(RTRIM(pm.Description)) = 'QR' OR LTRIM(RTRIM(pm.PayMode)) = 'QR' OR LTRIM(RTRIM(pm.Description)) = 'Q-R' OR LTRIM(RTRIM(pm.PayMode)) = 'Q-R' THEN 'QR'
               ELSE LTRIM(RTRIM(pm.Description)) 
          END
        FROM Paymode pm 
@@ -74,7 +74,7 @@ const normalizeReportPayModeSql = (columnName = "sts.PayMode", settlementIdColum
         WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('NETS', '2') OR UPPER(${resolvedPayMode}) LIKE '%NETS%' THEN 'NETS'
         WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('UPI', '4') OR UPPER(${resolvedPayMode}) LIKE '%UPI%' OR UPPER(${resolvedPayMode}) LIKE '%GPAY%' THEN 'UPI'
         WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('MEMBER', '5') OR UPPER(${resolvedPayMode}) LIKE '%MEMBER%' THEN 'MEMBER'
-        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('QR', 'Q-R') THEN 'Q-R'
+        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('QR', 'Q-R') THEN 'QR'
         ELSE UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, 'CASH'))))
       END
     ))

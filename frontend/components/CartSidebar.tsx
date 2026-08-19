@@ -1910,34 +1910,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             />
                           </TouchableOpacity>
 
-                          {/* KOT button (Indigo, text 'KOT', 50px) */}
-                          <TouchableOpacity
-                            disabled={isCheckingOut}
-                            style={[
-                              styles.compactIconBtn,
-                              { backgroundColor: Theme.primary },
-                              isCheckingOut && { opacity: 0.6 }
-                            ]}
-                            onPress={async () => {
-                              if (isCheckingOut) return;
-                              setIsCheckingOut(true);
-                              try {
-                                await handleSendOrder(true);
-                              } catch (err) {
-                                console.error("KOT send error:", err);
-                              } finally {
-                                setIsCheckingOut(false);
-                              }
-                            }}
-                          >
-                            {isCheckingOut ? (
-                              <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                              <Text style={{ color: "#fff", fontFamily: Fonts.black, fontSize: 13 }}>KOT</Text>
-                            )}
-                          </TouchableOpacity>
-
-                          {/* Pay button (Green, flex-grow) */}
+                          {/* Pay button (Green, flex-grow) — auto-fires KOT/KDS on press */}
                           <TouchableOpacity
                             disabled={isCheckingOut}
                             style={[
@@ -1953,6 +1926,12 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
 
                               setIsCheckingOut(true);
                               try {
+                                // 🚀 AUTO-KOT: Fire KOT/KDS for any unsent items before paying.
+                                // handleSendOrder filters to only NEW/unsent items internally,
+                                // so if the user comes back with no new dishes this is a no-op.
+                                // skipRedirect=true so we stay on this screen.
+                                await handleSendOrder(true);
+
                                 const targetOrderId = activeOrder?.orderId || currentTableOrderId || "NEW";
                                 const officialOrderId = await saveCartHelper(tableId, targetOrderId, true);
 
@@ -1970,7 +1949,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                                 await useCartStore.getState().fetchCartFromDB(tableId);
                                 await useActiveOrdersStore.getState().fetchActiveKitchenOrders();
 
-                                 handleProceedToPay();
+                                handleProceedToPay();
                               } catch (err) {
                                 console.error("Direct process to pay error:", err);
                                 showToast({ type: "error", message: "Error", subtitle: "Failed to process payment." });
@@ -1994,56 +1973,95 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                       // Dine-in Flow 2: Only show Pay button when unsentCount === 0
                       return (
                         <TouchableOpacity
+                          disabled={isCheckingOut}
                           style={[
                             styles.proceedBtn,
                             { flex: 1, backgroundColor: Theme.success },
+                            isCheckingOut && { opacity: 0.6 },
                           ]}
                           onPress={() => {
+                            if (isCheckingOut) return;
+                            // Only show spinner if navigation takes > 300ms
+                            const spinnerTimer = setTimeout(() => setIsCheckingOut(true), 300);
+                            const resetTimer = setTimeout(() => {
+                              clearTimeout(spinnerTimer);
+                              setIsCheckingOut(false);
+                            }, 2000);
                             handleProceedToPay();
+                            // If navigation was fast the spinner never fires
+                            void resetTimer;
                           }}
                         >
-                          <Ionicons name="card-outline" size={iconSize} color="#fff" />
-                          <Text style={styles.btnText}>Pay</Text>
+                          {isCheckingOut ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <>
+                              <Ionicons name="card-outline" size={iconSize} color="#fff" />
+                              <Text style={styles.btnText}>Pay</Text>
+                            </>
+                          )}
                         </TouchableOpacity>
                       );
                     } else if (currentTableStatus === "BILL_REQUESTED") {
                       // Dine-in Flow 2: 1-button layout when status is BILL_REQUESTED
                       return (
                         <TouchableOpacity
+                          disabled={isCheckingOut}
                           style={[
                             styles.proceedBtn,
                             { flex: 1, backgroundColor: Theme.success },
+                            isCheckingOut && { opacity: 0.6 },
                           ]}
                           onPress={() => {
+                            if (isCheckingOut) return;
+                            const spinnerTimer = setTimeout(() => setIsCheckingOut(true), 300);
+                            const resetTimer = setTimeout(() => {
+                              clearTimeout(spinnerTimer);
+                              setIsCheckingOut(false);
+                            }, 2000);
                             handleProceedToPay();
+                            void resetTimer;
                           }}
                         >
-                          <Ionicons
-                            name="card-outline"
-                            size={iconSize}
-                            color="#fff"
-                          />
-                          <Text style={styles.btnText}>Proceed to Pay</Text>
+                          {isCheckingOut ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <>
+                              <Ionicons name="card-outline" size={iconSize} color="#fff" />
+                              <Text style={styles.btnText}>Proceed to Pay</Text>
+                            </>
+                          )}
                         </TouchableOpacity>
                       );
                     } else {
                       // Fallback for other statuses like EMPTY/LOCKED
                       return (
                         <TouchableOpacity
+                          disabled={isCheckingOut}
                           style={[
                             styles.proceedBtn,
                             { flex: 1, backgroundColor: Theme.success },
+                            isCheckingOut && { opacity: 0.6 },
                           ]}
                           onPress={() => {
+                            if (isCheckingOut) return;
+                            const spinnerTimer = setTimeout(() => setIsCheckingOut(true), 300);
+                            const resetTimer = setTimeout(() => {
+                              clearTimeout(spinnerTimer);
+                              setIsCheckingOut(false);
+                            }, 2000);
                             handleProceedToPay();
+                            void resetTimer;
                           }}
                         >
-                          <Ionicons
-                            name="card-outline"
-                            size={iconSize}
-                            color="#fff"
-                          />
-                          <Text style={styles.btnText}>Proceed to Pay</Text>
+                          {isCheckingOut ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <>
+                              <Ionicons name="card-outline" size={iconSize} color="#fff" />
+                              <Text style={styles.btnText}>Proceed to Pay</Text>
+                            </>
+                          )}
                         </TouchableOpacity>
                       );
                     }

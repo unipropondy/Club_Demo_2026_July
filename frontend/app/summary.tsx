@@ -1178,7 +1178,7 @@ export default function SummaryScreen() {
           items: cart.filter((i: any) => i.status !== "VOIDED"),
           kitchenName: "KDS",
         };
-        await UniversalPrinter.printKDSOrder(kdsData, "SYSTEM");
+        await UniversalPrinter.printKDSOrder(kdsData, "SYSTEM", undefined, true);
       } catch (kdsErr) {
         console.warn("KDS Reprint failed:", kdsErr);
       }
@@ -1215,13 +1215,11 @@ export default function SummaryScreen() {
         memberRewardBalance: String(rewardMember?.RewardCredit || 0),
       };
 
-      if (enableCheckoutBill) {
-        await UniversalPrinter.printCheckoutBill(
-          saleData,
-          user?.userId || "SYSTEM",
-          discountInfo,
-        );
-      }
+      await UniversalPrinter.printCheckoutBill(
+        saleData,
+        user?.userId || "SYSTEM",
+        discountInfo,
+      );
 
       if (context?.tableId) {
         const token = useAuthStore.getState().token;

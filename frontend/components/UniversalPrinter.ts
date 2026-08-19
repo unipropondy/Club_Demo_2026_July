@@ -487,10 +487,11 @@ class UniversalPrinter {
     orderData: any,
     userId?: string | number,
     kdsPrinterIp?: string,
+    isReprint: boolean = false,
   ): Promise<boolean> {
     const { useGeneralSettingsStore } = await import("../stores/generalSettingsStore");
     const { enableKDSPrint } = useGeneralSettingsStore.getState().settings;
-    if (enableKDSPrint === false) {
+    if (!isReprint && enableKDSPrint === false) {
       console.log("🖨️ [UniversalPrinter] KDS printing is disabled in settings.");
       return false;
     }

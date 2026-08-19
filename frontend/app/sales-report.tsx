@@ -1256,6 +1256,8 @@ export default function SalesReport() {
     CREDIT: "#e11d48",
     "CASH BOX ENTRY": "#0ea5e9",
     CASHBOX: "#0ea5e9",
+    QR: "#38bdf8",
+    "Q-R": "#38bdf8",
   };
 
   const getPayModeColor = (mode: string) => {
@@ -1279,6 +1281,8 @@ export default function SalesReport() {
     CREDIT: "🏷️",
     "CASH BOX ENTRY": "🗃️",
     CASHBOX: "🗃️",
+    QR: "📱",
+    "Q-R": "📱",
   };
 
   const getPayModeIconChar = (mode: string) => {

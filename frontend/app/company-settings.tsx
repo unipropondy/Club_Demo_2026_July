@@ -383,7 +383,7 @@ export default function CompanySettingsScreen() {
             color: Theme.textSecondary,
           }}
         >
-          Loading Shop Settings...
+          Loading Shop & Receipt Settings...
         </Text>
       </View>
     );
@@ -406,7 +406,7 @@ export default function CompanySettingsScreen() {
           />
           <Text style={styles.passwordTitle}>Admin Verification</Text>
           <Text style={styles.passwordSubtitle}>
-            Enter admin password to access Shop Settings
+            Enter admin password to access Shop & Receipt Settings
           </Text>
           <TextInput
             style={styles.passwordInput}
@@ -464,7 +464,7 @@ export default function CompanySettingsScreen() {
         >
           <Ionicons name="arrow-back" size={24} color={Theme.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Shop Settings</Text>
+        <Text style={styles.headerTitle}>Shop & Receipt Settings</Text>
         <TouchableOpacity
           style={[styles.saveButton, saving && styles.saveButtonDisabled]}
           onPress={handleSave}

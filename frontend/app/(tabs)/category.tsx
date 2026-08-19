@@ -4171,16 +4171,63 @@ export default function Category() {
           )}
         </View>
 
-        <View style={styles.licenseTextContainer}>
-          <Text
-            style={[
-              styles.licenseCompanyName,
-              isTabletOrDesktopWeb && { fontSize: 14 },
-            ]}
-            numberOfLines={1}
-          >
-            {licenseInfo?.CompanyName || "Smart POS"}
-          </Text>
+        <View style={[styles.licenseTextContainer, { gap: 4 }]}>
+          {/* Row 1: Company Name & Active/Inactive Status Badge */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text
+              style={[
+                styles.licenseCompanyName,
+                isTabletOrDesktopWeb && { fontSize: 14 },
+              ]}
+              numberOfLines={1}
+            >
+              {licenseInfo?.CompanyName || "Smart POS"}
+            </Text>
+            {licenseInfo && (() => {
+              const today = new Date();
+              const toDateStr = licenseInfo.ToDate ? licenseInfo.ToDate.split("T")[0] : null;
+              let isExpired = false;
+              if (toDateStr) {
+                const toDateObj = new Date(toDateStr);
+                today.setHours(0, 0, 0, 0);
+                toDateObj.setHours(0, 0, 0, 0);
+                isExpired = today > toDateObj;
+              }
+
+              const badgeColor = isExpired ? "#EF4444" : "#22C55E";
+              const badgeBg = isExpired ? "rgba(239, 68, 68, 0.15)" : "rgba(34, 197, 94, 0.15)";
+              const statusText = isExpired ? "INACTIVE" : "ACTIVE";
+
+              return (
+                <View style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: badgeBg,
+                  borderRadius: 12,
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  gap: 4
+                }}>
+                  <View style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: badgeColor,
+                  }} />
+                  <Text style={{
+                    color: badgeColor,
+                    fontSize: 9,
+                    fontFamily: Fonts.bold,
+                    letterSpacing: 0.5
+                  }}>
+                    {statusText}
+                  </Text>
+                </View>
+              );
+            })()}
+          </View>
+
+          {/* Row 1.5: Address */}
           <Text
             style={[
               styles.licenseAddress,
@@ -4190,11 +4237,12 @@ export default function Category() {
           >
             {licenseInfo?.Address || "Shop Address"}
           </Text>
+
+          {/* Row 2: Valid/Expired Range container */}
           {licenseInfo && (() => {
             const today = new Date();
             const fromDateStr = licenseInfo.FromDate ? licenseInfo.FromDate.split("T")[0] : null;
             const toDateStr = licenseInfo.ToDate ? licenseInfo.ToDate.split("T")[0] : null;
-            
             let isExpired = false;
             if (toDateStr) {
               const toDateObj = new Date(toDateStr);
@@ -4203,54 +4251,47 @@ export default function Category() {
               isExpired = today > toDateObj;
             }
 
-            if (isExpired) {
-              return (
-                <View style={styles.licenseRow}>
-                  <Ionicons
-                    name="alert-circle-outline"
-                    size={isTabletOrDesktopWeb ? 14 : 12}
-                    color="#EF4444"
-                    style={{ marginRight: 3 }}
-                  />
-                  <Text
-                    style={[
-                      styles.licenseDateText,
-                      { color: "#EF4444", fontWeight: "bold" },
-                      isTabletOrDesktopWeb && { fontSize: 10 },
-                    ]}
-                  >
-                    License Expired
-                  </Text>
-                </View>
-              );
-            }
+            const rangeColor = isExpired ? "#EF4444" : "#9B8EC4";
 
             return (
-              <View style={styles.licenseRow}>
+              <View style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: "#18163A",
+                borderColor: Theme.border,
+                borderWidth: 1,
+                borderRadius: 8,
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                alignSelf: "flex-start",
+                gap: 6,
+                marginTop: 2
+              }}>
                 <Ionicons
-                  name="checkmark-circle-outline"
-                  size={isTabletOrDesktopWeb ? 14 : 12}
-                  color="#22C55E"
-                  style={{ marginRight: 3 }}
+                  name={isExpired ? "alert-circle-outline" : "shield-checkmark-outline"}
+                  size={12}
+                  color={isExpired ? "#EF4444" : "#22C55E"}
                 />
-                <Text
-                  style={[
-                    styles.licenseDateText,
-                    isTabletOrDesktopWeb && { fontSize: 10 },
-                  ]}
-                >
-                  License:{" "}
-                  <Text style={styles.licenseDatesHighlighted}>
+                <Text style={{
+                  fontSize: 10,
+                  fontFamily: Fonts.medium,
+                  color: "#FFFFFF",
+                }}>
+                  {isExpired ? "Expired: " : "Valid: " }
+                  <Text style={{ color: rangeColor, fontFamily: Fonts.bold }}>
                     {fromDateStr || ""} to {toDateStr || ""}
                   </Text>
                 </Text>
               </View>
             );
           })()}
+
+          {/* Row 3: Copyright */}
           <Text
             style={[
               styles.licenseCopyright,
               isTabletOrDesktopWeb && { fontSize: 9 },
+              { marginTop: 2 }
             ]}
           >
             @ 2026 UNIPRO . All rights reserved.
