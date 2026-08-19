@@ -561,11 +561,7 @@ export default function SalesReport() {
       if (!response.ok) throw new Error("Failed to fetch sales");
       const data = await response.json();
       if (Array.isArray(data)) {
-        // Deduplicate sales by SettlementID to prevent duplicate key errors
-        const uniqueSales = Array.from(
-          new Map(data.map((s: any) => [s.SettlementID, s])).values()
-        );
-        setSales(uniqueSales);
+        setSales(data);
       } else {
         setSales([]);
       }
@@ -1162,11 +1158,17 @@ export default function SalesReport() {
   }, [baseFilteredSales, showCancelledOrders, sortOrder]);
 
   const filteredMetrics = useMemo(() => {
+    const seenSettlementIds = new Set();
     return dateScopedSales.reduce(
       (acc, s) => {
-      const isSubsequentSplit = s.SettlementID && s.SettlementID.includes("-") && s.SettlementID.split("-").length > 5 && s.SettlementID.split("-").pop().match(/^\d+$/);
+        const isSubsequentSplit = s.SettlementID && s.SettlementID.includes("-") && s.SettlementID.split("-").length > 5 && s.SettlementID.split("-").pop().match(/^\d+$/);
+        const hasBeenSeen = s.SettlementID ? seenSettlementIds.has(s.SettlementID) : false;
+        if (s.SettlementID) {
+          seenSettlementIds.add(s.SettlementID);
+        }
+
         if (s.IsCancelled) {
-          if (!isSubsequentSplit) {
+          if (!isSubsequentSplit && !hasBeenSeen) {
             acc.CancelledCount += 1;
             acc.CancelledAmount += s.VoidAmount || 0;
           }
@@ -1183,7 +1185,7 @@ export default function SalesReport() {
         }
 
         acc.TotalSales += s.SysAmount || 0;
-        if (!isSubsequentSplit) {
+        if (!isSubsequentSplit && !hasBeenSeen) {
           acc.TotalTransactions += 1;
           acc.TotalItems += (s.ReceiptCount || 0);
           acc.TotalVoids += s.VoidQty || 0;

@@ -1,4 +1,4 @@
-﻿import { Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
   StyleSheet,
@@ -141,7 +141,9 @@ const TransactionCard = React.memo(
                     ? "🛍️ Takeaway • "
                     : `🪑 Table ${item.TableNo || "N/A"} • `
                 }${
-                  modeUpper === "CASH"
+                  modeUpper.includes("+")
+                    ? item.PayMode
+                    : modeUpper === "CASH"
                     ? "Cash"
                     : modeUpper === "MEMBER"
                     ? "Member"

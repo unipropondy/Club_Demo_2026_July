@@ -4145,7 +4145,8 @@ export default function Category() {
           {
             bottom: Math.max(insets.bottom, 12) + 12,
             left: Math.max(insets.left, 12) + 12,
-            maxWidth: isTabletOrDesktopWeb ? 650 : 275,
+            width: Platform.OS === "web" && width >= 1024 ? 350 : isTabletOrDesktopWeb ? 350 : "auto",
+            maxWidth: Platform.OS === "web" && width >= 1024 ? 350 : isTabletOrDesktopWeb ? 350 : 275,
             paddingVertical: isTabletOrDesktopWeb ? 8 : 6,
             paddingHorizontal: isTabletOrDesktopWeb ? 16 : 12,
           },
