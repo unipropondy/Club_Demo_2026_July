@@ -56,25 +56,26 @@ const normalizeReportPayModeSql = (columnName = "sts.PayMode", settlementIdColum
   const rawSql = `
     UPPER(ISNULL(
       (SELECT TOP 1 
-         CASE WHEN LTRIM(RTRIM(pm.Description)) = 'QR' OR LTRIM(RTRIM(pm.PayMode)) = 'QR' OR LTRIM(RTRIM(pm.Description)) = 'Q-R' OR LTRIM(RTRIM(pm.PayMode)) = 'Q-R' THEN 'QR'
+         CASE WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(pm.Description))), ' ', ''), '-', ''), '_', '') = 'QR' 
+                OR REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(pm.PayMode))), ' ', ''), '-', ''), '_', '') = 'QR' THEN 'QR'
               ELSE LTRIM(RTRIM(pm.Description)) 
          END
        FROM Paymode pm 
-       WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))
-          OR LTRIM(RTRIM(pm.Description)) = LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))
+       WHERE REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(pm.PayMode))), ' ', ''), '-', ''), '_', '') = REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '')
+          OR REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(pm.Description))), ' ', ''), '-', ''), '_', '') = REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '')
           OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))
       ),
       CASE
         WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('CASHBOX', 'CASH BOX', 'CASH BOX ENTRY') OR UPPER(LTRIM(RTRIM(ISNULL(sh.OrderType, '')))) = 'CASHBOX' THEN 'CASH BOX ENTRY'
-        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('CAS', 'CASH', '1') THEN 'CASH'
-        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('YEAHPAY PAYNOW', '7') THEN 'YEAHPAY PAYNOW'
-        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('YEAHPAY CARD', '8') THEN 'YEAHPAY CARD'
-        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('CARD', 'VISA', 'MASTER', 'MASTERCARD', 'AMEX', 'DINERS') THEN 'CARD'
-        WHEN (UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('PAYNOW', 'GRAB', 'FOODPANDA', '3') OR UPPER(${resolvedPayMode}) LIKE '%PAYNOW%') AND UPPER(${resolvedPayMode}) NOT LIKE '%YEAHPAY%' THEN 'PAYNOW'
-        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('NETS', '2') OR UPPER(${resolvedPayMode}) LIKE '%NETS%' THEN 'NETS'
-        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('UPI', '4') OR UPPER(${resolvedPayMode}) LIKE '%UPI%' OR UPPER(${resolvedPayMode}) LIKE '%GPAY%' THEN 'UPI'
-        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('MEMBER', '5') OR UPPER(${resolvedPayMode}) LIKE '%MEMBER%' THEN 'MEMBER'
-        WHEN UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))) IN ('QR', 'Q-R') THEN 'QR'
+        WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '') IN ('CAS', 'CASH', '1') THEN 'CASH'
+        WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '') IN ('YEAHPAYPAYNOW', '7') THEN 'YEAHPAY PAYNOW'
+        WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '') IN ('YEAHPAYCARD', '8') THEN 'YEAHPAY CARD'
+        WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '') IN ('CARD', 'VISA', 'MASTER', 'MASTERCARD', 'AMEX', 'DINERS') THEN 'CARD'
+        WHEN (REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '') IN ('PAYNOW', 'GRAB', 'FOODPANDA', '3') OR REPLACE(REPLACE(REPLACE(UPPER(${resolvedPayMode}), ' ', ''), '-', ''), '_', '') LIKE '%PAYNOW%') AND UPPER(${resolvedPayMode}) NOT LIKE '%YEAHPAY%' THEN 'PAYNOW'
+        WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '') IN ('NETS', '2') OR REPLACE(REPLACE(REPLACE(UPPER(${resolvedPayMode}), ' ', ''), '-', ''), '_', '') LIKE '%NETS%' THEN 'NETS'
+        WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '') IN ('UPI', '4') OR REPLACE(REPLACE(REPLACE(UPPER(${resolvedPayMode}), ' ', ''), '-', ''), '_', '') LIKE '%UPI%' OR REPLACE(REPLACE(REPLACE(UPPER(${resolvedPayMode}), ' ', ''), '-', ''), '_', '') LIKE '%GPAY%' THEN 'UPI'
+        WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '') IN ('MEMBER', '5') OR REPLACE(REPLACE(REPLACE(UPPER(${resolvedPayMode}), ' ', ''), '-', ''), '_', '') LIKE '%MEMBER%' THEN 'MEMBER'
+        WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, '')))), ' ', ''), '-', ''), '_', '') IN ('QR', '6') THEN 'QR'
         ELSE UPPER(LTRIM(RTRIM(ISNULL(${resolvedPayMode}, 'CASH'))))
       END
     ))
@@ -1009,14 +1010,15 @@ router.get("/settlement", async (req, res) => {
           UPPER(ISNULL(
             (SELECT TOP 1 LTRIM(RTRIM(pm.Description)) 
              FROM Paymode pm 
-             WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(sd.Paymode)) 
-                OR LTRIM(RTRIM(pm.Description)) = LTRIM(RTRIM(sd.Paymode))
+             WHERE REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(pm.PayMode))), ' ', ''), '-', ''), '_', '') = REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '')
+                OR REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(pm.Description))), ' ', ''), '-', ''), '_', '') = REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '')
                 OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(sd.Paymode))
             ), 
             CASE 
-              WHEN LTRIM(RTRIM(sd.Paymode)) = '2' THEN 'NETS'
-              WHEN LTRIM(RTRIM(sd.Paymode)) = '3' THEN 'PAYNOW'
-              WHEN LTRIM(RTRIM(sd.Paymode)) = '4' THEN 'UPI'
+              WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') = 'NETS' OR LTRIM(RTRIM(sd.Paymode)) = '2' THEN 'NETS'
+              WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') = 'PAYNOW' OR LTRIM(RTRIM(sd.Paymode)) = '3' THEN 'PAYNOW'
+              WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') = 'QR' OR LTRIM(RTRIM(sd.Paymode)) = '6' THEN 'QR'
+              WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') IN ('UPI', 'GPAY', 'UPI/GPAY') OR LTRIM(RTRIM(sd.Paymode)) = '4' THEN 'UPI'
               ELSE ISNULL(sd.Paymode, 'CASH')
             END
           )) as Paymode,
@@ -1027,8 +1029,23 @@ router.get("/settlement", async (req, res) => {
         FROM SettlementHeader sh
         INNER JOIN SettlementDetail sd ON sh.SettlementID = sd.SettlementId
         WHERE ${appDateWhereSql}
-        GROUP BY sd.Paymode
-      ),
+        GROUP BY 
+          UPPER(ISNULL(
+            (SELECT TOP 1 LTRIM(RTRIM(pm.Description)) 
+             FROM Paymode pm 
+             WHERE REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(pm.PayMode))), ' ', ''), '-', ''), '_', '') = REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '')
+                OR REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(pm.Description))), ' ', ''), '-', ''), '_', '') = REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '')
+                OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(sd.Paymode))
+            ), 
+            CASE 
+              WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') = 'NETS' OR LTRIM(RTRIM(sd.Paymode)) = '2' THEN 'NETS'
+              WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') = 'PAYNOW' OR LTRIM(RTRIM(sd.Paymode)) = '3' THEN 'PAYNOW'
+              WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') = 'QR' OR LTRIM(RTRIM(sd.Paymode)) = '6' THEN 'QR'
+              WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') IN ('UPI', 'GPAY', 'UPI/GPAY') OR LTRIM(RTRIM(sd.Paymode)) = '4' THEN 'UPI'
+              ELSE ISNULL(sd.Paymode, 'CASH')
+            END
+          ))
+        ),
       LedgerPayments AS (
         SELECT 
           CASE WHEN mm.MemberId IS NOT NULL THEN 'MEMBER' ELSE 'CREDIT' END + ' PAYMENT (' + UPPER(ISNULL(pm.Description, 'CASH')) + ')' AS Paymode,
@@ -1215,15 +1232,16 @@ router.get("/day-end-summary", async (req, res) => {
             UPPER(ISNULL(
               (SELECT TOP 1 LTRIM(RTRIM(pm.Description)) 
                FROM Paymode pm 
-               WHERE LTRIM(RTRIM(pm.PayMode)) = LTRIM(RTRIM(sd.Paymode)) 
-                  OR LTRIM(RTRIM(pm.Description)) = LTRIM(RTRIM(sd.Paymode))
+               WHERE REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(pm.PayMode))), ' ', ''), '-', ''), '_', '') = REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '')
+                  OR REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(pm.Description))), ' ', ''), '-', ''), '_', '') = REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '')
                   OR CAST(pm.Position AS NVARCHAR(10)) = LTRIM(RTRIM(sd.Paymode))
               ), 
               CASE 
                 WHEN UPPER(LTRIM(RTRIM(sd.Paymode))) IN ('CASHBOX', 'CASH BOX', 'CASH BOX ENTRY') THEN 'Cash Box Entry'
-                WHEN LTRIM(RTRIM(sd.Paymode)) = '2' THEN 'NETS'
-                WHEN LTRIM(RTRIM(sd.Paymode)) = '3' THEN 'PAYNOW'
-                WHEN LTRIM(RTRIM(sd.Paymode)) = '4' THEN 'UPI / GPAY'
+                WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') = 'NETS' OR LTRIM(RTRIM(sd.Paymode)) = '2' THEN 'NETS'
+                WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') = 'PAYNOW' OR LTRIM(RTRIM(sd.Paymode)) = '3' THEN 'PAYNOW'
+                WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') = 'QR' OR LTRIM(RTRIM(sd.Paymode)) = '6' THEN 'QR'
+                WHEN REPLACE(REPLACE(REPLACE(UPPER(LTRIM(RTRIM(sd.Paymode))), ' ', ''), '-', ''), '_', '') IN ('UPI', 'GPAY', 'UPI/GPAY') OR LTRIM(RTRIM(sd.Paymode)) = '4' THEN 'UPI / GPAY'
                 ELSE ISNULL(sd.Paymode, 'CASH')
               END
             )) as Paymode,
