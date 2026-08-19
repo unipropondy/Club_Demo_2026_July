@@ -1038,10 +1038,10 @@ export default function PaymentScreen() {
           mUpper.includes("GPAY") ||
           mUpper.includes("PHONE") ||
           mUpper.includes("PAYTM");
+        // ✅ STRICT: Only exact "paynow" (case-insensitive) is treated as a PayNow QR mode.
+        // A payment mode named "QR" or "Q-R" is NOT a PayNow QR mode.
         const isPayNow =
-          (mUpper.includes("PAYNOW") ||
-          mUpper.includes("QR") ||
-          mUpper.includes("PAY-NOW")) &&
+          m.payMode.trim().toLowerCase() === "paynow" &&
           m.yeahPayEnabled !== true &&
           String(m.yeahPayEnabled) !== "true" &&
           String(m.yeahPayEnabled) !== "1";
@@ -1296,8 +1296,9 @@ export default function PaymentScreen() {
       return;
     }
 
-    // ✅ Only show QR for REGULAR PayNow (NOT YeahPay)
-    if (mUpper.includes("PAYNOW") && settings.payNowQrUrl) {
+    // ✅ STRICT: Only exact "paynow" (case-insensitive) shows the PayNow QR popup.
+    // Payment modes like "QR", "Paytm", "GPay" go straight to normal settlement.
+    if (method.trim().toLowerCase() === "paynow" && settings.payNowQrUrl) {
       setIsPayNowVisible(true);
       return;
     }

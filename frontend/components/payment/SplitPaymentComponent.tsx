@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -61,16 +61,16 @@ interface SplitPaymentComponentProps {
   onSelectMember?: (payMode?: string) => void;
 }
 
+// ✅ STRICT: Only exact "paynow" (case-insensitive) is treated as PayNow QR mode.
+// UPI, GPay, Paytm etc are NOT QR modes here — they go to normal settlement or their own flows.
 const isQRMode = (modeName: string): boolean => {
-  const m = modeName.toUpperCase().trim();
-  return m.includes("PAYNOW") || m.includes("PAY-NOW") || 
-         m.includes("UPI") || m.includes("GPAY") || 
-         m.includes("PHONE") || m.includes("PAYTM");
+  return modeName.trim().toLowerCase() === "paynow";
 };
 
+// ✅ STRICT: ONLY the exact name "Paynow" (case-insensitive) triggers the PayNow QR popup.
+// "QR", "Q-R", "GPay", "Paytm", "PhonePe" etc do NOT trigger this flow.
 const isPayNowMode = (modeName: string): boolean => {
-  const m = modeName.toUpperCase().trim();
-  return m.includes("PAYNOW") || m.includes("PAY-NOW");
+  return modeName.trim().toLowerCase() === "paynow";
 };
 
 // ✅ ADD THIS - For Card detection
@@ -80,9 +80,10 @@ const isCardMode = (modeName: string): boolean => {
   // ✅ Check if it contains "CARD" 
   return m.includes("CARD");
 };
+// ✅ STRICT: needsTerminalCall covers the PayNow QR flow (exact "paynow") and CARD (YeahPay terminal).
+// Other modes like "QR" do NOT trigger a terminal call — they go straight to normal settlement.
 const needsTerminalCall = (modeName: string): boolean => {
-  const m = modeName.toUpperCase().trim();
-  return m.includes("PAYNOW") || m.includes("PAY-NOW") || m.includes("CARD");
+  return isPayNowMode(modeName) || isCardMode(modeName);
 };
 const isUpiMode = (modeName: string): boolean => {
   const m = modeName.toUpperCase().trim();
