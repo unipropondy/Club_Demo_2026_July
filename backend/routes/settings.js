@@ -27,6 +27,14 @@ router.get("/", async (req, res) => {
 
       IF NOT EXISTS (
         SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'EnableReceiptPrint'
+      )
+      BEGIN
+        ALTER TABLE AppSettings ADD EnableReceiptPrint BIT DEFAULT 1 WITH VALUES;
+      END
+
+      IF NOT EXISTS (
+        SELECT * FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'SVCIdentification'
       )
       BEGIN
@@ -118,6 +126,11 @@ router.get("/", async (req, res) => {
       BEGIN
         ALTER TABLE AppSettings ADD VipRuleDiscountValue DECIMAL(18, 2) DEFAULT 0.00 WITH VALUES;
       END
+
+      IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AppSettings' AND COLUMN_NAME = 'SkipSummary')
+      BEGIN
+        ALTER TABLE AppSettings ADD SkipSummary BIT DEFAULT 0 WITH VALUES;
+      END
     `,
       )
       .catch((err) =>
@@ -168,6 +181,8 @@ router.post("/update", async (req, res) => {
       vipRuleDishGroupId,
       vipRuleDiscountType,
       vipRuleDiscountValue,
+      enableReceiptPrint,
+      skipSummary,
     } = req.body;
     const pool = await poolPromise;
 
@@ -213,6 +228,16 @@ router.post("/update", async (req, res) => {
         "EnableKDSPrint",
         sql.Bit,
         enableKDSPrint !== undefined ? enableKDSPrint : 1,
+      )
+      .input(
+        "EnableReceiptPrint",
+        sql.Bit,
+        enableReceiptPrint !== undefined ? enableReceiptPrint : 1,
+      )
+      .input(
+        "SkipSummary",
+        sql.Bit,
+        skipSummary !== undefined ? skipSummary : 0,
       )
       .input(
         "SVCIdentification",
@@ -289,6 +314,8 @@ router.post("/update", async (req, res) => {
             EnableGuestDetailsPopup = @EnableGuestDetailsPopup,
             EnableCashDrawer = @EnableCashDrawer,
             EnableKDSPrint = @EnableKDSPrint,
+            EnableReceiptPrint = @EnableReceiptPrint,
+            SkipSummary = @SkipSummary,
             SVCIdentification = @SVCIdentification,
             EnableCombo = @EnableCombo,
             ShowBillTime = @ShowBillTime,
@@ -309,14 +336,14 @@ router.post("/update", async (req, res) => {
           INSERT INTO AppSettings (
             UPI_ID, ShopName, PayNow_QR_Url, EnableKOT, EnableKDS, EnableCheckoutBill, EnableCheckoutFlow, 
             EnableDirectProcessToPay, CustomerSideDisplay, EnableGuestDetailsPopup, EnableCashDrawer, 
-            EnableKDSPrint, SVCIdentification, EnableCombo, ShowBillTime, ShowLoyalty, ShowRewardPoints, 
+            EnableKDSPrint, EnableReceiptPrint, SkipSummary, SVCIdentification, EnableCombo, ShowBillTime, ShowLoyalty, ShowRewardPoints, 
             ShowPromoCode, VIPThreshold, VipRuleEnabled, VipRuleTargetType, VipRuleDishId, VipRuleDishGroupId, 
             VipRuleDiscountType, VipRuleDiscountValue, UpdatedOn
           )
           VALUES (
             @UPI, @Shop, @QR, @EnableKOT, @EnableKDS, @EnableCheckoutBill, @EnableCheckoutFlow, 
             @EnableDirectProcessToPay, @CustomerSideDisplay, @EnableGuestDetailsPopup, @EnableCashDrawer, 
-            @EnableKDSPrint, @SVCIdentification, @EnableCombo, @ShowBillTime, @ShowLoyalty, @ShowRewardPoints, 
+            @EnableKDSPrint, @EnableReceiptPrint, @SkipSummary, @SVCIdentification, @EnableCombo, @ShowBillTime, @ShowLoyalty, @ShowRewardPoints, 
             @ShowPromoCode, @VIPThreshold, @VipRuleEnabled, @VipRuleTargetType, @VipRuleDishId, @VipRuleDishGroupId, 
             @VipRuleDiscountType, @VipRuleDiscountValue, GETDATE()
           )

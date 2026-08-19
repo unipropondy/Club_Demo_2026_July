@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -418,7 +418,7 @@ export default function RewardMasterScreen() {
             <View style={styles.pwIconContainer}>
               <FontAwesome5 name="lock" size={32} color={Theme.primary} />
             </View>
-            <Text style={styles.pwHeaderTitleCentered}>ðŸ”’ Admin Verification</Text>
+            <Text style={styles.pwHeaderTitleCentered}>Admin Verification</Text>
             <Text style={styles.pwSubtitleCentered}>
               Enter admin password to access Shop Settings
             </Text>

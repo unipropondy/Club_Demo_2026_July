@@ -1,6 +1,8 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
 
+declare const __DEV__: boolean;
+
 const getLocalBackendIP = (): string => {
   if (Platform.OS === "web" && typeof window !== "undefined") {
     return window.location.hostname;

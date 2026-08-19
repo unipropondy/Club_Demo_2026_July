@@ -70,8 +70,20 @@ export default function PaymentSuccess() {
     }
   }, [paymentsRaw]);
 
-  const [promptVisible, setPromptVisible] = React.useState(true);
+  const [promptVisible, setPromptVisible] = React.useState(false);
   const [showSplitConfirmModal, setShowSplitConfirmModal] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleAutoPrintFlow = async () => {
+      const { enableReceiptPrint } = useGeneralSettingsStore.getState().settings;
+      if (enableReceiptPrint !== false) {
+        await handlePrint();
+      } else {
+        await openDrawerForCash();
+      }
+    };
+    handleAutoPrintFlow();
+  }, []);
 
   React.useEffect(() => {
     CustomerDisplaySync.syncPaymentSuccess({

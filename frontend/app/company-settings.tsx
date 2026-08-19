@@ -1,58 +1,59 @@
-import React, { useState, useEffect } from 'react';
+import { API_URL } from "@/constants/Config";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Image,
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Theme } from '../constants/theme';
-import { Fonts } from '../constants/Fonts';
-import BillPDFGenerator from '../components/BillPDFGenerator';
-import { useToast } from '../components/Toast';
-import { API_URL } from '@/constants/Config';
-import { useCompanySettingsStore } from '../stores/companySettingsStore';
-import { useAuthStore } from '../stores/authStore';
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import BillPDFGenerator from "../components/BillPDFGenerator";
+import { useToast } from "../components/Toast";
+import { Fonts } from "../constants/Fonts";
+import { Theme } from "../constants/theme";
+import { useAuthStore } from "../stores/authStore";
+import { useCompanySettingsStore } from "../stores/companySettingsStore";
 
 export default function CompanySettingsScreen() {
-  const { settings, loading, fetchSettings, updateSettings } = useCompanySettingsStore();
+  const { settings, loading, fetchSettings, updateSettings } =
+    useCompanySettingsStore();
   const { user } = useAuthStore();
-  const [userId, setUserId] = useState('1');
+  const [userId, setUserId] = useState("1");
   const [saving, setSaving] = useState(false);
   const [kitchenPrinters, setKitchenPrinters] = useState<any[]>([]);
-  const [cashierIp, setCashierIp] = useState('');
+  const [cashierIp, setCashierIp] = useState("");
   const [cashierActive, setCashierActive] = useState(true);
-  const [takeawayIp, setTakeawayIp] = useState('');
+  const [takeawayIp, setTakeawayIp] = useState("");
   const [takeawayActive, setTakeawayActive] = useState(true);
-  const [kdsIp, setKdsIp] = useState('');
+  const [kdsIp, setKdsIp] = useState("");
   const [kdsActive, setKdsActive] = useState(true);
   const [loadingKitchens, setLoadingKitchens] = useState(false);
   const [showAddPrinterModal, setShowAddPrinterModal] = useState(false);
-  const [newPrinterName, setNewPrinterName] = useState('');
-  const [newPrinterIP, setNewPrinterIP] = useState('');
+  const [newPrinterName, setNewPrinterName] = useState("");
+  const [newPrinterIP, setNewPrinterIP] = useState("");
   const [showPinModal, setShowPinModal] = useState(false);
-  const [pin, setPin] = useState('');
+  const [pin, setPin] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
-  
+
   const [password, setPassword] = useState("");
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  const [localTakeawayCharges, setLocalTakeawayCharges] = useState<string>('');
-  const [localGstPercentage, setLocalGstPercentage] = useState<string>('');
-  const [localServiceChargePercentage, setLocalServiceChargePercentage] = useState<string>('');
+  const [localTakeawayCharges, setLocalTakeawayCharges] = useState<string>("");
+  const [localGstPercentage, setLocalGstPercentage] = useState<string>("");
+  const [localServiceChargePercentage, setLocalServiceChargePercentage] =
+    useState<string>("");
   const [hasInitializedLocal, setHasInitializedLocal] = useState(false);
 
   const router = useRouter();
@@ -97,7 +98,9 @@ export default function CompanySettingsScreen() {
     if (settings && !hasInitializedLocal) {
       setLocalTakeawayCharges(String(settings.takeawayCharges ?? 0));
       setLocalGstPercentage(String(settings.gstPercentage ?? 0));
-      setLocalServiceChargePercentage(String(settings.serviceChargePercentage ?? 0));
+      setLocalServiceChargePercentage(
+        String(settings.serviceChargePercentage ?? 0),
+      );
       setHasInitializedLocal(true);
     }
   }, [settings, hasInitializedLocal]);
@@ -109,38 +112,48 @@ export default function CompanySettingsScreen() {
       const data = await response.json();
       if (Array.isArray(data)) {
         // Find Cashier printer (PrinterType = 1)
-        const cashier = data.find(p => p.PrinterType === 1);
+        const cashier = data.find((p) => p.PrinterType === 1);
         if (cashier) {
-          setCashierIp(cashier.PrinterPath || '');
-          setCashierActive(cashier.IsActive !== 0 && cashier.IsActive !== false);
+          setCashierIp(cashier.PrinterPath || "");
+          setCashierActive(
+            cashier.IsActive !== 0 && cashier.IsActive !== false,
+          );
         }
 
         // Find Takeaway printer (PrinterType = 3)
-        const takeaway = data.find(p => p.PrinterType === 3);
+        const takeaway = data.find((p) => p.PrinterType === 3);
         if (takeaway) {
-          setTakeawayIp(takeaway.PrinterPath || '');
-          setTakeawayActive(takeaway.IsActive !== 0 && takeaway.IsActive !== false);
+          setTakeawayIp(takeaway.PrinterPath || "");
+          setTakeawayActive(
+            takeaway.IsActive !== 0 && takeaway.IsActive !== false,
+          );
         }
 
         // Find KDS printer (PrinterType = 4)
-        const kds = data.find(p => p.PrinterType === 4);
+        const kds = data.find((p) => p.PrinterType === 4);
         if (kds) {
-          setKdsIp(kds.PrinterPath || '');
+          setKdsIp(kds.PrinterPath || "");
           setKdsActive(kds.IsActive !== 0 && kds.IsActive !== false);
         }
 
         // Filter and Deduplicate Kitchen printers (PrinterType = 2)
-        const kitchens = data.filter(p => p.PrinterType === 2);
-        const uniqueKitchens = kitchens.filter((item, index, self) =>
-          index === self.findIndex(p => p.KitchenTypeValue === item.KitchenTypeValue)
-        ).map(p => ({
-          ...p,
-          IsActive: p.IsActive !== 0 && p.IsActive !== false
-        }));
+        const kitchens = data.filter((p) => p.PrinterType === 2);
+        const uniqueKitchens = kitchens
+          .filter(
+            (item, index, self) =>
+              index ===
+              self.findIndex(
+                (p) => p.KitchenTypeValue === item.KitchenTypeValue,
+              ),
+          )
+          .map((p) => ({
+            ...p,
+            IsActive: p.IsActive !== 0 && p.IsActive !== false,
+          }));
         setKitchenPrinters(uniqueKitchens);
       }
     } catch (error) {
-      console.error('Failed to fetch kitchen printers:', error);
+      console.error("Failed to fetch kitchen printers:", error);
     } finally {
       setLoadingKitchens(false);
     }
@@ -148,25 +161,25 @@ export default function CompanySettingsScreen() {
 
   const handleAddPrinter = async () => {
     if (!newPrinterName || !newPrinterIP) {
-      showToast({ type: 'error', message: 'Please enter name and IP' });
+      showToast({ type: "error", message: "Please enter name and IP" });
       return;
     }
     try {
       setSaving(true);
       const res = await fetch(`${API_URL}/api/settings/kitchen-printers/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newPrinterName, ip: newPrinterIP })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newPrinterName, ip: newPrinterIP }),
       });
       if (res.ok) {
-        showToast({ type: 'success', message: 'Printer added' });
+        showToast({ type: "success", message: "Printer added" });
         setShowAddPrinterModal(false);
-        setNewPrinterName('');
-        setNewPrinterIP('');
+        setNewPrinterName("");
+        setNewPrinterIP("");
         fetchKitchenPrinters();
       }
     } catch (err) {
-      showToast({ type: 'error', message: 'Failed to add printer' });
+      showToast({ type: "error", message: "Failed to add printer" });
     } finally {
       setSaving(false);
     }
@@ -174,13 +187,13 @@ export default function CompanySettingsScreen() {
 
   const handleDeletePrinter = async (id: number, name: string) => {
     setPendingDeleteId(id);
-    setPin('');
+    setPin("");
     setShowPinModal(true);
   };
 
   const confirmDelete = async () => {
     if (!pin) {
-      showToast({ type: 'error', message: 'Enter admin password' });
+      showToast({ type: "error", message: "Enter admin password" });
       return;
     }
 
@@ -188,31 +201,34 @@ export default function CompanySettingsScreen() {
       setSaving(true);
       // 1. Verify admin password
       const authRes = await fetch(`${API_URL}/api/auth/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pin })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: pin }),
       });
       const authData = await authRes.json();
 
       if (!authData.success) {
-        showToast({ type: 'error', message: 'Incorrect admin password' });
+        showToast({ type: "error", message: "Incorrect admin password" });
         return;
       }
 
       // 2. Proceed with delete
-      const res = await fetch(`${API_URL}/api/settings/kitchen-printers/delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: pendingDeleteId })
-      });
+      const res = await fetch(
+        `${API_URL}/api/settings/kitchen-printers/delete`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: pendingDeleteId }),
+        },
+      );
 
       if (res.ok) {
-        showToast({ type: 'success', message: 'Printer removed' });
+        showToast({ type: "success", message: "Printer removed" });
         setShowPinModal(false);
         fetchKitchenPrinters();
       }
     } catch (err) {
-      showToast({ type: 'error', message: 'Failed to delete printer' });
+      showToast({ type: "error", message: "Failed to delete printer" });
     } finally {
       setSaving(false);
     }
@@ -222,70 +238,84 @@ export default function CompanySettingsScreen() {
     setSaving(true);
     try {
       const success = await BillPDFGenerator.saveSettings(settings, "1");
-      
+
       // Build payload for all printers in PrintMaster
       const printersPayload = [
         {
           id: 0,
           ip: cashierIp,
           type: 1,
-          name: 'Receipt Printer',
-          isActive: cashierActive
+          name: "Receipt Printer",
+          isActive: cashierActive,
         },
         {
           id: 6,
           ip: takeawayIp,
           type: 3,
-          name: 'TakeAway',
-          isActive: takeawayActive
+          name: "TakeAway",
+          isActive: takeawayActive,
         },
         {
           id: 9,
           ip: kdsIp,
           type: 4,
-          name: 'KDS Printer',
-          isActive: kdsActive
+          name: "KDS Printer",
+          isActive: kdsActive,
         },
-        ...kitchenPrinters.map(kp => ({
+        ...kitchenPrinters.map((kp) => ({
           id: kp.KitchenTypeValue,
           ip: kp.PrinterPath,
           type: 2,
           name: kp.KitchenTypeName,
           printerId: kp.PrinterId,
-          isActive: kp.IsActive
-        }))
+          isActive: kp.IsActive,
+        })),
       ];
 
       // ✅ Save Kitchen, Cashier, and Takeaway Printers
-      const printerUpdateResponse = await fetch(`${API_URL}/api/settings/kitchen-printers/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ printers: printersPayload })
-      });
+      const printerUpdateResponse = await fetch(
+        `${API_URL}/api/settings/kitchen-printers/update`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ printers: printersPayload }),
+        },
+      );
 
       if (success && printerUpdateResponse.ok) {
-        showToast({ type: 'success', message: 'All settings saved successfully' });
+        showToast({
+          type: "success",
+          message: "All settings saved successfully",
+        });
       } else {
-        const errorMsg = !success ? 'Company settings save failed' : 'Printer routing save failed';
+        const errorMsg = !success
+          ? "Company settings save failed"
+          : "Printer routing save failed";
         throw new Error(errorMsg);
       }
     } catch (error: any) {
       console.error("❌ Save settings error:", error);
-      showToast({ type: 'error', message: `Failed to save settings: ${error.message || error}` });
+      showToast({
+        type: "error",
+        message: `Failed to save settings: ${error.message || error}`,
+      });
     } finally {
       setSaving(false);
     }
   };
 
-  const pickImage = async (type: 'company' | 'halal') => {
+  const pickImage = async (type: "company" | "halal") => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      showToast({ type: 'error', message: 'Permission needed to access images' });
+    if (status !== "granted") {
+      showToast({
+        type: "error",
+        message: "Permission needed to access images",
+      });
       return;
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
+      mediaTypes: "images",
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.6, // Slightly lower quality to keep DB size manageable
@@ -296,39 +326,40 @@ export default function CompanySettingsScreen() {
       setSaving(true);
       try {
         let base64Data = result.assets[0].base64;
-        
+
         // ✅ SMART MIME-TYPE DETECTION: Ensure PNG/JPEG accuracy for PDF engine
-        let finalMime = result.assets[0].mimeType || 'image/jpeg';
-        if (base64Data?.startsWith('iVBOR')) finalMime = 'image/png';
+        let finalMime = result.assets[0].mimeType || "image/jpeg";
+        if (base64Data?.startsWith("iVBOR")) finalMime = "image/png";
 
         const dataUri = `data:${finalMime};base64,${base64Data}`;
-        const isCompany = type === 'company';
+        const isCompany = type === "company";
         updateSettings({
-          [isCompany ? 'companyLogo' : 'halalLogo']: dataUri,
-          [isCompany ? 'showCompanyLogo' : 'showHalalLogo']: true
+          [isCompany ? "companyLogo" : "halalLogo"]: dataUri,
+          [isCompany ? "showCompanyLogo" : "showHalalLogo"]: true,
         });
-        showToast({ type: 'success', message: 'Logo processed successfully' });
+        showToast({ type: "success", message: "Logo processed successfully" });
       } catch (error) {
-        showToast({ type: 'error', message: 'Failed to process image' });
+        showToast({ type: "error", message: "Failed to process image" });
       } finally {
         setSaving(false);
       }
     }
   };
 
-  const removeLogo = async (type: 'company' | 'halal') => {
-    const field = type === 'company' ? 'companyLogo' : 'halalLogo';
-    const toggleField = type === 'company' ? 'showCompanyLogo' : 'showHalalLogo';
-    const updated = { ...settings, [field]: '', [toggleField]: false };
-    updateSettings({ [field]: '', [toggleField]: false });
-    
+  const removeLogo = async (type: "company" | "halal") => {
+    const field = type === "company" ? "companyLogo" : "halalLogo";
+    const toggleField =
+      type === "company" ? "showCompanyLogo" : "showHalalLogo";
+    const updated = { ...settings, [field]: "", [toggleField]: false };
+    updateSettings({ [field]: "", [toggleField]: false });
+
     setSaving(true);
     try {
       // Sync with DB immediately
       await BillPDFGenerator.saveSettings(updated, userId);
-      showToast({ type: 'info', message: 'Logo removed successfully' });
+      showToast({ type: "info", message: "Logo removed successfully" });
     } catch (err) {
-      showToast({ type: 'error', message: 'Failed to remove logo' });
+      showToast({ type: "error", message: "Failed to remove logo" });
     } finally {
       setSaving(false);
     }
@@ -336,16 +367,22 @@ export default function CompanySettingsScreen() {
 
   const getLogoUri = (logo: string) => {
     if (!logo) return undefined;
-    if (logo.startsWith('data:image')) return logo;
-    if (logo.startsWith('http')) return `${logo}?t=${Date.now()}`;
-    return `${API_URL}${logo.startsWith('/') ? '' : '/'}${logo}?t=${Date.now()}`;
+    if (logo.startsWith("data:image")) return logo;
+    if (logo.startsWith("http")) return `${logo}?t=${Date.now()}`;
+    return `${API_URL}${logo.startsWith("/") ? "" : "/"}${logo}?t=${Date.now()}`;
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Theme.primary} />
-        <Text style={{ marginTop: 20, fontFamily: Fonts.bold, color: Theme.textSecondary }}>
+        <Text
+          style={{
+            marginTop: 20,
+            fontFamily: Fonts.bold,
+            color: Theme.textSecondary,
+          }}
+        >
           Loading Shop Settings...
         </Text>
       </View>
@@ -354,10 +391,20 @@ export default function CompanySettingsScreen() {
 
   if (!isUnlocked) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <SafeAreaView
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
         <View style={styles.passwordCard}>
-          <Ionicons name="lock-closed" size={48} color={Theme.primary} style={{ alignSelf: 'center', marginBottom: 15 }} />
-          <Text style={styles.passwordTitle}>🔐 Admin Verification</Text>
+          <Ionicons
+            name="lock-closed"
+            size={48}
+            color={Theme.primary}
+            style={{ alignSelf: "center", marginBottom: 15 }}
+          />
+          <Text style={styles.passwordTitle}>Admin Verification</Text>
           <Text style={styles.passwordSubtitle}>
             Enter admin password to access Shop Settings
           </Text>
@@ -379,7 +426,7 @@ export default function CompanySettingsScreen() {
                 if (router.canGoBack()) {
                   router.back();
                 } else {
-                  router.replace('/(tabs)/category' as any);
+                  router.replace("/(tabs)/category" as any);
                 }
               }}
             >
@@ -410,7 +457,7 @@ export default function CompanySettingsScreen() {
             if (router.canGoBack()) {
               router.back();
             } else {
-              router.replace('/(tabs)/category' as any);
+              router.replace("/(tabs)/category" as any);
             }
           }}
           style={styles.backButton}
@@ -418,8 +465,8 @@ export default function CompanySettingsScreen() {
           <Ionicons name="arrow-back" size={24} color={Theme.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Shop Settings</Text>
-        <TouchableOpacity 
-          style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
+        <TouchableOpacity
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
           onPress={handleSave}
           disabled={saving}
         >
@@ -431,12 +478,11 @@ export default function CompanySettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
       >
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          
           {/* Logo Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Branding</Text>
@@ -444,37 +490,61 @@ export default function CompanySettingsScreen() {
               <View style={styles.logoItem}>
                 <Text style={styles.logoLabel}>Company Logo</Text>
                 <View style={styles.logoPickerContainer}>
-                  <TouchableOpacity 
-                    style={[styles.logoPicker, settings.companyLogo ? styles.logoPickerActive : null]} 
-                    onPress={() => pickImage('company')}
+                  <TouchableOpacity
+                    style={[
+                      styles.logoPicker,
+                      settings.companyLogo ? styles.logoPickerActive : null,
+                    ]}
+                    onPress={() => pickImage("company")}
                   >
                     {settings.companyLogo ? (
-                      <Image source={{ uri: getLogoUri(settings.companyLogo) }} style={styles.logoPreview} />
+                      <Image
+                        source={{ uri: getLogoUri(settings.companyLogo) }}
+                        style={styles.logoPreview}
+                      />
                     ) : (
-                      <Ionicons name="cloud-upload-outline" size={30} color={Theme.textMuted} />
+                      <Ionicons
+                        name="cloud-upload-outline"
+                        size={30}
+                        color={Theme.textMuted}
+                      />
                     )}
                   </TouchableOpacity>
                   {!!settings.companyLogo && (
-                    <TouchableOpacity 
-                      style={styles.removeIconBtn} 
-                      onPress={() => removeLogo('company')}
+                    <TouchableOpacity
+                      style={styles.removeIconBtn}
+                      onPress={() => removeLogo("company")}
                     >
                       <Ionicons name="trash-outline" size={16} color="#fff" />
                     </TouchableOpacity>
                   )}
                 </View>
                 <View style={styles.statusContainer}>
-                   <Text style={[styles.statusText, settings.companyLogo ? styles.statusSuccess : styles.statusMuted]}>
-                     {settings.companyLogo ? '✅ Uploaded' : '❌ Not Uploaded'}
-                   </Text>
+                  <Text
+                    style={[
+                      styles.statusText,
+                      settings.companyLogo
+                        ? styles.statusSuccess
+                        : styles.statusMuted,
+                    ]}
+                  >
+                    {settings.companyLogo ? "✅ Uploaded" : "❌ Not Uploaded"}
+                  </Text>
                 </View>
                 <View style={styles.toggleRow}>
-                  <Text style={styles.toggleText}>{settings.showCompanyLogo ? 'Show on bill' : 'Hidden on bill'}</Text>
+                  <Text style={styles.toggleText}>
+                    {settings.showCompanyLogo
+                      ? "Show on bill"
+                      : "Hidden on bill"}
+                  </Text>
                   <TouchableOpacity
                     onPress={() => {
                       const val = !settings.showCompanyLogo;
                       if (val && !settings.companyLogo) {
-                        showToast({ type: 'error', message: 'Upload a logo first' });
+                        showToast({
+                          type: "error",
+                          message: "Upload a logo first",
+                        });
                         return;
                       }
                       updateSettings({ showCompanyLogo: val });
@@ -485,10 +555,12 @@ export default function CompanySettingsScreen() {
                     ]}
                     activeOpacity={0.8}
                   >
-                    <View style={[
-                      styles.toggleThumb,
-                      settings.showCompanyLogo && styles.toggleThumbOn,
-                    ]} />
+                    <View
+                      style={[
+                        styles.toggleThumb,
+                        settings.showCompanyLogo && styles.toggleThumbOn,
+                      ]}
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -496,37 +568,59 @@ export default function CompanySettingsScreen() {
               <View style={styles.logoItem}>
                 <Text style={styles.logoLabel}>Halal Logo</Text>
                 <View style={styles.logoPickerContainer}>
-                  <TouchableOpacity 
-                    style={[styles.logoPicker, settings.halalLogo ? styles.logoPickerActive : null]} 
-                    onPress={() => pickImage('halal')}
+                  <TouchableOpacity
+                    style={[
+                      styles.logoPicker,
+                      settings.halalLogo ? styles.logoPickerActive : null,
+                    ]}
+                    onPress={() => pickImage("halal")}
                   >
                     {settings.halalLogo ? (
-                      <Image source={{ uri: getLogoUri(settings.halalLogo) }} style={styles.logoPreview} />
+                      <Image
+                        source={{ uri: getLogoUri(settings.halalLogo) }}
+                        style={styles.logoPreview}
+                      />
                     ) : (
-                      <Ionicons name="ribbon-outline" size={30} color={Theme.textMuted} />
+                      <Ionicons
+                        name="ribbon-outline"
+                        size={30}
+                        color={Theme.textMuted}
+                      />
                     )}
                   </TouchableOpacity>
                   {!!settings.halalLogo && (
-                    <TouchableOpacity 
-                      style={styles.removeIconBtn} 
-                      onPress={() => removeLogo('halal')}
+                    <TouchableOpacity
+                      style={styles.removeIconBtn}
+                      onPress={() => removeLogo("halal")}
                     >
                       <Ionicons name="trash-outline" size={16} color="#fff" />
                     </TouchableOpacity>
                   )}
                 </View>
                 <View style={styles.statusContainer}>
-                   <Text style={[styles.statusText, settings.halalLogo ? styles.statusSuccess : styles.statusMuted]}>
-                     {settings.halalLogo ? '✅ Uploaded' : '❌ Not Uploaded'}
-                   </Text>
+                  <Text
+                    style={[
+                      styles.statusText,
+                      settings.halalLogo
+                        ? styles.statusSuccess
+                        : styles.statusMuted,
+                    ]}
+                  >
+                    {settings.halalLogo ? "✅ Uploaded" : "❌ Not Uploaded"}
+                  </Text>
                 </View>
                 <View style={styles.toggleRow}>
-                  <Text style={styles.toggleText}>{settings.showHalalLogo ? 'Show on bill' : 'Hidden on bill'}</Text>
+                  <Text style={styles.toggleText}>
+                    {settings.showHalalLogo ? "Show on bill" : "Hidden on bill"}
+                  </Text>
                   <TouchableOpacity
                     onPress={() => {
                       const val = !settings.showHalalLogo;
                       if (val && !settings.halalLogo) {
-                        showToast({ type: 'error', message: 'Upload a logo first' });
+                        showToast({
+                          type: "error",
+                          message: "Upload a logo first",
+                        });
                         return;
                       }
                       updateSettings({ showHalalLogo: val });
@@ -537,10 +631,12 @@ export default function CompanySettingsScreen() {
                     ]}
                     activeOpacity={0.8}
                   >
-                    <View style={[
-                      styles.toggleThumb,
-                      settings.showHalalLogo && styles.toggleThumbOn,
-                    ]} />
+                    <View
+                      style={[
+                        styles.toggleThumb,
+                        settings.showHalalLogo && styles.toggleThumbOn,
+                      ]}
+                    />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -550,13 +646,15 @@ export default function CompanySettingsScreen() {
           {/* Shop Details */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Shop Information</Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Company Name</Text>
-              <TextInput 
+              <TextInput
                 style={styles.input}
                 value={settings.name}
-                onChangeText={(val) => { updateSettings({ name: val }); }}
+                onChangeText={(val) => {
+                  updateSettings({ name: val });
+                }}
                 placeholder="Enter shop name"
                 placeholderTextColor={Theme.textMuted}
               />
@@ -564,10 +662,12 @@ export default function CompanySettingsScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Address</Text>
-              <TextInput 
+              <TextInput
                 style={[styles.input, styles.textArea]}
                 value={settings.address}
-                onChangeText={(val) => { updateSettings({ address: val }); }}
+                onChangeText={(val) => {
+                  updateSettings({ address: val });
+                }}
                 placeholder="Enter shop address"
                 placeholderTextColor={Theme.textMuted}
                 multiline
@@ -578,10 +678,12 @@ export default function CompanySettingsScreen() {
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                 <Text style={styles.inputLabel}>Phone</Text>
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={settings.phone}
-                  onChangeText={(val) => { updateSettings({ phone: val }); }}
+                  onChangeText={(val) => {
+                    updateSettings({ phone: val });
+                  }}
                   placeholder="+65 ..."
                   placeholderTextColor={Theme.textMuted}
                   keyboardType="phone-pad"
@@ -589,28 +691,53 @@ export default function CompanySettingsScreen() {
               </View>
               <View style={[styles.inputGroup, { flex: 1 }]}>
                 <Text style={styles.inputLabel}>Email</Text>
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={settings.email}
-                  onChangeText={(val) => { updateSettings({ email: val }); }}
+                  onChangeText={(val) => {
+                    updateSettings({ email: val });
+                  }}
                   keyboardType="email-address"
                 />
               </View>
             </View>
 
             <View style={{ marginTop: 20 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Cashier / Receipt Printer IP</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
+                  Cashier / Receipt Printer IP
+                </Text>
                 <TouchableOpacity
                   onPress={() => setCashierActive(!cashierActive)}
-                  style={[styles.toggleSwitch, cashierActive && styles.toggleSwitchOn]}
+                  style={[
+                    styles.toggleSwitch,
+                    cashierActive && styles.toggleSwitchOn,
+                  ]}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.toggleThumb, cashierActive && styles.toggleThumbOn]} />
+                  <View
+                    style={[
+                      styles.toggleThumb,
+                      cashierActive && styles.toggleThumbOn,
+                    ]}
+                  />
                 </TouchableOpacity>
               </View>
-              <TextInput 
-                style={[styles.input, !cashierActive && { opacity: 0.5, backgroundColor: Theme.bgMuted }]}
+              <TextInput
+                style={[
+                  styles.input,
+                  !cashierActive && {
+                    opacity: 0.5,
+                    backgroundColor: Theme.bgMuted,
+                  },
+                ]}
                 value={cashierIp}
                 editable={cashierActive}
                 onChangeText={(val) => {
@@ -621,24 +748,48 @@ export default function CompanySettingsScreen() {
                 placeholderTextColor={Theme.textMuted}
                 keyboardType="numeric"
               />
-              <Text style={[styles.note, { textAlign: 'left', marginTop: 5 }]}>
-                Used for printing Payment Receipts and Checkout Bills at the cashier counter.
+              <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
+                Used for printing Payment Receipts and Checkout Bills at the
+                cashier counter.
               </Text>
             </View>
 
             <View style={{ marginTop: 15 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>TakeAway Printer IP</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
+                  TakeAway Printer IP
+                </Text>
                 <TouchableOpacity
                   onPress={() => setTakeawayActive(!takeawayActive)}
-                  style={[styles.toggleSwitch, takeawayActive && styles.toggleSwitchOn]}
+                  style={[
+                    styles.toggleSwitch,
+                    takeawayActive && styles.toggleSwitchOn,
+                  ]}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.toggleThumb, takeawayActive && styles.toggleThumbOn]} />
+                  <View
+                    style={[
+                      styles.toggleThumb,
+                      takeawayActive && styles.toggleThumbOn,
+                    ]}
+                  />
                 </TouchableOpacity>
               </View>
-              <TextInput 
-                style={[styles.input, !takeawayActive && { opacity: 0.5, backgroundColor: Theme.bgMuted }]}
+              <TextInput
+                style={[
+                  styles.input,
+                  !takeawayActive && {
+                    opacity: 0.5,
+                    backgroundColor: Theme.bgMuted,
+                  },
+                ]}
                 value={takeawayIp}
                 editable={takeawayActive}
                 onChangeText={setTakeawayIp}
@@ -646,24 +797,47 @@ export default function CompanySettingsScreen() {
                 placeholderTextColor={Theme.textMuted}
                 keyboardType="numeric"
               />
-              <Text style={[styles.note, { textAlign: 'left', marginTop: 5 }]}>
+              <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
                 Used for printing Takeaway receipts and dockets.
               </Text>
             </View>
 
             <View style={{ marginTop: 15 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>KDS Printer IP</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
+                  KDS Printer IP
+                </Text>
                 <TouchableOpacity
                   onPress={() => setKdsActive(!kdsActive)}
-                  style={[styles.toggleSwitch, kdsActive && styles.toggleSwitchOn]}
+                  style={[
+                    styles.toggleSwitch,
+                    kdsActive && styles.toggleSwitchOn,
+                  ]}
                   activeOpacity={0.8}
                 >
-                  <View style={[styles.toggleThumb, kdsActive && styles.toggleThumbOn]} />
+                  <View
+                    style={[
+                      styles.toggleThumb,
+                      kdsActive && styles.toggleThumbOn,
+                    ]}
+                  />
                 </TouchableOpacity>
               </View>
-              <TextInput 
-                style={[styles.input, !kdsActive && { opacity: 0.5, backgroundColor: Theme.bgMuted }]}
+              <TextInput
+                style={[
+                  styles.input,
+                  !kdsActive && {
+                    opacity: 0.5,
+                    backgroundColor: Theme.bgMuted,
+                  },
+                ]}
                 value={kdsIp}
                 editable={kdsActive}
                 onChangeText={setKdsIp}
@@ -671,7 +845,7 @@ export default function CompanySettingsScreen() {
                 placeholderTextColor={Theme.textMuted}
                 keyboardType="numeric"
               />
-              <Text style={[styles.note, { textAlign: 'left', marginTop: 5 }]}>
+              <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
                 Used exclusively for printing KDS orders.
               </Text>
             </View>
@@ -680,27 +854,31 @@ export default function CompanySettingsScreen() {
           {/* Tax & Currency */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Tax & Currency</Text>
-            
+
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                 <Text style={styles.inputLabel}>GST Number</Text>
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={settings.gstNo}
-                  onChangeText={(val) => { updateSettings({ gstNo: val }); }}
+                  onChangeText={(val) => {
+                    updateSettings({ gstNo: val });
+                  }}
                   placeholder="Registration No"
                   placeholderTextColor={Theme.textMuted}
                 />
               </View>
               <View style={[styles.inputGroup, { flex: 1 }]}>
                 <Text style={styles.inputLabel}>GST (%)</Text>
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={localGstPercentage}
                   onChangeText={(val) => {
                     setLocalGstPercentage(val);
                     const parsed = parseFloat(val);
-                    updateSettings({ gstPercentage: isNaN(parsed) ? 0 : parsed });
+                    updateSettings({
+                      gstPercentage: isNaN(parsed) ? 0 : parsed,
+                    });
                   }}
                   placeholder="9.0"
                   placeholderTextColor={Theme.textMuted}
@@ -712,13 +890,15 @@ export default function CompanySettingsScreen() {
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                 <Text style={styles.inputLabel}>Service Charge (%)</Text>
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={localServiceChargePercentage}
                   onChangeText={(val) => {
                     setLocalServiceChargePercentage(val);
                     const parsed = parseFloat(val);
-                    updateSettings({ serviceChargePercentage: isNaN(parsed) ? 0 : parsed });
+                    updateSettings({
+                      serviceChargePercentage: isNaN(parsed) ? 0 : parsed,
+                    });
                   }}
                   placeholder="10.0"
                   placeholderTextColor={Theme.textMuted}
@@ -727,13 +907,15 @@ export default function CompanySettingsScreen() {
               </View>
               <View style={[styles.inputGroup, { flex: 1 }]}>
                 <Text style={styles.inputLabel}>Takeaway Charge</Text>
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={localTakeawayCharges}
                   onChangeText={(val) => {
                     setLocalTakeawayCharges(val);
                     const parsed = parseFloat(val);
-                    updateSettings({ takeawayCharges: isNaN(parsed) ? 0 : parsed });
+                    updateSettings({
+                      takeawayCharges: isNaN(parsed) ? 0 : parsed,
+                    });
                   }}
                   placeholder="0.30"
                   placeholderTextColor={Theme.textMuted}
@@ -745,31 +927,44 @@ export default function CompanySettingsScreen() {
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
                 <Text style={styles.inputLabel}>Currency Code</Text>
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={settings.currency}
-                  onChangeText={(val) => { updateSettings({ currency: val }); }}
+                  onChangeText={(val) => {
+                    updateSettings({ currency: val });
+                  }}
                   placeholder="SGD"
                   placeholderTextColor={Theme.textMuted}
                 />
               </View>
               <View style={[styles.inputGroup, { flex: 1 }]}>
                 <Text style={styles.inputLabel}>Symbol</Text>
-                <TextInput 
+                <TextInput
                   style={styles.input}
                   value={settings.currencySymbol}
-                  onChangeText={(val) => { updateSettings({ currencySymbol: val }); }}
+                  onChangeText={(val) => {
+                    updateSettings({ currencySymbol: val });
+                  }}
                   placeholder="$"
                   placeholderTextColor={Theme.textMuted}
                 />
               </View>
             </View>
           </View>
-          
+
           {/* Kitchen Printer Settings */}
           <View style={styles.section}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Smart Kitchen Routing</Text>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 20,
+              }}
+            >
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
+                Smart Kitchen Routing
+              </Text>
             </View>
 
             {loadingKitchens ? (
@@ -777,23 +972,46 @@ export default function CompanySettingsScreen() {
             ) : kitchenPrinters.length > 0 ? (
               kitchenPrinters.map((printer, index) => (
                 <View key={printer.KitchenTypeValue} style={styles.inputGroup}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={[styles.inputLabel, { marginBottom: 0 }]}>{printer.KitchenTypeName} Printer IP</Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
+                      {printer.KitchenTypeName} Printer IP
+                    </Text>
                     <TouchableOpacity
                       onPress={() => {
                         const updated = [...kitchenPrinters];
                         updated[index].IsActive = !updated[index].IsActive;
                         setKitchenPrinters(updated);
                       }}
-                      style={[styles.toggleSwitch, printer.IsActive && styles.toggleSwitchOn]}
+                      style={[
+                        styles.toggleSwitch,
+                        printer.IsActive && styles.toggleSwitchOn,
+                      ]}
                       activeOpacity={0.8}
                     >
-                      <View style={[styles.toggleThumb, printer.IsActive && styles.toggleThumbOn]} />
+                      <View
+                        style={[
+                          styles.toggleThumb,
+                          printer.IsActive && styles.toggleThumbOn,
+                        ]}
+                      />
                     </TouchableOpacity>
                   </View>
-                  <TextInput 
-                    style={[styles.input, !printer.IsActive && { opacity: 0.5, backgroundColor: Theme.bgMuted }]}
-                    value={printer.PrinterPath || ''}
+                  <TextInput
+                    style={[
+                      styles.input,
+                      !printer.IsActive && {
+                        opacity: 0.5,
+                        backgroundColor: Theme.bgMuted,
+                      },
+                    ]}
+                    value={printer.PrinterPath || ""}
                     editable={printer.IsActive}
                     onChangeText={(val) => {
                       const updated = [...kitchenPrinters];
@@ -807,10 +1025,13 @@ export default function CompanySettingsScreen() {
                 </View>
               ))
             ) : (
-              <Text style={styles.note}>No kitchen types found in database.</Text>
+              <Text style={styles.note}>
+                No kitchen types found in database.
+              </Text>
             )}
-            <Text style={[styles.note, { textAlign: 'left', marginTop: 5 }]}>
-              These IPs are used to automatically route items to specific kitchens.
+            <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
+              These IPs are used to automatically route items to specific
+              kitchens.
             </Text>
           </View>
 
@@ -823,10 +1044,10 @@ export default function CompanySettingsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Add Kitchen Printer</Text>
-            
+
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Kitchen Name</Text>
-              <TextInput 
+              <TextInput
                 style={styles.input}
                 value={newPrinterName}
                 onChangeText={setNewPrinterName}
@@ -837,7 +1058,7 @@ export default function CompanySettingsScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Printer IP Address</Text>
-              <TextInput 
+              <TextInput
                 style={styles.input}
                 value={newPrinterIP}
                 onChangeText={setNewPrinterIP}
@@ -848,14 +1069,14 @@ export default function CompanySettingsScreen() {
             </View>
 
             <View style={styles.modalActions}>
-              <TouchableOpacity 
-                style={[styles.modalBtn, styles.cancelBtn]} 
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.cancelBtn]}
                 onPress={() => setShowAddPrinterModal(false)}
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalBtn, styles.confirmBtn]} 
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.confirmBtn]}
                 onPress={handleAddPrinter}
               >
                 <Text style={styles.confirmBtnText}>Add Kitchen</Text>
@@ -869,12 +1090,22 @@ export default function CompanySettingsScreen() {
       <Modal visible={showPinModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { maxWidth: 320 }]}>
-            <Ionicons name="lock-closed" size={40} color={Theme.primary} style={{ alignSelf: 'center', marginBottom: 15 }} />
+            <Ionicons
+              name="lock-closed"
+              size={40}
+              color={Theme.primary}
+              style={{ alignSelf: "center", marginBottom: 15 }}
+            />
             <Text style={styles.modalTitle}>Admin Verification</Text>
-            <Text style={[styles.note, { marginBottom: 20 }]}>Enter admin password to delete this kitchen routing.</Text>
-            
-            <TextInput 
-              style={[styles.input, { textAlign: 'center', fontSize: 24, letterSpacing: 5 }]}
+            <Text style={[styles.note, { marginBottom: 20 }]}>
+              Enter admin password to delete this kitchen routing.
+            </Text>
+
+            <TextInput
+              style={[
+                styles.input,
+                { textAlign: "center", fontSize: 24, letterSpacing: 5 },
+              ]}
               value={pin}
               onChangeText={setPin}
               placeholder="••••"
@@ -884,14 +1115,14 @@ export default function CompanySettingsScreen() {
             />
 
             <View style={[styles.modalActions, { marginTop: 20 }]}>
-              <TouchableOpacity 
-                style={[styles.modalBtn, styles.cancelBtn]} 
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.cancelBtn]}
                 onPress={() => setShowPinModal(false)}
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalBtn, styles.confirmBtn]} 
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.confirmBtn]}
                 onPress={confirmDelete}
               >
                 <Text style={styles.confirmBtnText}>Verify</Text>
@@ -911,15 +1142,15 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: Theme.bgMain, // 🟢 Force correct background
   },
   passwordCard: {
     backgroundColor: Theme.bgCard,
     borderRadius: 24,
     padding: 28,
-    width: '88%',
+    width: "88%",
     maxWidth: 400,
     borderWidth: 1,
     borderColor: Theme.primaryBorder,
@@ -929,14 +1160,14 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: Fonts.black,
     color: Theme.textPrimary,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 8,
   },
   passwordSubtitle: {
     fontSize: 13,
     fontFamily: Fonts.medium,
     color: Theme.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 20,
   },
   passwordInput: {
@@ -952,20 +1183,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   passwordActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   passwordBtn: {
     flex: 1,
     height: 48,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
@@ -986,13 +1217,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
     minWidth: 70,
-    alignItems: 'center',
+    alignItems: "center",
   },
   saveButtonDisabled: {
     opacity: 0.6,
   },
   saveButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontFamily: Fonts.bold,
     fontSize: 14,
   },
@@ -1014,16 +1245,16 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.black,
     color: Theme.textPrimary,
     marginBottom: 20,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 1,
   },
   logoGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   logoItem: {
-    width: '48%',
-    alignItems: 'center',
+    width: "48%",
+    alignItems: "center",
   },
   logoLabel: {
     fontSize: 12,
@@ -1037,32 +1268,32 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     borderWidth: 2,
     borderColor: Theme.border,
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderStyle: "dashed",
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: Theme.bgNav,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   logoPickerContainer: {
-    position: 'relative',
+    position: "relative",
     width: 100,
     height: 100,
   },
   removeIconBtn: {
-    position: 'absolute',
+    position: "absolute",
     top: -8,
     right: -8,
     backgroundColor: Theme.danger,
     width: 28,
     height: 28,
     borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     ...Theme.shadowSm,
     zIndex: 10,
   },
   logoPickerActive: {
-    borderStyle: 'solid',
+    borderStyle: "solid",
     borderColor: Theme.primaryBorder,
     backgroundColor: Theme.primaryLight,
   },
@@ -1084,13 +1315,13 @@ const styles = StyleSheet.create({
     color: Theme.textMuted,
   },
   logoPreview: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
+    width: "100%",
+    height: "100%",
+    resizeMode: "contain",
   },
   toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 10,
     gap: 8,
   },
@@ -1104,7 +1335,7 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     backgroundColor: Theme.bgMuted,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: 2,
   },
   toggleSwitchOn: {
@@ -1115,15 +1346,15 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     backgroundColor: Theme.bgCard,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 2,
     elevation: 2,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   toggleThumbOn: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   inputGroup: {
     marginBottom: 15,
@@ -1147,21 +1378,21 @@ const styles = StyleSheet.create({
   },
   textArea: {
     height: 80,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   row: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   note: {
     fontSize: 11,
     fontFamily: Fonts.medium,
     color: Theme.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 10,
   },
   addPrinterBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Theme.primaryLight,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -1175,13 +1406,13 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalContent: {
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
     backgroundColor: Theme.bgCard,
     borderRadius: 24,
@@ -1195,10 +1426,10 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.black,
     color: Theme.textPrimary,
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginTop: 10,
   },
@@ -1206,8 +1437,8 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   cancelBtn: {
     backgroundColor: Theme.bgNav,
@@ -1222,7 +1453,7 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
   },
   confirmBtnText: {
-    color: '#fff',
+    color: "#fff",
     fontFamily: Fonts.bold,
   },
 });

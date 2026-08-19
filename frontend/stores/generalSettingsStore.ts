@@ -27,6 +27,8 @@ export interface GeneralSettings {
   vipRuleDishGroupId: string | null;
   vipRuleDiscountType: "PERCENTAGE" | "AMOUNT" | null;
   vipRuleDiscountValue: number;
+  enableReceiptPrint: boolean;
+  skipSummary: boolean;
 }
 
 interface GeneralSettingsState {
@@ -62,6 +64,8 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
         vipRuleDishGroupId: null,
         vipRuleDiscountType: null,
         vipRuleDiscountValue: 0,
+        enableReceiptPrint: true,
+        skipSummary: false,
       },
       loading: false,
 
@@ -97,6 +101,8 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
                 vipRuleDishGroupId: data.VipRuleDishGroupId || null,
                 vipRuleDiscountType: data.VipRuleDiscountType || null,
                 vipRuleDiscountValue: data.VipRuleDiscountValue !== undefined ? Number(data.VipRuleDiscountValue) : 0,
+                enableReceiptPrint: data.EnableReceiptPrint !== undefined ? Boolean(data.EnableReceiptPrint) : true,
+                skipSummary: data.SkipSummary !== undefined ? Boolean(data.SkipSummary) : false,
               },
             }));
           }
@@ -154,6 +160,8 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
             vipRuleDishGroupId: updatedSettings.vipRuleDishGroupId,
             vipRuleDiscountType: updatedSettings.vipRuleDiscountType,
             vipRuleDiscountValue: updatedSettings.vipRuleDiscountValue,
+            enableReceiptPrint: updatedSettings.enableReceiptPrint,
+            skipSummary: updatedSettings.skipSummary,
           };
 
           console.log("📦 [GeneralSettingsStore] Payload:", JSON.stringify(payload));

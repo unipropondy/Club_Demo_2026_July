@@ -488,6 +488,13 @@ class UniversalPrinter {
     userId?: string | number,
     kdsPrinterIp?: string,
   ): Promise<boolean> {
+    const { useGeneralSettingsStore } = await import("../stores/generalSettingsStore");
+    const { enableKDSPrint } = useGeneralSettingsStore.getState().settings;
+    if (enableKDSPrint === false) {
+      console.log("🖨️ [UniversalPrinter] KDS printing is disabled in settings.");
+      return false;
+    }
+
     if (Platform.OS === "web") {
       try {
         // Try bridge directly — skip pre-flight isBridgeOnline() check which can falsely report offline
@@ -743,6 +750,7 @@ class UniversalPrinter {
       }
 
       // ✅ 3. Mobile Fallback (Android/iOS)
+
       const { uri } = await Print.printToFileAsync({
         html,
         width: 226, // 80mm approximate
@@ -2121,6 +2129,7 @@ class UniversalPrinter {
           items: groupItems,
           kitchenName:
             groupItems[0].KitchenTypeName || (kCode === "0" ? "KITCHEN" : kCode),
+          kitchenCode: kCode,
         };
         await this.printKOT(
           kotData,

@@ -35,24 +35,30 @@ interface CustomDatePickerProps {
   visible: boolean;
   onClose: () => void;
   selectedDate: Date;
-  onApply: (date: Date) => void;
+  selectedEndDate: Date;
+  isRangeMode: boolean;
+  onApply: (startDate: Date, endDate: Date, isRange: boolean) => void;
   title: string;
 }
 
-function CustomDatePicker({ visible, onClose, selectedDate, onApply, title }: CustomDatePickerProps) {
+function CustomDatePicker({ visible, onClose, selectedDate, selectedEndDate, isRangeMode, onApply, title }: CustomDatePickerProps) {
   const { width } = useWindowDimensions();
   const isTablet = width >= 640;
 
   const [viewDate, setViewDate] = useState(() => new Date(selectedDate));
-  const [selectedDay, setSelectedDay] = useState(() => new Date(selectedDate));
+  const [rangeStart, setRangeStart] = useState(() => new Date(selectedDate));
+  const [rangeEnd, setRangeEnd] = useState<Date | null>(() => isRangeMode ? new Date(selectedEndDate) : null);
+  const [localIsRangeMode, setLocalIsRangeMode] = useState(isRangeMode);
 
   // Sync state when selectedDate changes or modal opens
   useEffect(() => {
     if (visible) {
       setViewDate(new Date(selectedDate));
-      setSelectedDay(new Date(selectedDate));
+      setRangeStart(new Date(selectedDate));
+      setRangeEnd(isRangeMode ? new Date(selectedEndDate) : null);
+      setLocalIsRangeMode(isRangeMode);
     }
-  }, [visible, selectedDate]);
+  }, [visible, selectedDate, selectedEndDate, isRangeMode]);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -106,13 +112,33 @@ function CustomDatePicker({ visible, onClose, selectedDate, onApply, title }: Cu
   }, [year, month]);
 
   const handleDaySelect = (dayObj: typeof days[0]) => {
-    setSelectedDay(new Date(dayObj.year, dayObj.month, dayObj.day));
+    const clickedDate = new Date(dayObj.year, dayObj.month, dayObj.day);
+    clickedDate.setHours(0, 0, 0, 0);
+
+    if (!localIsRangeMode) {
+      setRangeStart(clickedDate);
+      setRangeEnd(null);
+    } else {
+      if (!rangeStart || (rangeStart && rangeEnd)) {
+        setRangeStart(clickedDate);
+        setRangeEnd(null);
+      } else {
+        if (clickedDate < rangeStart) {
+          setRangeStart(clickedDate);
+          setRangeEnd(null);
+        } else {
+          setRangeEnd(clickedDate);
+        }
+      }
+    }
   };
 
   const handleApply = () => {
-    const finalDate = new Date(selectedDay);
-    finalDate.setHours(0, 0, 0, 0);
-    onApply(finalDate);
+    const finalStart = new Date(rangeStart);
+    finalStart.setHours(0, 0, 0, 0);
+    const finalEnd = rangeEnd ? new Date(rangeEnd) : new Date(finalStart);
+    finalEnd.setHours(0, 0, 0, 0);
+    onApply(finalStart, finalEnd, localIsRangeMode);
     onClose();
   };
 
@@ -132,6 +158,27 @@ function CustomDatePicker({ visible, onClose, selectedDate, onApply, title }: Cu
             <Text style={pickerStyles.headerTitle}>{title}</Text>
             <TouchableOpacity style={pickerStyles.closeBtn} onPress={onClose}>
               <Ionicons name="close" size={18} color="#44403C" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Mode Selector */}
+          <View style={{ flexDirection: 'row', backgroundColor: Theme.bgInput, borderRadius: 12, padding: 4, marginBottom: 16 }}>
+            <TouchableOpacity 
+              style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: !localIsRangeMode ? '#A855F7' : 'transparent', borderRadius: 8 }}
+              onPress={() => {
+                setLocalIsRangeMode(false);
+                setRangeEnd(null);
+              }}
+            >
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: !localIsRangeMode ? '#fff' : Theme.textSecondary }}>Single Date</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: localIsRangeMode ? '#A855F7' : 'transparent', borderRadius: 8 }}
+              onPress={() => {
+                setLocalIsRangeMode(true);
+              }}
+            >
+              <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: localIsRangeMode ? '#fff' : Theme.textSecondary }}>Date Range</Text>
             </TouchableOpacity>
           </View>
 
@@ -158,9 +205,36 @@ function CustomDatePicker({ visible, onClose, selectedDate, onApply, title }: Cu
             {/* Days Grid */}
             <View style={pickerStyles.daysGrid}>
               {days.map((dObj, idx) => {
-                const isSelected = selectedDay.getDate() === dObj.day &&
-                  selectedDay.getMonth() === dObj.month &&
-                  selectedDay.getFullYear() === dObj.year;
+                const currentDate = new Date(dObj.year, dObj.month, dObj.day);
+                currentDate.setHours(0, 0, 0, 0);
+
+                let isSelected = false;
+                let isInRange = false;
+                let isStart = false;
+                let isEnd = false;
+
+                if (!localIsRangeMode) {
+                  isSelected = rangeStart && 
+                    rangeStart.getDate() === dObj.day &&
+                    rangeStart.getMonth() === dObj.month &&
+                    rangeStart.getFullYear() === dObj.year;
+                } else {
+                  isStart = rangeStart && 
+                    rangeStart.getDate() === dObj.day &&
+                    rangeStart.getMonth() === dObj.month &&
+                    rangeStart.getFullYear() === dObj.year;
+                  
+                  isEnd = rangeEnd && 
+                    rangeEnd.getDate() === dObj.day &&
+                    rangeEnd.getMonth() === dObj.month &&
+                    rangeEnd.getFullYear() === dObj.year;
+                  
+                  isSelected = isStart || isEnd;
+
+                  if (rangeStart && rangeEnd) {
+                    isInRange = currentDate > rangeStart && currentDate < rangeEnd;
+                  }
+                }
 
                 return (
                   <TouchableOpacity
@@ -168,7 +242,8 @@ function CustomDatePicker({ visible, onClose, selectedDate, onApply, title }: Cu
                     onPress={() => handleDaySelect(dObj)}
                     style={[
                       pickerStyles.dayBtn,
-                      isSelected && pickerStyles.dayBtnSelected
+                      isSelected && pickerStyles.dayBtnSelected,
+                      isInRange && { backgroundColor: '#A855F720', borderRadius: 0 }
                     ]}
                   >
                     <Text style={[
@@ -569,6 +644,11 @@ const [artistSearch, setArtistSearch] = useState("");
     const { from } = getSingaporeTimeTodayRange();
     return from;
   });
+  const [selectedEndDate, setSelectedEndDate] = useState<Date>(() => {
+    const { from } = getSingaporeTimeTodayRange();
+    return from;
+  });
+  const [isRangeMode, setIsRangeMode] = useState<boolean>(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dayLog, setDayLog] = useState<{ StartedAt: string | null; StartedBy: string | null; EndedAt: string | null; EndedBy: string | null } | null>(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -638,8 +718,10 @@ const [artistSearch, setArtistSearch] = useState("");
           const parts = res.data.startDate.split("-");
           if (parts.length === 3) {
             setSelectedDate(new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
+            setSelectedEndDate(new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])));
           } else {
             setSelectedDate(new Date(res.data.startDate));
+            setSelectedEndDate(new Date(res.data.startDate));
           }
         }
       } catch (err) {
@@ -709,26 +791,27 @@ const fetchDayHistory = async () => {
 
   useEffect(() => {
     if (selectedTerminal) fetchData();
-  }, [selectedTerminal, selectedDate]);
+  }, [selectedTerminal, selectedDate, selectedEndDate, isRangeMode]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
 
       const dateStr = getLocalDateStr(selectedDate); // e.g. "2026-07-22"
+      const endDateStr = isRangeMode ? getLocalDateStr(selectedEndDate) : dateStr;
 
-      const totalRes = await API.get(`/settlement/total-sales/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: {} }));
-      const payRes = await API.get(`/settlement/payment/${selectedTerminal}/${userId}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
-      const transRes = await API.get(`/settlement/transactions/${selectedTerminal}/${userId}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
-      const salesRes = await API.get(`/settlement/sales-summary/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`).catch(() => ({ data: [] }));
+      const totalRes = await API.get(`/settlement/total-sales/${selectedTerminal}?fromDate=${dateStr}&toDate=${endDateStr}`).catch(() => ({ data: {} }));
+      const payRes = await API.get(`/settlement/payment/${selectedTerminal}/${userId}?fromDate=${dateStr}&toDate=${endDateStr}`).catch(() => ({ data: [] }));
+      const transRes = await API.get(`/settlement/transactions/${selectedTerminal}/${userId}?fromDate=${dateStr}&toDate=${endDateStr}`).catch(() => ({ data: [] }));
+      const salesRes = await API.get(`/settlement/sales-summary/${selectedTerminal}?fromDate=${dateStr}&toDate=${endDateStr}`).catch(() => ({ data: [] }));
 
       const outId = selectedTerminal === "ALL" ? 1 : selectedTerminal;
       const openRes = await API.get(`/settlement/opening-cash?outletId=${outId}&date=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
       const denomsRes = await API.get(`/settlement/denominations?type=OPEN&date=${dateStr}&screenType=CB`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
       const closeDenomsRes = await API.get(`/settlement/denominations?type=CLOSE&date=${dateStr}&screenType=CB`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const cashOutRes = await API.get(`/settlement/cash-out/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const cashInRes = await API.get(`/settlement/cash-in/${selectedTerminal}?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
-      const cashBoxRes = await API.get(`/settlement/artist-cashbox?fromDate=${dateStr}&toDate=${dateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const cashOutRes = await API.get(`/settlement/cash-out/${selectedTerminal}?fromDate=${dateStr}&toDate=${endDateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const cashInRes = await API.get(`/settlement/cash-in/${selectedTerminal}?fromDate=${dateStr}&toDate=${endDateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
+      const cashBoxRes = await API.get(`/settlement/artist-cashbox?fromDate=${dateStr}&toDate=${endDateStr}`, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }).catch(() => ({ data: null }));
       const dayLogRes = await API.get(`/settlement/day-log?date=${dateStr}`).catch(() => ({ data: null }));
 
       setTotalSales(totalRes.data || {});
@@ -1273,7 +1356,9 @@ const fetchDayHistory = async () => {
         }
       };
 
-      const businessDateStr = selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const businessDateStr = isRangeMode
+        ? `${selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} - ${selectedEndDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+        : selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const cashInTotalSum = totalCashInEntries + transactions.filter(t => t.TransactionType === "IN").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
 
       // 2. Format HTML aligned to 80mm width with centered print-out look
@@ -1724,29 +1809,31 @@ const fetchDayHistory = async () => {
             )}
           </View>
 
-          {/* Single Business Date Navigator */}
+          {/* Single/Range Business Date Navigator */}
           <View style={
             isTablet 
               ? { marginLeft: 'auto', flexDirection: 'row', gap: 12, alignItems: 'center', marginRight: 20 }
               : { flexDirection: 'row', justifyContent: 'center', gap: 12, alignItems: 'center', marginVertical: 4 }
           }>
-            <TouchableOpacity 
-              onPress={() => {
-                const nextDate = new Date(selectedDate);
-                nextDate.setDate(nextDate.getDate() - 1);
-                setSelectedDate(nextDate);
-              }} 
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 17,
-                backgroundColor: Theme.bgMuted,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <Ionicons name="chevron-back" size={18} color={Theme.textPrimary} />
-            </TouchableOpacity>
+            {!isRangeMode && (
+              <TouchableOpacity 
+                onPress={() => {
+                  const nextDate = new Date(selectedDate);
+                  nextDate.setDate(nextDate.getDate() - 1);
+                  setSelectedDate(nextDate);
+                }} 
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  backgroundColor: Theme.bgMuted,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Ionicons name="chevron-back" size={18} color={Theme.textPrimary} />
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
               style={{ 
@@ -1771,34 +1858,45 @@ const fetchDayHistory = async () => {
               onPress={() => setShowDatePicker(true)}
             >
               <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, fontSize: 13 }}>
-                {selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                {isRangeMode 
+                  ? `${selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })} - ${selectedEndDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                  : selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                }
               </Text>
               <Ionicons name="calendar-outline" size={15} color={Theme.primary} />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => {
-                const nextDate = new Date(selectedDate);
-                nextDate.setDate(nextDate.getDate() + 1);
-                setSelectedDate(nextDate);
-              }} 
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 17,
-                backgroundColor: Theme.bgMuted,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <Ionicons name="chevron-forward" size={18} color={Theme.textPrimary} />
-            </TouchableOpacity>
+            {!isRangeMode && (
+              <TouchableOpacity
+                onPress={() => {
+                  const nextDate = new Date(selectedDate);
+                  nextDate.setDate(nextDate.getDate() + 1);
+                  setSelectedDate(nextDate);
+                }} 
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  backgroundColor: Theme.bgMuted,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Ionicons name="chevron-forward" size={18} color={Theme.textPrimary} />
+              </TouchableOpacity>
+            )}
 
             <CustomDatePicker
               visible={showDatePicker}
               onClose={() => setShowDatePicker(false)}
               selectedDate={selectedDate}
-              onApply={(date) => setSelectedDate(date)}
+              selectedEndDate={selectedEndDate}
+              isRangeMode={isRangeMode}
+              onApply={(start, end, isRange) => {
+                setSelectedDate(start);
+                setSelectedEndDate(end);
+                setIsRangeMode(isRange);
+              }}
               title="Select Business Date"
             />
           </View>

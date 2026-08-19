@@ -1147,6 +1147,8 @@ export default function Category() {
     }
   }, [urlSection]);
 
+  const [showWaiterAccessDenied, setShowWaiterAccessDenied] = useState(false);
+
   useEffect(() => {
     const index = SECTIONS.indexOf(activeTab);
     if (index !== -1 && sectionScrollRef.current) {
@@ -1295,10 +1297,24 @@ export default function Category() {
             tableNo: targetTable.label,
             tableId: id,
           });
+          const { skipSummary } = useGeneralSettingsStore.getState().settings;
+          const isUserWaiter = useAuthStore.getState().isWaiter();
           if (checkoutFlowEnabled) {
-            router.push("/summary");
+            if (skipSummary) {
+              if (isUserWaiter) {
+                setShowWaiterAccessDenied(true);
+              } else {
+                router.push("/payment");
+              }
+            } else {
+              router.push("/summary");
+            }
           } else {
-            router.push("/payment");
+            if (isUserWaiter) {
+              setShowWaiterAccessDenied(true);
+            } else {
+              router.push("/payment");
+            }
           }
         }
       }
@@ -2818,11 +2834,12 @@ export default function Category() {
         animationType="fade"
         onRequestClose={() => setIsQRModalVisible(false)}
       >
-        <TouchableOpacity
-          style={styles.menuOverlay}
-          activeOpacity={1}
-          onPress={() => setIsQRModalVisible(false)}
-        >
+        <View style={[styles.menuOverlay, { justifyContent: "center", alignItems: "center" }]}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => setIsQRModalVisible(false)}
+          />
           <View
             style={[
               {
@@ -2886,7 +2903,7 @@ export default function Category() {
               </Text>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* 〰〰〰〰〰〰〰〰〰〰〰 MORE MENU MODAL 〰〰〰〰〰〰〰〰〰〰〰 */}
@@ -2896,11 +2913,12 @@ export default function Category() {
         animationType="fade"
         onRequestClose={() => setIsMenuVisible(false)}
       >
-        <TouchableOpacity
-          style={styles.menuOverlay}
-          activeOpacity={1}
-          onPress={() => setIsMenuVisible(false)}
-        >
+        <View style={styles.menuOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            activeOpacity={1}
+            onPress={() => setIsMenuVisible(false)}
+          />
           <View
             style={[
               styles.menuContent,
@@ -3002,111 +3020,11 @@ export default function Category() {
               )}
 
               {/* 2. STAFF ACCORDION */}
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => setIsStaffExpanded(!isStaffExpanded)}
-              >
-                <View
-                  style={[
-                    styles.menuIconContainer,
-                    { backgroundColor: Theme.primary + "10" },
-                  ]}
-                >
-                  <Ionicons
-                    name="people-outline"
-                    size={18}
-                    color={Theme.primary}
-                  />
-                </View>
-                <Text style={[styles.menuItemText, { flex: 1 }]}>Staff</Text>
-                <Ionicons
-                  name={isStaffExpanded ? "chevron-down" : "chevron-forward"}
-                  size={16}
-                  color={Theme.textSecondary}
-                />
-              </TouchableOpacity>
-              {isStaffExpanded && (
-                <View style={styles.subMenuContainer}>
+              {user?.role !== "WAITER" && (
+                <>
                   <TouchableOpacity
-                    style={styles.subMenuItem}
-                    onPress={() => {
-                      setIsMenuVisible(false);
-                      router.push("/waiters");
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.menuIconContainer,
-                        { backgroundColor: Theme.primary + "18" },
-                      ]}
-                    >
-                      <MaterialCommunityIcons
-                        name="account-group"
-                        size={18}
-                        color={Theme.primary}
-                      />
-                    </View>
-                    <Text style={styles.subMenuItemText}>Hosts & Servers</Text>
-                  </TouchableOpacity>
-
-                  {canAccessStaffAttendance() && (
-                    <TouchableOpacity
-                      style={styles.subMenuItem}
-                      onPress={() => {
-                        setIsMenuVisible(false);
-                        router.push("/StaffAttendance");
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.menuIconContainer,
-                          { backgroundColor: Theme.primary + "18" },
-                        ]}
-                      >
-                        <MaterialCommunityIcons
-                          name="calendar-clock"
-                          size={18}
-                          color={Theme.primary}
-                        />
-                      </View>
-                      <Text style={styles.subMenuItemText}>Staff Clock-In</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              {/* 3. CUSTOMER ACCORDION */}
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => setIsCustomerExpanded(!isCustomerExpanded)}
-              >
-                <View
-                  style={[
-                    styles.menuIconContainer,
-                    { backgroundColor: Theme.primary + "10" },
-                  ]}
-                >
-                  <Ionicons
-                    name="person-circle-outline"
-                    size={18}
-                    color={Theme.primary}
-                  />
-                </View>
-                <Text style={[styles.menuItemText, { flex: 1 }]}>Customer</Text>
-                <Ionicons
-                  name={isCustomerExpanded ? "chevron-down" : "chevron-forward"}
-                  size={16}
-                  color={Theme.textSecondary}
-                />
-              </TouchableOpacity>
-              {isCustomerExpanded && (
-                <View style={styles.subMenuContainer}>
-                  <TouchableOpacity
-                    style={styles.subMenuItem}
-                    onPress={() => {
-                      setIsMenuVisible(false);
-                      router.push("/loyalty");
-                    }}
+                    style={styles.menuItem}
+                    onPress={() => setIsStaffExpanded(!isStaffExpanded)}
                   >
                     <View
                       style={[
@@ -3114,123 +3032,203 @@ export default function Category() {
                         { backgroundColor: Theme.primary + "10" },
                       ]}
                     >
-                      <MaterialCommunityIcons
-                        name="card-outline"
+                      <Ionicons
+                        name="people-outline"
                         size={18}
                         color={Theme.primary}
                       />
                     </View>
-                    <Text style={styles.subMenuItemText}>Loyalty</Text>
+                    <Text style={[styles.menuItemText, { flex: 1 }]}>Staff</Text>
+                    <Ionicons
+                      name={isStaffExpanded ? "chevron-down" : "chevron-forward"}
+                      size={16}
+                      color={Theme.textSecondary}
+                    />
                   </TouchableOpacity>
-
-                  {canAccessMembers() && (
-                    <TouchableOpacity
-                      style={styles.subMenuItem}
-                      onPress={() => {
-                        setIsMenuVisible(false);
-                        router.push("/members");
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.menuIconContainer,
-                          { backgroundColor: Theme.info + "18" },
-                        ]}
+                  {isStaffExpanded && (
+                    <View style={styles.subMenuContainer}>
+                      <TouchableOpacity
+                        style={styles.subMenuItem}
+                        onPress={() => {
+                          setIsMenuVisible(false);
+                          router.push("/waiters");
+                        }}
                       >
-                        <Ionicons
-                          name="person-circle-outline"
-                          size={18}
-                          color={Theme.info}
-                        />
-                      </View>
-                      <Text style={styles.subMenuItemText}>Members</Text>
-                    </TouchableOpacity>
-                  )}
+                        <View
+                          style={[
+                            styles.menuIconContainer,
+                            { backgroundColor: Theme.primary + "18" },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name="account-group"
+                            size={18}
+                            color={Theme.primary}
+                          />
+                        </View>
+                        <Text style={styles.subMenuItemText}>Hosts & Servers</Text>
+                      </TouchableOpacity>
 
-                  {canAccessMembers() && (
-                    <TouchableOpacity
-                      style={styles.subMenuItem}
-                      onPress={() => {
-                        setIsMenuVisible(false);
-                        router.push("/receivables");
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.menuIconContainer,
-                          { backgroundColor: Theme.primary + "10" },
-                        ]}
-                      >
-                        <Ionicons
-                          name="wallet-outline"
-                          size={18}
-                          color={Theme.primary}
-                        />
-                      </View>
-                      <Text style={styles.subMenuItemText}>Receivables</Text>
-                    </TouchableOpacity>
+                      {canAccessStaffAttendance() && (
+                        <TouchableOpacity
+                          style={styles.subMenuItem}
+                          onPress={() => {
+                            setIsMenuVisible(false);
+                            router.push("/StaffAttendance");
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.primary + "18" },
+                            ]}
+                          >
+                            <MaterialCommunityIcons
+                              name="calendar-clock"
+                              size={18}
+                              color={Theme.primary}
+                            />
+                          </View>
+                          <Text style={styles.subMenuItemText}>Staff Clock-In</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   )}
+                </>
+              )}
 
-                  {canAccessMembers() && (
-                    <TouchableOpacity
-                      style={styles.subMenuItem}
-                      onPress={() => {
-                        setIsMenuVisible(false);
-                        router.push("/menu/rewardMaster");
-                      }}
+              {/* 3. CUSTOMER ACCORDION */}
+              {user?.role !== "WAITER" && (
+                <>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => setIsCustomerExpanded(!isCustomerExpanded)}
+                  >
+                    <View
+                      style={[
+                        styles.menuIconContainer,
+                        { backgroundColor: Theme.primary + "10" },
+                      ]}
                     >
-                      <View
-                        style={[
-                          styles.menuIconContainer,
-                          { backgroundColor: Theme.danger + "10" },
-                        ]}
+                      <Ionicons
+                        name="person-circle-outline"
+                        size={18}
+                        color={Theme.primary}
+                      />
+                    </View>
+                    <Text style={[styles.menuItemText, { flex: 1 }]}>Customer</Text>
+                    <Ionicons
+                      name={isCustomerExpanded ? "chevron-down" : "chevron-forward"}
+                      size={16}
+                      color={Theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                  {isCustomerExpanded && (
+                    <View style={styles.subMenuContainer}>
+                      <TouchableOpacity
+                        style={styles.subMenuItem}
+                        onPress={() => {
+                          setIsMenuVisible(false);
+                          router.push("/loyalty");
+                        }}
                       >
-                        <Ionicons
-                          name="gift-outline"
-                          size={18}
-                          color={Theme.danger}
-                        />
-                      </View>
-                      <Text style={styles.subMenuItemText}>Reward Points Master</Text>
-                    </TouchableOpacity>
+                        <View
+                          style={[
+                            styles.menuIconContainer,
+                            { backgroundColor: Theme.primary + "10" },
+                          ]}
+                        >
+                          <MaterialCommunityIcons
+                            name="card-outline"
+                            size={18}
+                            color={Theme.primary}
+                          />
+                        </View>
+                        <Text style={styles.subMenuItemText}>Loyalty</Text>
+                      </TouchableOpacity>
+
+                      {canAccessMembers() && (
+                        <TouchableOpacity
+                          style={styles.subMenuItem}
+                          onPress={() => {
+                            setIsMenuVisible(false);
+                            router.push("/members");
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.info + "18" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="person-circle-outline"
+                              size={18}
+                              color={Theme.info}
+                            />
+                          </View>
+                          <Text style={styles.subMenuItemText}>Members</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {canAccessMembers() && (
+                        <TouchableOpacity
+                          style={styles.subMenuItem}
+                          onPress={() => {
+                            setIsMenuVisible(false);
+                            router.push("/receivables");
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.primary + "10" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="wallet-outline"
+                              size={18}
+                              color={Theme.primary}
+                            />
+                          </View>
+                          <Text style={styles.subMenuItemText}>Receivables</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {canAccessMembers() && (
+                        <TouchableOpacity
+                          style={styles.subMenuItem}
+                          onPress={() => {
+                            setIsMenuVisible(false);
+                            router.push("/menu/rewardMaster");
+                          }}
+                        >
+                          <View
+                            style={[
+                              styles.menuIconContainer,
+                              { backgroundColor: Theme.danger + "10" },
+                            ]}
+                          >
+                            <Ionicons
+                              name="gift-outline"
+                              size={18}
+                              color={Theme.danger}
+                            />
+                          </View>
+                          <Text style={styles.subMenuItemText}>Reward Points Master</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   )}
-                </View>
+                </>
               )}
 
               {/* 4. ARTIST ACCORDION */}
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => setIsArtistExpanded(!isArtistExpanded)}
-              >
-                <View
-                  style={[
-                    styles.menuIconContainer,
-                    { backgroundColor: Theme.primary + "18" },
-                  ]}
-                >
-                  <Ionicons
-                    name="musical-notes-outline"
-                    size={18}
-                    color={Theme.primary}
-                  />
-                </View>
-                <Text style={[styles.menuItemText, { flex: 1 }]}>
-                  Artist Hub
-                </Text>
-                <Ionicons
-                  name={isArtistExpanded ? "chevron-down" : "chevron-forward"}
-                  size={16}
-                  color={Theme.textSecondary}
-                />
-              </TouchableOpacity>
-              {isArtistExpanded && (
-                <View style={styles.subMenuContainer}>
+              {user?.role !== "WAITER" && (
+                <>
                   <TouchableOpacity
-                    style={styles.subMenuItem}
-                    onPress={() => {
-                      setIsMenuVisible(false);
-                      router.push("/menu/artist-management");
-                    }}
+                    style={styles.menuItem}
+                    onPress={() => setIsArtistExpanded(!isArtistExpanded)}
                   >
                     <View
                       style={[
@@ -3239,16 +3237,48 @@ export default function Category() {
                       ]}
                     >
                       <Ionicons
-                        name="mic-outline"
+                        name="musical-notes-outline"
                         size={18}
                         color={Theme.primary}
                       />
                     </View>
-                    <Text style={styles.subMenuItemText}>
-                      Artist Management
+                    <Text style={[styles.menuItemText, { flex: 1 }]}>
+                      Artist Hub
                     </Text>
+                    <Ionicons
+                      name={isArtistExpanded ? "chevron-down" : "chevron-forward"}
+                      size={16}
+                      color={Theme.textSecondary}
+                    />
                   </TouchableOpacity>
-                </View>
+                  {isArtistExpanded && (
+                    <View style={styles.subMenuContainer}>
+                      <TouchableOpacity
+                        style={styles.subMenuItem}
+                        onPress={() => {
+                          setIsMenuVisible(false);
+                          router.push("/menu/artist-management");
+                        }}
+                      >
+                        <View
+                          style={[
+                            styles.menuIconContainer,
+                            { backgroundColor: Theme.primary + "18" },
+                          ]}
+                        >
+                          <Ionicons
+                            name="mic-outline"
+                            size={18}
+                            color={Theme.primary}
+                          />
+                        </View>
+                        <Text style={styles.subMenuItemText}>
+                          Artist Management
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </>
               )}
 
               {/* 5. SETTLEMENT DIRECT LINK */}
@@ -3277,146 +3307,39 @@ export default function Category() {
               )}
 
               {/* 6. REPORTS ACCORDION */}
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => setIsReportsExpanded(!isReportsExpanded)}
-              >
-                <View
-                  style={[
-                    styles.menuIconContainer,
-                    { backgroundColor: Theme.primary + "10" },
-                  ]}
-                >
-                  <Ionicons
-                    name="document-text-outline"
-                    size={18}
-                    color={Theme.primary}
-                  />
-                </View>
-                <Text style={[styles.menuItemText, { flex: 1 }]}>Reports</Text>
-                <Ionicons
-                  name={isReportsExpanded ? "chevron-down" : "chevron-forward"}
-                  size={16}
-                  color={Theme.textSecondary}
-                />
-              </TouchableOpacity>
-              {isReportsExpanded && (
-                <View style={styles.subMenuContainer}>
-                  {canAccessSalesReport() && (
-                    <TouchableOpacity
-                      style={styles.subMenuItem}
-                      onPress={() => {
-                        setIsMenuVisible(false);
-                        router.push("/sales-report");
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.menuIconContainer,
-                          { backgroundColor: Theme.primary + "10" },
-                        ]}
-                      >
-                        <Ionicons
-                          name="bar-chart-outline"
-                          size={18}
-                          color={Theme.primary}
-                        />
-                      </View>
-                      <Text style={styles.subMenuItemText}>Sales Report</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {canAccessDayEnd() && (
-                    <TouchableOpacity
-                      style={styles.subMenuItem}
-                      onPress={() => {
-                        setIsMenuVisible(false);
-                        router.push("/day-end");
-                      }}
-                    >
-                      <View
-                        style={[
-                          styles.menuIconContainer,
-                          { backgroundColor: Theme.warning + "10" },
-                        ]}
-                      >
-                        <MaterialCommunityIcons
-                          name="calendar-clock"
-                          size={18}
-                          color={Theme.warning}
-                        />
-                      </View>
-                      <Text style={styles.subMenuItemText}>Day End Report</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              {/* 7. SETTINGS ACCORDION */}
-              {(canAccessStoreSettings() || canAccessReceiptSettings()) && (
+              {user?.role !== "WAITER" && (
                 <>
                   <TouchableOpacity
                     style={styles.menuItem}
-                    onPress={() => setIsSettingsExpanded(!isSettingsExpanded)}
+                    onPress={() => setIsReportsExpanded(!isReportsExpanded)}
                   >
                     <View
                       style={[
                         styles.menuIconContainer,
-                        { backgroundColor: Theme.textSecondary + "10" },
+                        { backgroundColor: Theme.primary + "10" },
                       ]}
                     >
                       <Ionicons
-                        name="settings-outline"
+                        name="document-text-outline"
                         size={18}
-                        color={Theme.textSecondary}
+                        color={Theme.primary}
                       />
                     </View>
-                    <Text style={[styles.menuItemText, { flex: 1 }]}>
-                      Settings
-                    </Text>
+                    <Text style={[styles.menuItemText, { flex: 1 }]}>Reports</Text>
                     <Ionicons
-                      name={
-                        isSettingsExpanded ? "chevron-down" : "chevron-forward"
-                      }
+                      name={isReportsExpanded ? "chevron-down" : "chevron-forward"}
                       size={16}
                       color={Theme.textSecondary}
                     />
                   </TouchableOpacity>
-
-                  {isSettingsExpanded && (
+                  {isReportsExpanded && (
                     <View style={styles.subMenuContainer}>
-                      {canAccessStoreSettings() && (
+                      {canAccessSalesReport() && (
                         <TouchableOpacity
                           style={styles.subMenuItem}
                           onPress={() => {
                             setIsMenuVisible(false);
-                            setIsSettingsVisible(true);
-                          }}
-                        >
-                          <View
-                            style={[
-                              styles.menuIconContainer,
-                              { backgroundColor: Theme.textSecondary + "10" },
-                            ]}
-                          >
-                            <Ionicons
-                              name="storefront-outline"
-                              size={18}
-                              color={Theme.textSecondary}
-                            />
-                          </View>
-                          <Text style={styles.subMenuItemText}>
-                            Store Settings
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-
-                      {canAccessStoreSettings() && (
-                        <TouchableOpacity
-                          style={styles.subMenuItem}
-                          onPress={() => {
-                            setIsMenuVisible(false);
-                            router.push("/general-settings");
+                            router.push("/sales-report");
                           }}
                         >
                           <View
@@ -3426,117 +3349,232 @@ export default function Category() {
                             ]}
                           >
                             <Ionicons
-                              name="options-outline"
+                              name="bar-chart-outline"
                               size={18}
                               color={Theme.primary}
                             />
                           </View>
-                          <Text style={styles.subMenuItemText}>
-                            General Settings
-                          </Text>
+                          <Text style={styles.subMenuItemText}>Sales Report</Text>
                         </TouchableOpacity>
                       )}
 
-                      {canAccessReceiptSettings() && (
+                      {canAccessDayEnd() && (
                         <TouchableOpacity
                           style={styles.subMenuItem}
                           onPress={() => {
                             setIsMenuVisible(false);
-                            router.push("/company-settings");
+                            router.push("/day-end");
                           }}
                         >
                           <View
                             style={[
                               styles.menuIconContainer,
-                              { backgroundColor: Theme.primary + "10" },
+                              { backgroundColor: Theme.warning + "10" },
                             ]}
                           >
-                            <Ionicons
-                              name="receipt-outline"
+                            <MaterialCommunityIcons
+                              name="calendar-clock"
                               size={18}
-                              color={Theme.primary}
+                              color={Theme.warning}
                             />
                           </View>
-                          <Text style={styles.subMenuItemText}>
-                            Receipt Settings
-                          </Text>
+                          <Text style={styles.subMenuItemText}>Day End Report</Text>
                         </TouchableOpacity>
                       )}
-
-                      {canAccessStoreSettings() && (
-                        <TouchableOpacity
-                          style={styles.subMenuItem}
-                          onPress={() => {
-                            setIsMenuVisible(false);
-                            router.push("/terminal-settings");
-                          }}
-                        >
-                          <View
-                            style={[
-                              styles.menuIconContainer,
-                              { backgroundColor: Theme.primary + "10" },
-                            ]}
-                          >
-                            <Ionicons
-                              name="hardware-chip-outline"
-                              size={18}
-                              color={Theme.primary}
-                            />
-                          </View>
-                          <Text style={styles.subMenuItemText}>
-                            Terminal Management
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-
-                      {/* Cash Drawer */}
-                      <TouchableOpacity
-                        style={styles.subMenuItem}
-                        onPress={() => {
-                          setIsMenuVisible(false);
-                          router.push("/cash-drawer");
-                        }}
-                      >
-                        <View
-                          style={[
-                            styles.menuIconContainer,
-                            { backgroundColor: "#16A34A10" },
-                          ]}
-                        >
-                          <Ionicons
-                            name="cash-outline"
-                            size={18}
-                            color="#16A34A"
-                          />
-                        </View>
-                        <Text style={styles.subMenuItemText}>Cash Drawer</Text>
-                      </TouchableOpacity>
-
-                      {/* Customer Display */}
-                      <TouchableOpacity
-                        style={styles.subMenuItem}
-                        onPress={() => {
-                          setIsMenuVisible(false);
-                          router.push("/customer-display");
-                        }}
-                      >
-                        <View
-                          style={[
-                            styles.menuIconContainer,
-                            { backgroundColor: Theme.primary + "10" },
-                          ]}
-                        >
-                          <Ionicons
-                            name="desktop-outline"
-                            size={18}
-                            color={Theme.primary}
-                          />
-                        </View>
-                        <Text style={styles.subMenuItemText}>
-                          Customer Display
-                        </Text>
-                      </TouchableOpacity>
                     </View>
+                  )}
+                </>
+              )}
+
+              {/* 7. SETTINGS ACCORDION */}
+              {user?.role !== "WAITER" && (
+                <>
+                  {(canAccessStoreSettings() || canAccessReceiptSettings()) && (
+                    <>
+                      <TouchableOpacity
+                        style={styles.menuItem}
+                        onPress={() => setIsSettingsExpanded(!isSettingsExpanded)}
+                      >
+                        <View
+                          style={[
+                            styles.menuIconContainer,
+                            { backgroundColor: Theme.textSecondary + "10" },
+                          ]}
+                        >
+                          <Ionicons
+                            name="settings-outline"
+                            size={18}
+                            color={Theme.textSecondary}
+                          />
+                        </View>
+                        <Text style={[styles.menuItemText, { flex: 1 }]}>
+                          Settings
+                        </Text>
+                        <Ionicons
+                          name={
+                            isSettingsExpanded ? "chevron-down" : "chevron-forward"
+                          }
+                          size={16}
+                          color={Theme.textSecondary}
+                        />
+                      </TouchableOpacity>
+
+                      {isSettingsExpanded && (
+                        <View style={styles.subMenuContainer}>
+                          {canAccessStoreSettings() && (
+                            <TouchableOpacity
+                              style={styles.subMenuItem}
+                              onPress={() => {
+                                setIsMenuVisible(false);
+                                setIsSettingsVisible(true);
+                              }}
+                            >
+                              <View
+                                style={[
+                                  styles.menuIconContainer,
+                                  { backgroundColor: Theme.textSecondary + "10" },
+                                ]}
+                              >
+                                <Ionicons
+                                  name="storefront-outline"
+                                  size={18}
+                                  color={Theme.textSecondary}
+                                />
+                              </View>
+                              <Text style={styles.subMenuItemText}>
+                                Store Settings
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {canAccessStoreSettings() && (
+                            <TouchableOpacity
+                              style={styles.subMenuItem}
+                              onPress={() => {
+                                setIsMenuVisible(false);
+                                router.push("/general-settings");
+                              }}
+                            >
+                              <View
+                                style={[
+                                  styles.menuIconContainer,
+                                  { backgroundColor: Theme.primary + "10" },
+                                ]}
+                              >
+                                <Ionicons
+                                  name="options-outline"
+                                  size={18}
+                                  color={Theme.primary}
+                                />
+                              </View>
+                              <Text style={styles.subMenuItemText}>
+                                General Settings
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {canAccessReceiptSettings() && (
+                            <TouchableOpacity
+                              style={styles.subMenuItem}
+                              onPress={() => {
+                                setIsMenuVisible(false);
+                                router.push("/company-settings");
+                              }}
+                            >
+                              <View
+                                style={[
+                                  styles.menuIconContainer,
+                                  { backgroundColor: Theme.primary + "10" },
+                                ]}
+                              >
+                                <Ionicons
+                                  name="receipt-outline"
+                                  size={18}
+                                  color={Theme.primary}
+                                />
+                              </View>
+                              <Text style={styles.subMenuItemText}>
+                                Receipt Settings
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {canAccessStoreSettings() && (
+                            <TouchableOpacity
+                              style={styles.subMenuItem}
+                              onPress={() => {
+                                setIsMenuVisible(false);
+                                router.push("/terminal-settings");
+                              }}
+                            >
+                              <View
+                                style={[
+                                  styles.menuIconContainer,
+                                  { backgroundColor: Theme.primary + "10" },
+                                ]}
+                              >
+                                <Ionicons
+                                  name="hardware-chip-outline"
+                                  size={18}
+                                  color={Theme.primary}
+                                />
+                              </View>
+                              <Text style={styles.subMenuItemText}>
+                                Terminal Management
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+
+                          {/* Cash Drawer */}
+                          <TouchableOpacity
+                            style={styles.subMenuItem}
+                            onPress={() => {
+                              setIsMenuVisible(false);
+                              router.push("/cash-drawer");
+                            }}
+                          >
+                            <View
+                              style={[
+                                styles.menuIconContainer,
+                                { backgroundColor: "#16A34A10" },
+                              ]}
+                            >
+                              <Ionicons
+                                name="cash-outline"
+                                size={18}
+                                color="#16A34A"
+                              />
+                            </View>
+                            <Text style={styles.subMenuItemText}>Cash Drawer</Text>
+                          </TouchableOpacity>
+
+                          {/* Customer Display */}
+                          <TouchableOpacity
+                            style={styles.subMenuItem}
+                            onPress={() => {
+                              setIsMenuVisible(false);
+                              router.push("/customer-display");
+                            }}
+                          >
+                            <View
+                              style={[
+                                styles.menuIconContainer,
+                                { backgroundColor: Theme.primary + "10" },
+                              ]}
+                            >
+                              <Ionicons
+                                name="desktop-outline"
+                                size={18}
+                                color={Theme.primary}
+                              />
+                            </View>
+                            <Text style={styles.subMenuItemText}>
+                              Customer Display
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -3611,7 +3649,7 @@ export default function Category() {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* 〰〰 Section Header Row (Hidden on Mobile Landscape) 〰〰 */}
@@ -3902,6 +3940,87 @@ export default function Category() {
         visible={isGeneralSettingsVisible}
         onClose={() => setIsGeneralSettingsVisible(false)}
       />
+
+      {/* WAITER ACCESS DENIED MODAL */}
+      <Modal
+        visible={showWaiterAccessDenied}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWaiterAccessDenied(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: "rgba(8, 7, 26, 0.8)",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 99999,
+        }}>
+          <View style={{
+            width: 320,
+            backgroundColor: Theme.bgCard,
+            borderRadius: 20,
+            padding: 24,
+            alignItems: "center",
+            borderWidth: 1,
+            borderColor: Theme.border,
+            ...Platform.select({
+              web: {
+                boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+              }
+            }) as any
+          }}>
+            <View style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: Theme.danger + "15",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 16
+            }}>
+              <Ionicons name="shield-outline" size={28} color={Theme.danger} />
+            </View>
+            <Text style={{
+              fontSize: 18,
+              fontFamily: Fonts.black,
+              color: Theme.textPrimary,
+              textAlign: "center",
+              marginBottom: 8
+            }}>
+              Access Denied
+            </Text>
+            <Text style={{
+              fontSize: 13,
+              fontFamily: Fonts.medium,
+              color: Theme.textSecondary,
+              textAlign: "center",
+              lineHeight: 18,
+              marginBottom: 20
+            }}>
+              Waiters are not allowed to access the payment screen.
+            </Text>
+            <TouchableOpacity
+              style={{
+                width: "100%",
+                height: 44,
+                backgroundColor: Theme.primary,
+                borderRadius: 12,
+                justifyContent: "center",
+                alignItems: "center"
+              }}
+              onPress={() => setShowWaiterAccessDenied(false)}
+            >
+              <Text style={{
+                color: "#fff",
+                fontFamily: Fonts.bold,
+                fontSize: 14
+              }}>
+                OK
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Floating AI Chat Assistant Button */}
       {user?.role === "ADMIN" && (

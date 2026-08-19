@@ -100,6 +100,8 @@ export default function GeneralSettingsModal({
   const [SVCIdentification, setSVCIdentification] = useState(settings.SVCIdentification !== undefined ? settings.SVCIdentification : true);
   const [enableKDSPrint, setEnableKDSPrint] = useState(settings.enableKDSPrint !== undefined ? settings.enableKDSPrint : true);
   const [enableCombo, setEnableCombo] = useState(settings.enableCombo !== undefined ? settings.enableCombo : true);
+  const [enableReceiptPrint, setEnableReceiptPrint] = useState(settings.enableReceiptPrint !== undefined ? settings.enableReceiptPrint : true);
+  const [skipSummary, setSkipSummary] = useState(settings.skipSummary !== undefined ? settings.skipSummary : false);
   const [showBillTime, setShowBillTime] = useState(settings.showBillTime !== undefined ? settings.showBillTime : true);
   const [showLoyalty, setShowLoyalty] = useState(settings.showLoyalty !== undefined ? settings.showLoyalty : true);
   const [showRewardPoints, setShowRewardPoints] = useState(settings.showRewardPoints !== undefined ? settings.showRewardPoints : true);
@@ -190,6 +192,8 @@ export default function GeneralSettingsModal({
       setSVCIdentification(settings.SVCIdentification !== undefined ? settings.SVCIdentification : true);
       setEnableKDSPrint(settings.enableKDSPrint !== undefined ? settings.enableKDSPrint : true);
       setEnableCombo(settings.enableCombo !== undefined ? settings.enableCombo : true);
+      setEnableReceiptPrint(settings.enableReceiptPrint !== undefined ? settings.enableReceiptPrint : true);
+      setSkipSummary(settings.skipSummary !== undefined ? settings.skipSummary : false);
       setShowBillTime(settings.showBillTime !== undefined ? settings.showBillTime : true);
       setShowLoyalty(settings.showLoyalty !== undefined ? settings.showLoyalty : true);
       setShowRewardPoints(settings.showRewardPoints !== undefined ? settings.showRewardPoints : true);
@@ -273,6 +277,8 @@ export default function GeneralSettingsModal({
       showRewardPoints,
       showPromoCode,
       vipRuleEnabled,
+      enableReceiptPrint,
+      skipSummary,
     });
     
     setIsSaving(false);
@@ -397,7 +403,7 @@ export default function GeneralSettingsModal({
                   },
                   {
                     title: "KDS Printer Button",
-                    desc: "Show the PRINT button on every order card in KDS screen.",
+                    desc: "Enable KDS copy auto-printing and show the PRINT button on KDS screen.",
                     icon: "print-outline",
                     value: enableKDSPrint,
                     onToggle: setEnableKDSPrint,
@@ -408,6 +414,20 @@ export default function GeneralSettingsModal({
                     icon: "time-outline",
                     value: showBillTime,
                     onToggle: setShowBillTime,
+                  },
+                  {
+                    title: "Receipt Print",
+                    desc: "Automatically print receipt on payment success without prompt.",
+                    icon: "receipt-outline",
+                    value: enableReceiptPrint,
+                    onToggle: setEnableReceiptPrint,
+                  },
+                  {
+                    title: "Skip Summary",
+                    desc: "Bypass the bill summary screen during checkout and proceed straight to payment.",
+                    icon: "play-skip-forward-outline",
+                    value: skipSummary,
+                    onToggle: setSkipSummary,
                   },
                 ]
               },

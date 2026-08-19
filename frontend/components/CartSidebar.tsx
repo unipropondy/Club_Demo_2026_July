@@ -3,8 +3,10 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   DimensionValue,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -946,7 +948,23 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
   const [cancelPassword, setCancelPassword] = useState("");
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [showWaiterAccessDenied, setShowWaiterAccessDenied] = useState(false);
   const orderContext = useOrderContextStore((state) => state.currentOrder);
+
+  const handleProceedToPay = (forceDirectPay: boolean = false) => {
+    const { skipSummary } = useGeneralSettingsStore.getState().settings;
+    const isUserWaiter = useAuthStore.getState().isWaiter();
+
+    if (skipSummary || forceDirectPay) {
+      if (isUserWaiter) {
+        setShowWaiterAccessDenied(true);
+      } else {
+        router.push("/payment");
+      }
+    } else {
+      router.push("/summary");
+    }
+  };
 
   // 🟢 OPTIMIZED SELECTORS: Only re-render when SPECIFIC data changes
   const currentContextId = useCartStore((state) => state.currentContextId);
@@ -1392,9 +1410,14 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
         });
 
         if (enableCheckoutFlow !== false) {
-          router.replace(`/(tabs)/category?section=${orderContext.section}`);
+          // Keep on the same page (menu) instead of returning to floor plan
         } else {
-          router.push("/payment");
+          const isUserWaiter = useAuthStore.getState().isWaiter();
+          if (isUserWaiter) {
+            setShowWaiterAccessDenied(true);
+          } else {
+            router.push("/payment");
+          }
         }
       } else {
         showToast({
@@ -1947,7 +1970,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                                 await useCartStore.getState().fetchCartFromDB(tableId);
                                 await useActiveOrdersStore.getState().fetchActiveKitchenOrders();
 
-                                router.push("/summary");
+                                 handleProceedToPay();
                               } catch (err) {
                                 console.error("Direct process to pay error:", err);
                                 showToast({ type: "error", message: "Error", subtitle: "Failed to process payment." });
@@ -1976,7 +1999,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             { flex: 1, backgroundColor: Theme.success },
                           ]}
                           onPress={() => {
-                            router.push("/summary");
+                            handleProceedToPay();
                           }}
                         >
                           <Ionicons name="card-outline" size={iconSize} color="#fff" />
@@ -1992,7 +2015,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             { flex: 1, backgroundColor: Theme.success },
                           ]}
                           onPress={() => {
-                            router.push("/summary");
+                            handleProceedToPay();
                           }}
                         >
                           <Ionicons
@@ -2012,7 +2035,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             { flex: 1, backgroundColor: Theme.success },
                           ]}
                           onPress={() => {
-                            router.push("/summary");
+                            handleProceedToPay();
                           }}
                         >
                           <Ionicons
@@ -2060,7 +2083,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                               await useCartStore.getState().fetchCartFromDB(tableId);
                               await useActiveOrdersStore.getState().fetchActiveKitchenOrders();
 
-                              router.push("/summary");
+                              handleProceedToPay();
                             } catch (err) {
                               console.error("Takeaway Direct process to pay error:", err);
                               showToast({ type: "error", message: "Error", subtitle: "Failed to process payment." });
@@ -2068,7 +2091,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                               setIsCheckingOut(false);
                             }
                           } else {
-                            router.push("/summary");
+                            handleProceedToPay();
                           }
                         }}
                       >
@@ -2208,7 +2231,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                               await useCartStore.getState().fetchCartFromDB(tableId);
                               await useActiveOrdersStore.getState().fetchActiveKitchenOrders();
 
-                              router.push("/summary");
+                              handleProceedToPay();
                             } catch (err) {
                               console.error("Direct process to pay error:", err);
                               showToast({ type: "error", message: "Error", subtitle: "Failed to process payment." });
@@ -2245,7 +2268,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                                   subtitle: "Checkout completed successfully.",
                                   duration: 1500,
                                 });
-                                router.replace(`/(tabs)/category?section=${orderContext.section}`);
+                                // Keep on the same page (menu) instead of returning to floor plan
                               } else {
                                 showToast({ type: "error", message: "Checkout Failed", subtitle: "Please try again." });
                               }
@@ -2324,7 +2347,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             },
                           ]}
                           onPress={() => {
-                            router.push("/summary");
+                            handleProceedToPay();
                           }}
                         >
                           <Ionicons name="card-outline" size={iconSize} color="#fff" />
@@ -2342,7 +2365,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                             },
                           ]}
                           onPress={() => {
-                            router.push("/summary");
+                            handleProceedToPay();
                           }}
                         >
                           <Ionicons name="card-outline" size={iconSize} color="#fff" />
@@ -2361,11 +2384,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                         { flex: 1, backgroundColor: Theme.primary },
                       ]}
                       onPress={() => {
-                        if (enableCheckoutFlow !== false) {
-                          router.push("/summary");
-                        } else {
-                          router.push("/payment");
-                        }
+                        handleProceedToPay(enableCheckoutFlow === false);
                       }}
                     >
                       <Ionicons
@@ -2456,6 +2475,85 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
           setItemToEdit(null);
         }}
       />
+      {/* WAITER ACCESS DENIED MODAL */}
+      <Modal
+        visible={showWaiterAccessDenied}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowWaiterAccessDenied(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: "rgba(8, 7, 26, 0.8)",
+          justifyContent: "center",
+          alignItems: "center",
+        }}>
+          <View style={{
+            width: 320,
+            backgroundColor: Theme.bgCard,
+            borderRadius: 20,
+            padding: 24,
+            alignItems: "center",
+            borderWidth: 1,
+            borderColor: Theme.border,
+            ...Platform.select({
+              web: {
+                boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+              }
+            }) as any
+          }}>
+            <View style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: Theme.danger + "15",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 16
+            }}>
+              <Ionicons name="shield-outline" size={28} color={Theme.danger} />
+            </View>
+            <Text style={{
+              fontSize: 18,
+              fontFamily: Fonts.black,
+              color: Theme.textPrimary,
+              textAlign: "center",
+              marginBottom: 8
+            }}>
+              Access Denied
+            </Text>
+            <Text style={{
+              fontSize: 13,
+              fontFamily: Fonts.medium,
+              color: Theme.textSecondary,
+              textAlign: "center",
+              lineHeight: 18,
+              marginBottom: 20
+            }}>
+              Waiters are not allowed to access the payment screen.
+            </Text>
+            <TouchableOpacity
+              style={{
+                width: "100%",
+                height: 44,
+                backgroundColor: Theme.primary,
+                borderRadius: 12,
+                justifyContent: "center",
+                alignItems: "center"
+              }}
+              onPress={() => setShowWaiterAccessDenied(false)}
+            >
+              <Text style={{
+                color: "#fff",
+                fontFamily: Fonts.bold,
+                fontSize: 14
+              }}>
+                OK
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 });
