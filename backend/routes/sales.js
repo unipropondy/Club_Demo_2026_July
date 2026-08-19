@@ -2864,19 +2864,10 @@ router.get("/payment-methods", async (req, res) => {
         FROM [dbo].[Paymode] 
         ORDER BY Position ASC
       `);
-      const mapped = (result.recordset || []).map(item => {
-        if (!item.payMode) return item;
-        const trimmedMode = item.payMode.trim().toUpperCase();
-        let virtualMode = item.payMode.trim();
-        if (trimmedMode === 'QR') virtualMode = 'Q-R';
-        else if (trimmedMode === 'PAYNOW') virtualMode = 'PAY_NOW';
-        else if (trimmedMode === 'PAY-NOW') virtualMode = 'PAY_NOW';
-        else if (trimmedMode === 'UPI') virtualMode = 'U-P-I';
-        else if (trimmedMode === 'GPAY') virtualMode = 'G-PAY';
-        else if (trimmedMode === 'PHONE') virtualMode = 'P-H-O-N-E';
-        else if (trimmedMode === 'PAYTM') virtualMode = 'P-A-Y-T-M';
-        return { ...item, payMode: virtualMode };
-      });
+      // ✅ Return the real payMode names directly from DB — no virtual name transformation.
+      // The old Q-R / PAY_NOW / U-P-I remapping was causing payment success screen to display
+      // garbled names. payment.service.js resolves paymode matching without needing these aliases.
+      const mapped = (result.recordset || []).map(item => item);
       res.json(mapped);
     } catch (err) {
       res.status(500).json({ error: err.message });
