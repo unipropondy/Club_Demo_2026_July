@@ -4145,8 +4145,9 @@ export default function Category() {
           {
             bottom: Math.max(insets.bottom, 12) + 12,
             left: Math.max(insets.left, 12) + 12,
-            maxWidth: isTabletOrDesktopWeb ? 360 : 236,
-            padding: isTabletOrDesktopWeb ? 12 : 10,
+            maxWidth: isTabletOrDesktopWeb ? 650 : 275,
+            paddingVertical: isTabletOrDesktopWeb ? 8 : 6,
+            paddingHorizontal: isTabletOrDesktopWeb ? 16 : 12,
           },
         ]}
       >
@@ -4267,11 +4268,13 @@ export default function Category() {
                 gap: 6,
                 marginTop: 2
               }}>
-                <Ionicons
-                  name={isExpired ? "alert-circle-outline" : "shield-checkmark-outline"}
-                  size={12}
-                  color={isExpired ? "#EF4444" : "#22C55E"}
-                />
+                {isTabletOrDesktopWeb && (
+                  <Ionicons
+                    name={isExpired ? "alert-circle-outline" : "shield-checkmark-outline"}
+                    size={12}
+                    color={isExpired ? "#EF4444" : "#22C55E"}
+                  />
+                )}
                 <Text style={{
                   fontSize: 10,
                   fontFamily: Fonts.medium,
@@ -4731,11 +4734,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#A855F7",
     borderRadius: 14,
-    padding: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    maxWidth: 236,                              // Set default to 236 on phone portrait
+    maxWidth: 275,                              // Set default to 275 on phone portrait
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.6,
