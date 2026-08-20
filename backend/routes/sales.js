@@ -602,6 +602,59 @@ router.get("/settlement/:id", async (req, res) => {
   }
 });
 
+// ─── Receipt Print Cache ───────────────────────────────────────────────────────
+// POST /api/sales/receipt-print-data
+// Saves the exact saleData+discountInfo that was printed at payment time.
+// Uses MERGE (upsert) so reprinting from the same bill always overwrites with latest.
+router.post("/receipt-print-data", async (req, res) => {
+  try {
+    const { billNo, receiptJSON, discountJSON } = req.body;
+    if (!billNo || !receiptJSON) {
+      return res.status(400).json({ error: "billNo and receiptJSON are required" });
+    }
+    const pool = await poolPromise;
+    await pool.request()
+      .input("BillNo",       sql.NVarChar(100), String(billNo))
+      .input("ReceiptJSON",  sql.NVarChar(sql.MAX), String(receiptJSON))
+      .input("DiscountJSON", sql.NVarChar(sql.MAX), discountJSON ? String(discountJSON) : null)
+      .query(`
+        MERGE ReceiptPrintCache AS target
+        USING (SELECT @BillNo AS BillNo) AS src ON target.BillNo = src.BillNo
+        WHEN MATCHED THEN
+          UPDATE SET ReceiptJSON = @ReceiptJSON, DiscountJSON = @DiscountJSON, CreatedAt = GETDATE()
+        WHEN NOT MATCHED THEN
+          INSERT (BillNo, ReceiptJSON, DiscountJSON) VALUES (@BillNo, @ReceiptJSON, @DiscountJSON);
+      `);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[ReceiptPrintCache] Save error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/sales/receipt-print-data/:billNo
+// Retrieves the stored receipt JSON for a given BillNo.
+router.get("/receipt-print-data/:billNo", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request()
+      .input("BillNo", sql.NVarChar(100), String(req.params.billNo))
+      .query("SELECT ReceiptJSON, DiscountJSON FROM ReceiptPrintCache WHERE BillNo = @BillNo");
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    const row = result.recordset[0];
+    res.json({
+      receiptJSON: row.ReceiptJSON,
+      discountJSON: row.DiscountJSON,
+    });
+  } catch (err) {
+    console.error("[ReceiptPrintCache] Fetch error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 router.get("/detail/:id", async (req, res) => {
   try {
     const pool = await poolPromise;

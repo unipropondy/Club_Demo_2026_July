@@ -902,6 +902,21 @@ async function initDB(pool) {
     await runQuery("RestaurantOrderCur - TakeawayChargeOverride", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrderCur' AND COLUMN_NAME = 'TakeawayChargeOverride') ALTER TABLE RestaurantOrderCur ADD TakeawayChargeOverride BIT NULL");
     await runQuery("RestaurantOrder - TakeawayChargeOverride", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrder' AND COLUMN_NAME = 'TakeawayChargeOverride') ALTER TABLE RestaurantOrder ADD TakeawayChargeOverride BIT NULL");
 
+    // ReceiptPrintCache: stores the exact receipt JSON printed at payment time for identical reprints
+    await runQuery("Create ReceiptPrintCache", `
+      IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ReceiptPrintCache]') AND type in (N'U'))
+      BEGIN
+        CREATE TABLE [dbo].[ReceiptPrintCache] (
+          [Id]           INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+          [BillNo]       NVARCHAR(100)     NOT NULL,
+          [ReceiptJSON]  NVARCHAR(MAX)     NOT NULL,
+          [DiscountJSON] NVARCHAR(MAX)     NULL,
+          [CreatedAt]    DATETIME          NOT NULL DEFAULT GETDATE()
+        );
+        CREATE UNIQUE INDEX UX_ReceiptPrintCache_BillNo ON [dbo].[ReceiptPrintCache] ([BillNo]);
+      END
+    `);
+
   } catch (err) {
     console.error("❌ DB Initialization Failed:", err.message);
   }

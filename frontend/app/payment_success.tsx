@@ -21,6 +21,7 @@ import { useCompanySettingsStore } from "../stores/companySettingsStore";
 import { useGeneralSettingsStore } from "../stores/generalSettingsStore";
 import { CustomerDisplaySync } from "../utils/CustomerDisplaySync";
 import CashDrawerService from "../services/CashDrawerService";
+import { API_URL } from "../constants/Config";
 
 const formatSection = (sec: string) => {
   if (!sec) return "";
@@ -257,6 +258,24 @@ export default function PaymentSuccess() {
 
       await UniversalPrinter.smartPrint(saleData, userId, {}, discountInfo);
       await openDrawerForCash();
+
+      // ✅ Save exact receipt data so Sales Report reprint is identical
+      if (orderId) {
+        try {
+          await fetch(`${API_URL}/api/sales/receipt-print-data`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              billNo: orderId,
+              receiptJSON: JSON.stringify(saleData),
+              discountJSON: JSON.stringify(discountInfo),
+            }),
+          });
+        } catch (cacheErr) {
+          // Non-fatal — reprint will fall back to reconstruction
+          console.warn("[ReceiptCache] Failed to save receipt data:", cacheErr);
+        }
+      }
     } catch (error) {
       console.error("Print error:", error);
     }

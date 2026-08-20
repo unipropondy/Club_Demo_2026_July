@@ -413,15 +413,15 @@ private static escapeHtml(str: string): string {
           scEligibleNet = Math.max(0, scEligibleSubtotal - proportion * orderDiscount);
         }
       }
-      serviceChargeAmount = scEligibleNet * (scPercentage / 100);
+      serviceChargeAmount = Math.round(scEligibleNet * (scPercentage / 100) * 100) / 100;
     }
-
+ 
     const savedTakeawayCharge = saleData.takeawayCharge != null ? parseFloat(String(saleData.takeawayCharge)) : null;
     const takeawayRate = parseFloat(String((company as any).TakeawayCharges ?? company.takeawayCharges ?? 0)) || 0;
     let globalTakeawayQty = 0;
     let globalTakeawayCharge = 0;
     let specificTakeawayCharge = 0;
-
+ 
     (saleData.items || []).forEach((item: any) => {
       const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
       const isVoided = item.status === 'VOIDED' || item.StatusCode === 0;
@@ -438,7 +438,7 @@ private static escapeHtml(str: string): string {
       }
     });
     const takeawayCharge = savedTakeawayCharge !== null && savedTakeawayCharge !== undefined ? savedTakeawayCharge : (globalTakeawayCharge + specificTakeawayCharge);
-
+ 
     const taxableAmount = currentSubtotal + serviceChargeAmount + takeawayCharge;
     const hasSC = serviceChargeAmount > 0;
     const effectiveSCPercentage = serviceChargeAmount > 0 && currentSubtotal > 0
@@ -447,13 +447,18 @@ private static escapeHtml(str: string): string {
     const gstAmountRaw = hasGST ? taxableAmount * (gstRate / 100) : 0;
     const gstAmount = Math.round(gstAmountRaw * 100) / 100;
     const amountWithoutGST = currentSubtotal;
-    
+     
     if (finalTotal === 0) {
       finalTotal = taxableAmount + gstAmount;
     }
-    
-    const difference = parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2));
-    const printedRoundOff = Math.abs(difference) >= 0.01 ? difference : 0;
+     
+    const storedRoundOff = saleData.roundOff !== undefined && saleData.roundOff !== null
+      ? parseFloat(String(saleData.roundOff))
+      : null;
+    const computedDifference = parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2));
+    const printedRoundOff = (storedRoundOff !== null && !isNaN(storedRoundOff) && storedRoundOff !== 0)
+      ? storedRoundOff
+      : (Math.abs(computedDifference) >= 0.01 ? computedDifference : 0);
     
     const companyLogoUrl = company.companyLogo || '';
     const halalLogoUrl = company.halalLogo || '';
@@ -908,12 +913,12 @@ private static escapeHtml(str: string): string {
                <span>${currencySymbol}${gstAmount.toFixed(2)}</span>
              </div>
              ` : ''}
-             ${printedRoundOff && printedRoundOff !== 0 ? `
-             <div class="total-row">
-               <span>Round Off:</span>
-               <span>${printedRoundOff > 0 ? '+' : ''}${currencySymbol}${printedRoundOff.toFixed(2)}</span>
-             </div>
-             ` : ''}
+              ${printedRoundOff && printedRoundOff !== 0 ? `
+              <div class="total-row">
+                <span>Round Off:</span>
+                <span>${printedRoundOff > 0 ? '+' : '-'}${currencySymbol}${Math.abs(printedRoundOff).toFixed(2)}</span>
+              </div>
+              ` : ''}
             <div class="grand-total">
               <span>${hasGST ? 'GRAND TOTAL (incl GST):' : 'GRAND TOTAL:'}</span>
               <span>${currencySymbol}${finalTotal.toFixed(2)}</span>

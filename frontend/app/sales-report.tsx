@@ -1566,7 +1566,28 @@ export default function SalesReport() {
 
     try {
       const userId = (await AsyncStorage.getItem("userId")) || "1";
+      const billNo = formatOrderId(selectedOrder);
 
+      // ── Primary path: replay the exact receipt JSON saved at payment time ──
+      try {
+        const cacheRes = await fetch(`${API_URL}/api/sales/receipt-print-data/${encodeURIComponent(billNo)}`);
+        if (cacheRes.ok) {
+          const cacheData = await cacheRes.json();
+          if (cacheData?.receiptJSON) {
+            const storedSaleData = JSON.parse(cacheData.receiptJSON);
+            const storedDiscountInfo = cacheData.discountJSON ? JSON.parse(cacheData.discountJSON) : {};
+            // Mark as reprint so the header reads PAYMENT RECEIPT (not CHECKOUT BILL)
+            storedSaleData.isReprint = true;
+            storedSaleData.isCheckout = false;
+            await UniversalPrinter.smartPrint(storedSaleData, userId, {}, storedDiscountInfo, undefined, true);
+            return;
+          }
+        }
+      } catch (cacheErr) {
+        console.warn("[Reprint] Cache fetch failed, falling back to reconstruction:", cacheErr);
+      }
+
+      // ── Fallback: reconstruct from settlement tables (legacy orders) ──
       const mappedItems = orderDetails.map((item) => ({
         name: item.DishName,
         price: item.Price,
@@ -1596,7 +1617,7 @@ export default function SalesReport() {
       };
 
       const saleData = {
-        invoiceNumber: formatOrderId(selectedOrder),
+        invoiceNumber: billNo,
         tableNo: selectedOrder.TableNo ?? "",
         total: selectedOrder.SysAmount,
         paymentMethod: selectedOrder.PayMode || "CASH",
@@ -1607,7 +1628,6 @@ export default function SalesReport() {
         date: selectedOrder.SettlementDate || new Date(),
         isReprint: true,
         vipDiscountAmount: Number(selectedOrder.VIPDiscountAmount ?? 0),
-        // Sunmi template details
         discountAmount: Number(selectedOrder.DiscountAmount ?? 0),
         discountType: selectedOrder.DiscountType || null,
         discountValue: discountValue,
@@ -1630,6 +1650,7 @@ export default function SalesReport() {
       setIsReprinting(false);
     }
   };
+
 
   const renderMetricTile = (
     label: string,

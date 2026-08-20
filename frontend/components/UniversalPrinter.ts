@@ -1616,12 +1616,10 @@ class UniversalPrinter {
     const parseLocalDate = (d: any) => {
       if (!d) return new Date();
       if (d instanceof Date) return d;
-      if (typeof d === 'string') {
-        // Strip trailing Z and any offset (like +00:00 or -00:00) so JS parses it as local time
-        const cleaned = d.replace(/Z$/, '').replace(/([+-]\d{2}:\d{2})$/, '');
-        return new Date(cleaned);
-      }
-      return new Date(d);
+      // Use parseDatabaseDate from timezoneHelper which correctly handles
+      // MSSQL Z-suffixed datetimes by treating them as SGT (replaces Z with +08:00)
+      const { parseDatabaseDate } = require('../utils/timezoneHelper');
+      return parseDatabaseDate(d);
     };
 
     const saleDate = saleData.originalDate ? parseLocalDate(saleData.originalDate) : 
@@ -1687,18 +1685,19 @@ class UniversalPrinter {
       }
 
       const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
-      const isSC = !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
-      if (isSC && !allItemsHaveSC) {
-        text += `[L]   [Service Charge ${company.serviceChargePercentage}%]\n`;
-      }
+      // Note: isServiceCharge flag is used only for SC totals calculation (shown in bill summary).
+      // We do NOT print a [Service Charge X%] tag under each individual item — that is not standard
+      // for professional restaurant POS receipts.
 
       // Modifiers: bold, no price, all modifiers shown
+      // Skip system-generated annotations: INSTR: instructions and [Service Charge ...] tags
       if (item.modifiers && Array.isArray(item.modifiers)) {
         item.modifiers.forEach((m: any) => {
           const mName = (m.ModifierName || m.modifierName || m.name || m.ModifierNameEn || "").trim();
-          if (mName && !mName.startsWith("INSTR:")) {
-            text += `[L]        <B>+ ${mName}</B>\n`;
-          }
+          if (!mName) return;
+          if (mName.toUpperCase().startsWith('INSTR:')) return;
+          if (/service\s*charge/i.test(mName)) return; // SC is shown in totals, not per-item
+          text += `[L]        <B>+ ${mName}</B>\n`;
         });
       }
 
@@ -1803,6 +1802,10 @@ class UniversalPrinter {
         orderDiscount = orderDiscount * ratio;
       }
     }
+    // ── Round orderDiscount to 2dp before any further calculations ──────────────
+    // Prevents floating-point drift flowing into currentSubtotal → GST
+    orderDiscount = Math.round(orderDiscount * 100) / 100;
+
     const hasAnyDiscount = totalItemDiscount > 0 || orderDiscount > 0 || totalVipDiscount > 0;
     let currentSubtotal = grossTotal;
 
@@ -1826,6 +1829,9 @@ class UniversalPrinter {
       text += this.formatTwoCols48("VIP Discount Savings:", `-${symbol}${totalVipDiscount.toFixed(2)}`);
       currentSubtotal -= totalVipDiscount;
     }
+
+    // Round currentSubtotal to 2dp for consistent downstream calculations
+    currentSubtotal = Math.round(currentSubtotal * 100) / 100;
 
     if (hasAnyDiscount) {
       text += "[L]------------------------------------------------\n";
@@ -1863,6 +1869,7 @@ class UniversalPrinter {
         }
         const itemSubtotal = baseTotal - itemDiscount;
         const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
+        // TW items do NOT attract service charge
         const isSC = !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
         if (isSC) {
           scEligibleSubtotal += itemSubtotal;
@@ -1876,7 +1883,7 @@ class UniversalPrinter {
           scEligibleNet = Math.max(0, scEligibleSubtotal - proportion * orderDiscount);
         }
       }
-      serviceChargeAmount = scEligibleNet * (scPercentage / 100);
+      serviceChargeAmount = Math.round(scEligibleNet * (scPercentage / 100) * 100) / 100;
     }
 
     const hasSC = serviceChargeAmount > 0;
@@ -1884,7 +1891,14 @@ class UniversalPrinter {
       ? Math.round((serviceChargeAmount / currentSubtotal) * 100)
       : scPercentage;
 
-    const savedTakeawayCharge = saleData.takeawayCharge != null ? parseFloat(String(saleData.takeawayCharge)) : null;
+    // ── Takeaway charges ─────────────────────────────────────────────────────────
+    // savedTakeawayCharge: the exact TW total stored at payment time (may include
+    // bill-discount proportional reduction as computed by payment.tsx).
+    // We use this value as the GST base to match the settlement calculation.
+    // For the display lines, we show the raw per-item TW so customers can verify.
+    const savedTakeawayCharge = saleData.takeawayCharge != null && saleData.takeawayCharge !== "" 
+      ? parseFloat(String(saleData.takeawayCharge)) 
+      : null;
 
     let globalTakeawayQty = 0;
     let globalTakeawayCharge = 0;
@@ -1906,20 +1920,33 @@ class UniversalPrinter {
       }
     });
 
-    const takeawayCharge = savedTakeawayCharge !== null && savedTakeawayCharge !== undefined ? savedTakeawayCharge : (globalTakeawayCharge + specificTakeawayCharge);
-    const taxableAmount = currentSubtotal + serviceChargeAmount + takeawayCharge;
+    // For GST base: use the stored takeaway total (matches the settlement calculation).
+    // If not stored (live checkout), derive from items.
+    const itemDerivedTW = globalTakeawayCharge + specificTakeawayCharge;
+    const takeawayChargeForGST = (savedTakeawayCharge !== null && !isNaN(savedTakeawayCharge))
+      ? savedTakeawayCharge
+      : itemDerivedTW;
+
+    // ── GST calculation ──────────────────────────────────────────────────────────
+    const taxableAmount = currentSubtotal + serviceChargeAmount + takeawayChargeForGST;
     const gstAmountRaw = hasGST ? taxableAmount * (gstRate / 100) : 0;
     const gstAmount = Math.round(gstAmountRaw * 100) / 100;
     
     if (finalTotal === 0) {
       finalTotal = taxableAmount + gstAmount;
     }
-    
-    const difference = parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2));
-    const printedRoundOff = Math.abs(difference) >= 0.01 ? difference : 0;
 
-    // Removed duplicate Sub Total print statement to prevent printing it twice when there is no discount.
-    
+    // ── Round-off ────────────────────────────────────────────────────────────────
+    // Use the stored round-off from the settlement when available (most accurate).
+    // Fall back to the computed difference only as a last resort.
+    const storedRoundOff = saleData.roundOff !== undefined && saleData.roundOff !== null
+      ? parseFloat(String(saleData.roundOff))
+      : null;
+    const computedDifference = parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2));
+    const printedRoundOff = (storedRoundOff !== null && !isNaN(storedRoundOff) && storedRoundOff !== 0)
+      ? storedRoundOff
+      : (Math.abs(computedDifference) >= 0.01 ? computedDifference : 0);
+
     if (hasSC) {
       text += this.formatTwoCols48(allItemsHaveSC ? "Service Charge:" : "Item Service Charge:", `${symbol}${serviceChargeAmount.toFixed(2)}`);
     }
@@ -1937,8 +1964,8 @@ class UniversalPrinter {
     }
 
     if (printedRoundOff && printedRoundOff !== 0) {
-      const roSign = printedRoundOff > 0 ? "+" : "";
-      text += this.formatTwoCols48("Round Off:", `${roSign}${symbol}${printedRoundOff.toFixed(2)}`);
+      const roSign = printedRoundOff > 0 ? "+" : (printedRoundOff < 0 ? "-" : "");
+      text += this.formatTwoCols48("Round Off:", `${roSign}${symbol}${Math.abs(printedRoundOff).toFixed(2)}`);
       text += "[L]------------------------------------------------\n";
     }
 

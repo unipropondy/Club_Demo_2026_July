@@ -1712,13 +1712,13 @@ export default function SummaryScreen() {
 
   const currentGlobalTakeawayCharge = useMemo(() => {
     if (!takeawayChargeApplied) return 0;
-    return globalTakeawayChargeAmt * (1 - billDiscountProportion);
-  }, [takeawayChargeApplied, globalTakeawayChargeAmt, billDiscountProportion]);
+    return globalTakeawayChargeAmt;
+  }, [takeawayChargeApplied, globalTakeawayChargeAmt]);
 
   const currentSpecificTakeawayCharge = useMemo(() => {
     if (!takeawayChargeApplied) return 0;
-    return specificTakeawayChargeAmt * (1 - billDiscountProportion);
-  }, [takeawayChargeApplied, specificTakeawayChargeAmt, billDiscountProportion]);
+    return specificTakeawayChargeAmt;
+  }, [takeawayChargeApplied, specificTakeawayChargeAmt]);
 
   const currentTakeawayCharge = useMemo(() => {
     return currentGlobalTakeawayCharge + currentSpecificTakeawayCharge;

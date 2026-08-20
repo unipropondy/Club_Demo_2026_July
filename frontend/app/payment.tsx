@@ -913,14 +913,14 @@ export default function PaymentScreen() {
   const currentGlobalTakeawayCharge = useMemo(() => {
     if (isLedgerCollection) return 0;
     if (!takeawayChargeApplied) return 0;
-    return globalTakeawayChargeAmt * (1 - billDiscountProportion);
-  }, [takeawayChargeApplied, globalTakeawayChargeAmt, billDiscountProportion, isLedgerCollection]);
+    return globalTakeawayChargeAmt;
+  }, [takeawayChargeApplied, globalTakeawayChargeAmt, isLedgerCollection]);
 
   const currentSpecificTakeawayCharge = useMemo(() => {
     if (isLedgerCollection) return 0;
     if (!takeawayChargeApplied) return 0;
-    return specificTakeawayChargeAmt * (1 - billDiscountProportion);
-  }, [takeawayChargeApplied, specificTakeawayChargeAmt, billDiscountProportion, isLedgerCollection]);
+    return specificTakeawayChargeAmt;
+  }, [takeawayChargeApplied, specificTakeawayChargeAmt, isLedgerCollection]);
 
   const currentTakeawayCharge = useMemo(() => {
     return currentGlobalTakeawayCharge + currentSpecificTakeawayCharge;
