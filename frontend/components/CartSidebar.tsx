@@ -36,6 +36,7 @@ import {
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
 import { useGeneralSettingsStore } from "../stores/generalSettingsStore";
 import { holdOrder } from "../stores/heldOrdersStore";
+import { useMenuStore } from "../stores/menuStore";
 import { useOrderContextStore } from "../stores/orderContextStore";
 import { useTableStatusStore } from "../stores/tableStatusStore";
 import { useTerminalStore } from "../stores/terminalStore";
@@ -1177,7 +1178,7 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
 
   const takeawayCharges = settings.takeawayCharges || 0;
 
-  const { grossTotal, totalDiscount, scEligibleSubtotal, takeawayChargeAmt, takeawayQty } = useMemo(() => {
+  const { grossTotal, totalDiscount, scEligibleSubtotal, globalTakeawayChargeAmt, globalTakeawayQty, specificTakeawayChargeAmt, specificTakeawayQty } = useMemo(() => {
     return displayItems.reduce(
       (acc, item) => {
         const isVoided = "status" in item && item.status === "VOIDED";
@@ -1201,19 +1202,65 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
         const itemSubtotal = baseTotal - itemDiscount;
         const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
         const isSC = !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
-        const itemTWCharge = isTakeawayItem ? item.qty * takeawayCharges : 0;
+        
+        // 🍱 Item-wise TW charge: use dish-specific rate if set, else fall back to global CompanySettings rate
+        let itemTWCharge = 0;
+        let isSpecific = false;
+        if (isTakeawayItem) {
+          let hasSpecific =
+            item.TakeawayCharge !== null &&
+            item.TakeawayCharge !== undefined &&
+            !isNaN(parseFloat(String(item.TakeawayCharge))) &&
+            parseFloat(String(item.TakeawayCharge)) > 0;
+          
+          let rate = hasSpecific ? parseFloat(String(item.TakeawayCharge)) : 0;
+          
+          // Check combo selections if parent doesn't have specific rate or is combo
+          const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
+          if (isCombo && item.comboSelections && Array.isArray(item.comboSelections)) {
+            let childSpecificRate = 0;
+            const allDishesList = useMenuStore.getState().allDishes || [];
+            item.comboSelections.forEach((group: any) => {
+              if (group.items && Array.isArray(group.items)) {
+                group.items.forEach((opt: any) => {
+                  const optDishId = opt.dishId || opt.DishId || opt.id;
+                  if (optDishId) {
+                    const matched = allDishesList.find((d: any) => String(d.DishId).toLowerCase() === String(optDishId).toLowerCase());
+                    const childRate = matched ? parseFloat(String(matched.TakeawayCharge)) : 0;
+                    if (childRate > 0) {
+                      childSpecificRate += childRate;
+                    }
+                  }
+                });
+              }
+            });
+            if (childSpecificRate > 0) {
+              rate = childSpecificRate;
+              hasSpecific = true;
+            }
+          }
+
+          const dishTWRate = hasSpecific ? rate : takeawayCharges; // global fallback
+          itemTWCharge = dishTWRate > 0 ? item.qty * dishTWRate : 0;
+          isSpecific = hasSpecific && rate !== takeawayCharges;
+        }
 
         return {
           grossTotal: acc.grossTotal + baseTotal,
           totalDiscount: acc.totalDiscount + itemDiscount,
           scEligibleSubtotal: acc.scEligibleSubtotal + (isSC ? itemSubtotal : 0),
-          takeawayChargeAmt: acc.takeawayChargeAmt + itemTWCharge,
-          takeawayQty: acc.takeawayQty + (isTakeawayItem ? item.qty : 0),
+          globalTakeawayChargeAmt: acc.globalTakeawayChargeAmt + (isTakeawayItem && !isSpecific ? itemTWCharge : 0),
+          globalTakeawayQty: acc.globalTakeawayQty + (isTakeawayItem && !isSpecific ? item.qty : 0),
+          specificTakeawayChargeAmt: acc.specificTakeawayChargeAmt + (isTakeawayItem && isSpecific ? itemTWCharge : 0),
+          specificTakeawayQty: acc.specificTakeawayQty + (isTakeawayItem && isSpecific ? item.qty : 0),
         };
       },
-      { grossTotal: 0, totalDiscount: 0, scEligibleSubtotal: 0, takeawayChargeAmt: 0, takeawayQty: 0 },
+      { grossTotal: 0, totalDiscount: 0, scEligibleSubtotal: 0, globalTakeawayChargeAmt: 0, globalTakeawayQty: 0, specificTakeawayChargeAmt: 0, specificTakeawayQty: 0 },
     );
   }, [displayItems, takeawayCharges]);
+
+  const takeawayChargeAmt = globalTakeawayChargeAmt + specificTakeawayChargeAmt;
+  const takeawayQty = globalTakeawayQty + specificTakeawayQty;
 
   const subtotal = grossTotal - totalDiscount;
   const serviceChargeAmt = scEligibleSubtotal * scRate;
@@ -1774,14 +1821,25 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
                   </Text>
                 </View>
               )}
-              {takeawayChargeAmt > 0 && (
+              {globalTakeawayChargeAmt > 0 && (
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>
-                    TW Charges ({currencySymbol}{takeawayCharges.toFixed(2)} * {takeawayQty})
+                    TW Charges ({currencySymbol}{takeawayCharges.toFixed(2)} * {globalTakeawayQty})
                   </Text>
                   <Text style={styles.summaryValue}>
                     {currencySymbol}
-                    {takeawayChargeAmt.toFixed(2)}
+                    {globalTakeawayChargeAmt.toFixed(2)}
+                  </Text>
+                </View>
+              )}
+              {specificTakeawayChargeAmt > 0 && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>
+                    TW Charges (Item-wise)
+                  </Text>
+                  <Text style={styles.summaryValue}>
+                    {currencySymbol}
+                    {specificTakeawayChargeAmt.toFixed(2)}
                   </Text>
                 </View>
               )}

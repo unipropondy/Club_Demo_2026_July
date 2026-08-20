@@ -406,6 +406,9 @@ async function initDB(pool) {
     // 11.2 DishMaster IsDeck column
     await runQuery("DishMaster - IsDeck", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[DishMaster]') AND name = 'IsDeck') ALTER TABLE [dbo].[DishMaster] ADD IsDeck BIT NOT NULL DEFAULT 0");
 
+    // 11.3 DishMaster TakeawayCharge — item-specific TW rate (NULL = use global CompanySettings)
+    await runQuery("DishMaster - TakeawayCharge", "IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[DishMaster]') AND name = 'TakeawayCharge') ALTER TABLE [dbo].[DishMaster] ADD TakeawayCharge DECIMAL(18, 2) NULL");
+
     await runQuery("Insert Default CompanySettings", `
       IF NOT EXISTS (SELECT TOP 1 1 FROM [dbo].[CompanySettings])
       BEGIN
@@ -892,6 +895,9 @@ async function initDB(pool) {
     // 🚀 TABLE SYNC DEPS: Add takeaway/service override columns to prevent syncTableStatus compilation failures
     await runQuery("RestaurantOrderCur - ServiceChargeOverride", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrderCur' AND COLUMN_NAME = 'ServiceChargeOverride') ALTER TABLE RestaurantOrderCur ADD ServiceChargeOverride BIT NULL");
     await runQuery("RestaurantOrderCur - TakeawayCharge", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrderCur' AND COLUMN_NAME = 'TakeawayCharge') ALTER TABLE RestaurantOrderCur ADD TakeawayCharge DECIMAL(18,2) DEFAULT 0");
+    // 🍱 Per-line item TW charge (stores resolved rate × qty so syncTableStatus can SUM it directly)
+    await runQuery("RestaurantOrderDetailCur - TakeawayCharge", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrderDetailCur' AND COLUMN_NAME = 'TakeawayCharge') ALTER TABLE RestaurantOrderDetailCur ADD TakeawayCharge DECIMAL(18,2) NULL");
+    await runQuery("RestaurantOrderDetail - TakeawayCharge", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrderDetail' AND COLUMN_NAME = 'TakeawayCharge') ALTER TABLE RestaurantOrderDetail ADD TakeawayCharge DECIMAL(18,2) NULL");
     await runQuery("RestaurantOrder - TakeawayCharge", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrder' AND COLUMN_NAME = 'TakeawayCharge') ALTER TABLE RestaurantOrder ADD TakeawayCharge DECIMAL(18,2) DEFAULT 0");
     await runQuery("RestaurantOrderCur - TakeawayChargeOverride", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrderCur' AND COLUMN_NAME = 'TakeawayChargeOverride') ALTER TABLE RestaurantOrderCur ADD TakeawayChargeOverride BIT NULL");
     await runQuery("RestaurantOrder - TakeawayChargeOverride", "IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'RestaurantOrder' AND COLUMN_NAME = 'TakeawayChargeOverride') ALTER TABLE RestaurantOrder ADD TakeawayChargeOverride BIT NULL");

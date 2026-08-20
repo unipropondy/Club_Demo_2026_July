@@ -28,9 +28,10 @@ export const useMenuStore = create<MenuState>((set, get) => ({
   isLoading: false,
 
   fetchMenu: async () => {
-    const { lastFetched, kitchens } = get();
-    // Cache for 10 minutes
-    if (lastFetched && kitchens.length > 0 && Date.now() - lastFetched < 600000) {
+    const { lastFetched, kitchens, allDishes } = get();
+    // 🛡️ Auto-refresh cache if cached dishes do not contain the TakeawayCharge property
+    const needsRefetch = allDishes.length > 0 && !allDishes.some(d => 'TakeawayCharge' in d);
+    if (!needsRefetch && lastFetched && kitchens.length > 0 && Date.now() - lastFetched < 600000) {
       return;
     }
 
@@ -92,13 +93,15 @@ export const useMenuStore = create<MenuState>((set, get) => ({
 
   fetchDishes: async (groupId) => {
     const { dishesByGroup, modifierCache } = get();
-    if (dishesByGroup[groupId]) {
-      const groupDishes = dishesByGroup[groupId];
+    const groupDishes = dishesByGroup[groupId];
+    // 🛡️ Auto-refresh cache if cached group dishes do not contain the TakeawayCharge property
+    const needsRefetch = groupDishes && groupDishes.length > 0 && !groupDishes.some(d => 'TakeawayCharge' in d);
+    if (groupDishes && !needsRefetch) {
       const hasAnyModifierCached = groupDishes.some(d => modifierCache[d.DishId || d.id] !== undefined);
       if (!hasAnyModifierCached) {
         get().fetchModifiersForGroup(groupId);
       }
-      return dishesByGroup[groupId];
+      return groupDishes;
     }
 
     try {

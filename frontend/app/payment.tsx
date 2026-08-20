@@ -38,6 +38,7 @@ import { useCartStore } from "../stores/cartStore";
 import type { CompanySettings } from "../stores/companySettingsStore";
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
 import { useGeneralSettingsStore } from "../stores/generalSettingsStore";
+import { useMenuStore } from "../stores/menuStore";
 import { useOrderContextStore } from "../stores/orderContextStore";
 import type { CachedPaymentMethod } from "../stores/paymentSettingsStore";
 import { usePaymentSettingsStore } from "../stores/paymentSettingsStore";
@@ -668,8 +669,10 @@ export default function PaymentScreen() {
     totalItemDiscount: payItemDiscount,
     vipDiscountAmount,
     scEligibleSubtotal,
-    calcTakeawayChargeAmt,
-    takeawayQty,
+    globalTakeawayChargeAmt,
+    globalTakeawayQty,
+    specificTakeawayChargeAmt,
+    specificTakeawayQty,
     calculatedItems,
   } = useMemo(() => {
     if (isLedgerCollection) {
@@ -679,8 +682,10 @@ export default function PaymentScreen() {
         vipDiscountAmount: 0,
         subtotal: collectAmount || 0,
         scEligibleSubtotal: 0,
-        calcTakeawayChargeAmt: 0,
-        takeawayQty: 0,
+        globalTakeawayChargeAmt: 0,
+        globalTakeawayQty: 0,
+        specificTakeawayChargeAmt: 0,
+        specificTakeawayQty: 0,
         calculatedItems: [],
       };
     }
@@ -778,7 +783,50 @@ export default function PaymentScreen() {
         const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
         const isSC =
           !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
-        const itemTWCharge = isTakeawayItem ? (item.qty || 1) * takeawayCharges : 0;
+        
+
+
+        // 🍱 Item-wise TW charge: use dish-specific rate if set, else fall back to global CompanySettings rate
+        let itemTWCharge = 0;
+        let isSpecific = false;
+        if (isTakeawayItem) {
+          let hasSpecific =
+            item.TakeawayCharge !== null &&
+            item.TakeawayCharge !== undefined &&
+            !isNaN(parseFloat(String(item.TakeawayCharge))) &&
+            parseFloat(String(item.TakeawayCharge)) > 0;
+          
+          let rate = hasSpecific ? parseFloat(String(item.TakeawayCharge)) : 0;
+          
+          // Check combo selections if parent doesn't have specific rate or is combo
+          const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
+          if (isCombo && item.comboSelections && Array.isArray(item.comboSelections)) {
+            let childSpecificRate = 0;
+            const allDishesList = useMenuStore.getState().allDishes || [];
+            item.comboSelections.forEach((group: any) => {
+              if (group.items && Array.isArray(group.items)) {
+                group.items.forEach((opt: any) => {
+                  const optDishId = opt.dishId || opt.DishId || opt.id;
+                  if (optDishId) {
+                    const matched = allDishesList.find((d: any) => String(d.DishId).toLowerCase() === String(optDishId).toLowerCase());
+                    const childRate = matched ? parseFloat(String(matched.TakeawayCharge)) : 0;
+                    if (childRate > 0) {
+                      childSpecificRate += childRate;
+                    }
+                  }
+                });
+              }
+            });
+            if (childSpecificRate > 0) {
+              rate = childSpecificRate;
+              hasSpecific = true;
+            }
+          }
+
+          const dishTWRate = hasSpecific ? rate : takeawayCharges; // global fallback
+          itemTWCharge = dishTWRate > 0 ? (item.qty || 1) * dishTWRate : 0;
+          isSpecific = hasSpecific && rate !== takeawayCharges;
+        }
 
         acc.calculatedItems.push({
           ...item,
@@ -793,8 +841,10 @@ export default function PaymentScreen() {
           subtotal: acc.subtotal + itemSubtotal,
           scEligibleSubtotal:
             acc.scEligibleSubtotal + (isSC ? itemSubtotal : 0),
-          calcTakeawayChargeAmt: acc.calcTakeawayChargeAmt + itemTWCharge,
-          takeawayQty: acc.takeawayQty + (isTakeawayItem ? (item.qty || 1) : 0),
+          globalTakeawayChargeAmt: acc.globalTakeawayChargeAmt + (isTakeawayItem && !isSpecific ? itemTWCharge : 0),
+          globalTakeawayQty: acc.globalTakeawayQty + (isTakeawayItem && !isSpecific ? (item.qty || 1) : 0),
+          specificTakeawayChargeAmt: acc.specificTakeawayChargeAmt + (isTakeawayItem && isSpecific ? itemTWCharge : 0),
+          specificTakeawayQty: acc.specificTakeawayQty + (isTakeawayItem && isSpecific ? (item.qty || 1) : 0),
           calculatedItems: acc.calculatedItems,
         };
       },
@@ -804,12 +854,17 @@ export default function PaymentScreen() {
         vipDiscountAmount: 0,
         subtotal: 0,
         scEligibleSubtotal: 0,
-        calcTakeawayChargeAmt: 0,
-        takeawayQty: 0,
+        globalTakeawayChargeAmt: 0,
+        globalTakeawayQty: 0,
+        specificTakeawayChargeAmt: 0,
+        specificTakeawayQty: 0,
         calculatedItems: [],
       },
     );
   }, [finalItems, isLedgerCollection, collectAmount, takeawayCharges, vipOffer, allDishes, selectedMember]);
+
+  const calcTakeawayChargeAmt = globalTakeawayChargeAmt + specificTakeawayChargeAmt;
+  const takeawayQty = globalTakeawayQty + specificTakeawayQty;
 
   const allItemsHaveSC = useMemo(() => {
     const activeItems = finalItems.filter(
@@ -855,11 +910,21 @@ export default function PaymentScreen() {
     return subtotal > 0 ? (discountAmount / subtotal) : 0;
   }, [discount, subtotal, discountAmount, isLedgerCollection]);
 
-  const currentTakeawayCharge = useMemo(() => {
+  const currentGlobalTakeawayCharge = useMemo(() => {
     if (isLedgerCollection) return 0;
     if (!takeawayChargeApplied) return 0;
-    return calcTakeawayChargeAmt * (1 - billDiscountProportion);
-  }, [takeawayChargeApplied, calcTakeawayChargeAmt, billDiscountProportion, isLedgerCollection]);
+    return globalTakeawayChargeAmt * (1 - billDiscountProportion);
+  }, [takeawayChargeApplied, globalTakeawayChargeAmt, billDiscountProportion, isLedgerCollection]);
+
+  const currentSpecificTakeawayCharge = useMemo(() => {
+    if (isLedgerCollection) return 0;
+    if (!takeawayChargeApplied) return 0;
+    return specificTakeawayChargeAmt * (1 - billDiscountProportion);
+  }, [takeawayChargeApplied, specificTakeawayChargeAmt, billDiscountProportion, isLedgerCollection]);
+
+  const currentTakeawayCharge = useMemo(() => {
+    return currentGlobalTakeawayCharge + currentSpecificTakeawayCharge;
+  }, [currentGlobalTakeawayCharge, currentSpecificTakeawayCharge]);
 
   const serviceChargeAmt = isLedgerCollection ? 0 : (scReduced || scReducedLocal ? 0 : scEligibleNet * scRate);
   const taxableAmount = netAfterDiscount + serviceChargeAmt + currentTakeawayCharge;
@@ -3107,7 +3172,7 @@ export default function PaymentScreen() {
 
                       {(discountAmount + payItemDiscount + vipDiscountAmount) > 0 && (
                         <>
-                          {(discountAmount + payItemDiscount) > 0 && (
+                          {payItemDiscount > 0 && (
                             <View style={styles.breakRow}>
                               <Text
                                 style={[
@@ -3115,7 +3180,7 @@ export default function PaymentScreen() {
                                   { color: Theme.danger },
                                 ]}
                               >
-                                Discount
+                                Item Discounts
                               </Text>
                               <Text
                                 style={[
@@ -3124,7 +3189,28 @@ export default function PaymentScreen() {
                                 ]}
                               >
                                 -{currencySymbol}
-                                {(discountAmount + payItemDiscount).toFixed(2)}
+                                {payItemDiscount.toFixed(2)}
+                              </Text>
+                            </View>
+                          )}
+                          {discountAmount > 0 && (
+                            <View style={styles.breakRow}>
+                              <Text
+                                style={[
+                                  styles.breakLabel,
+                                  { color: Theme.danger },
+                                ]}
+                              >
+                                Discount{discount?.type === "percentage" ? ` (${discount.value}%)` : ""}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.breakValue,
+                                  { color: Theme.danger },
+                                ]}
+                              >
+                                -{currencySymbol}
+                                {discountAmount.toFixed(2)}
                               </Text>
                             </View>
                           )}
@@ -3174,14 +3260,23 @@ export default function PaymentScreen() {
                           </Text>
                         </View>
                       )}
-                      {currentTakeawayCharge > 0 && (
+                      {currentGlobalTakeawayCharge > 0 && (
                         <View style={styles.breakRow}>
                           <Text style={styles.breakLabel}>
-                            Takeaway Charges ({currencySymbol}{takeawayCharges.toFixed(2)} * {takeawayQty})
+                            TW Charges ({currencySymbol}{takeawayCharges.toFixed(2)} * {globalTakeawayQty})
                           </Text>
                           <Text style={styles.breakValue}>
                             {currencySymbol}
-                            {currentTakeawayCharge.toFixed(2)}
+                            {currentGlobalTakeawayCharge.toFixed(2)}
+                          </Text>
+                        </View>
+                      )}
+                      {currentSpecificTakeawayCharge > 0 && (
+                        <View style={styles.breakRow}>
+                          <Text style={styles.breakLabel}>TW Charges (Item-wise)</Text>
+                          <Text style={styles.breakValue}>
+                            {currencySymbol}
+                            {currentSpecificTakeawayCharge.toFixed(2)}
                           </Text>
                         </View>
                       )}

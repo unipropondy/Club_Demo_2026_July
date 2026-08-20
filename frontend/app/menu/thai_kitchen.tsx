@@ -1075,8 +1075,9 @@ export default function MenuScreen() {
       const addToCartSimple = (overridePrice?: number) => {
         const actualGroupObj = groups.find((g: any) => g.DishGroupId === dish.DishGroupId) || groups.find((g: any) => g.DishGroupId === selectedGroup);
         const dishGroupName =
-          actualGroupObj?.DishGroupName ||
-          dish.DishGroupName;
+          dish.DishGroupName ||
+          dish.dishGroupName ||
+          actualGroupObj?.DishGroupName;
         const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
         addToCartGlobal({
           id: dish.DishId,
@@ -1088,7 +1089,8 @@ export default function MenuScreen() {
           KitchenTypeCode: dish.KitchenTypeCode || currentKitchenCode,
           isServiceCharge: dish.isServiceCharge,
           IsOpenItem: dish.IsOpenItem,
-        });
+          TakeawayCharge: dish.TakeawayCharge !== undefined ? dish.TakeawayCharge : null,
+        } as any);
       };
 
       // OPEN ITEM: Prompt for custom price before doing anything else
@@ -1366,8 +1368,9 @@ export default function MenuScreen() {
 
       const actualGroupObj = groups.find((g: any) => g.DishGroupId === selectedDish.DishGroupId) || groups.find((g: any) => g.DishGroupId === selectedGroup);
       const dishGroupName =
-        actualGroupObj?.DishGroupName ||
-        selectedDish.DishGroupName;
+        selectedDish.DishGroupName ||
+        selectedDish.dishGroupName ||
+        actualGroupObj?.DishGroupName;
       const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
 
       addToCartGlobal({
@@ -1382,6 +1385,7 @@ export default function MenuScreen() {
         KitchenTypeCode: selectedDish.KitchenTypeCode || currentKitchenCode,
         splitMembers: selectedDish.splitMembers || undefined,
         isServiceCharge: selectedDish.isServiceCharge,
+        TakeawayCharge: selectedDish.TakeawayCharge !== undefined ? selectedDish.TakeawayCharge : null,
       } as any);
     }
     setShowModifier(false);
@@ -1411,8 +1415,9 @@ export default function MenuScreen() {
 
     const currentGroupObj = groups.find((g: any) => g.DishGroupId === selectedGroup);
     const dishGroupName =
-      currentGroupObj?.DishGroupName ||
-      dish.DishGroupName;
+      dish.DishGroupName ||
+      dish.dishGroupName ||
+      currentGroupObj?.DishGroupName;
     const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
 
     addToCartGlobal({
@@ -1425,7 +1430,8 @@ export default function MenuScreen() {
       KitchenTypeCode: dish.KitchenTypeCode || dish._kitchenCode,
       IsOpenItem: dish.IsOpenItem,
       isServiceCharge: dish.isServiceCharge,
-    });
+      TakeawayCharge: dish.TakeawayCharge !== undefined ? dish.TakeawayCharge : null,
+    } as any);
 
     // Reset
     setShowOpenItemModal(false);

@@ -408,6 +408,8 @@ class SunmiPrinterService {
       await SunmiModule.printText(formatter.itemHeader());
       await SunmiModule.printText(formatter.divider("-"));
 
+      const companySettingsStore = useCompanySettingsStore.getState().settings; // trigger metro rebuild
+      const takeawayRate = companySettingsStore?.takeawayCharges || 0;
       const printItems = (saleData.items || []).filter((i: any) => i.status !== "VOIDED");
       const activeItems = (saleData.items || []).filter((i: any) => i.status !== "VOIDED" && i.statusCode !== 0);
       const allItemsHaveSC = activeItems.length > 0 && activeItems.every((item: any) => {
@@ -416,7 +418,10 @@ class SunmiPrinterService {
       });
 
       for (const item of printItems) {
-        const fullItemName = item.name || item.DishName || item.ProductName || "";
+        const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
+        const hasTWCharge = takeawayRate > 0 || (item.TakeawayCharge !== null && item.TakeawayCharge !== undefined && parseFloat(String(item.TakeawayCharge)) > 0);
+        const rawName = item.name || item.DishName || item.ProductName || "";
+        const fullItemName = isTW && hasTWCharge ? `${rawName} [TW]` : rawName;
         const qtyNum = parseInt(String(item.qty || item.quantity || item.Quantity || 1)) || 1;
         const qty = qtyNum.toString();
         const priceNum = parseFloat(String(item.price || item.Price || item.Cost || 0)) || 0;
@@ -473,7 +478,8 @@ class SunmiPrinterService {
         const qtyNum = parseInt(String(item.qty || item.quantity || 1)) || 1;
         const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
         const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
-        const baseTotal = (item.price || 0) * qtyNum;
+        // Round baseTotal to 2 decimals to match the printed item totals
+        const baseTotal = Math.round((item.price || 0) * qtyNum * 100) / 100;
         let itemDiscount = 0;
         const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
         const discType = item.discountType || "percentage";
@@ -484,6 +490,8 @@ class SunmiPrinterService {
             itemDiscount = Math.min(discAmt, discountBasis) * qtyNum;
           }
         }
+        // Round itemDiscount to 2 decimals to match printed discounts
+        itemDiscount = Math.round(itemDiscount * 100) / 100;
         grossTotal += baseTotal;
         totalItemDiscount += itemDiscount;
       });
@@ -491,6 +499,9 @@ class SunmiPrinterService {
       let orderDiscount = parseFloat(String(saleData.discountAmount || 0)) || 0;
       if (orderDiscount === 0 && saleData.discount) {
         orderDiscount = parseFloat(String(saleData.discount.amount || 0)) || 0;
+      }
+      if (orderDiscount > 0 && totalItemDiscount > 0) {
+        orderDiscount = Math.max(0, orderDiscount - totalItemDiscount);
       }
       if (orderDiscount === 0 && saleData.discount?.applied && saleData.discount.value > 0) {
         const subtotalPostItemDisc = grossTotal - totalItemDiscount;
@@ -570,17 +581,28 @@ class SunmiPrinterService {
         serviceChargeAmount = scEligibleNet * (scPercentage / 100);
       }
       const hasSC = serviceChargeAmount > 0;
-      const companySettingsStore = useCompanySettingsStore.getState().settings;
-      const takeawayRate = companySettingsStore?.takeawayCharges || 0;
-      const takeawayQty = (saleData.items || []).reduce((sum: number, item: any) => {
+
+      let globalTakeawayQty = 0;
+      let globalTakeawayCharge = 0;
+      let specificTakeawayCharge = 0;
+
+      const savedTakeawayCharge = saleData.takeawayCharge != null ? parseFloat(String(saleData.takeawayCharge)) : null;
+      (saleData.items || []).forEach((item: any) => {
         const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
         const isVoided = item.status === "VOIDED" || item.StatusCode === 0;
         if (isTW && !isVoided) {
-          return sum + (item.qty || item.quantity || 1);
+          const qty = Number(item.qty || item.quantity || 1);
+          const hasSpecific = item.TakeawayCharge !== null && item.TakeawayCharge !== undefined && !isNaN(parseFloat(String(item.TakeawayCharge))) && parseFloat(String(item.TakeawayCharge)) > 0;
+          const isSpecific = hasSpecific && parseFloat(String(item.TakeawayCharge)) !== takeawayRate;
+          if (isSpecific) {
+            specificTakeawayCharge += qty * parseFloat(String(item.TakeawayCharge));
+          } else {
+            globalTakeawayQty += qty;
+            globalTakeawayCharge += qty * takeawayRate;
+          }
         }
-        return sum;
-      }, 0);
-      const takeawayCharge = takeawayQty * takeawayRate;
+      });
+      const takeawayCharge = savedTakeawayCharge !== null && savedTakeawayCharge !== undefined ? savedTakeawayCharge : (globalTakeawayCharge + specificTakeawayCharge);
       
       const taxableAmount = currentSubtotal + serviceChargeAmount + takeawayCharge;
       const gstAmountRaw = gstRate > 0 ? taxableAmount * (gstRate / 100) : 0;
@@ -590,9 +612,8 @@ class SunmiPrinterService {
         finalTotal = taxableAmount + gstAmount;
       }
       
-      const printedRoundOff = saleData.roundOff && saleData.roundOff !== 0
-        ? parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2))
-        : 0;
+      const difference = parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2));
+      const printedRoundOff = Math.abs(difference) >= 0.01 ? difference : 0;
 
       // Removed duplicate Sub Total print statement to prevent printing it twice when there is no discount.
 
@@ -603,8 +624,11 @@ class SunmiPrinterService {
         ));
       }
 
-      if (takeawayCharge > 0) {
-        await SunmiModule.printText(formatter.twoCols(`Takeaway Charges (${symbol}${takeawayRate.toFixed(2)}*${takeawayQty}):`, `${symbol}${takeawayCharge.toFixed(2)}`));
+      if (globalTakeawayCharge > 0) {
+        await SunmiModule.printText(formatter.twoCols(`Takeaway Charges (${symbol}${takeawayRate.toFixed(2)}*${globalTakeawayQty}):`, `${symbol}${globalTakeawayCharge.toFixed(2)}`));
+      }
+      if (specificTakeawayCharge > 0) {
+        await SunmiModule.printText(formatter.twoCols(`Takeaway Charges (Item-wise):`, `${symbol}${specificTakeawayCharge.toFixed(2)}`));
       }
 
       if (gstRate > 0) {

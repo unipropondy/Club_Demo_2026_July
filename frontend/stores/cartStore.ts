@@ -57,6 +57,7 @@ export type CartItem = {
   comboSelections?: any[];
   IsDiscountAllowed?: number | boolean;
   IsDeck?: number | boolean;  // 🎭 If 1, item is routed to Deck (Entertainment) view in Order Hub
+  TakeawayCharge?: number | null; // 🍱 Per-dish TW charge from DishMaster (null = use CompanySettings global)
 };
 
 export type DiscountInfo = {
@@ -205,6 +206,14 @@ const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartIte
   }
  
   // 🚀 PERFORMANCE FIX: Construct cleanly instead of using 'delete' loop
+  // 🍱 Preserve per-dish TakeawayCharge: undefined means "not set", null means "no custom charge"
+  const rawTWCharge = item.TakeawayCharge !== undefined
+    ? item.TakeawayCharge
+    : (fallback as any).TakeawayCharge;
+  const normalizedTWCharge = rawTWCharge !== undefined && rawTWCharge !== null && !isNaN(parseFloat(String(rawTWCharge)))
+    ? parseFloat(String(rawTWCharge))
+    : (rawTWCharge === null ? null : undefined);
+
   return {
     lineItemId: String(item.lineItemId || item.ItemId || fallback.lineItemId || fastId()),
     id: String(item.id || item.ProductId || fallback.id || ""),
@@ -246,6 +255,7 @@ const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartIte
     IsDiscountAllowed: item.IsDiscountAllowed !== undefined ? item.IsDiscountAllowed : (fallback.IsDiscountAllowed !== undefined ? fallback.IsDiscountAllowed : 1),
     discountAmount: Number(item.discountAmount ?? item.discount ?? item.DiscountAmount ?? fallback.discountAmount ?? discount),
     discountType: item.discountType || item.DiscountType || fallback.discountType || "percentage",
+    TakeawayCharge: normalizedTWCharge,
   };
 };
 
@@ -960,7 +970,7 @@ export const useCartStore = create<CartState>()(
               [currentContextId]: updatedCart
             },
             cartQtyMap: { ...state.cartQtyMap, [currentContextId]: newQtyMap },
-            lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() - 1000 }
+            lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
           };
         });
 
@@ -1024,7 +1034,7 @@ export const useCartStore = create<CartState>()(
             ...state.carts,
             [currentContextId]: updateCartItemInArray(state.carts[currentContextId] || [], lineItemId, { isTakeaway }),
           },
-          lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() - 1000 }
+          lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
         }));
 
         const tableId = useOrderContextStore.getState().currentOrder?.tableId;
@@ -1049,7 +1059,7 @@ export const useCartStore = create<CartState>()(
             ...state.carts,
             [currentContextId]: updateCartItemInArray(state.carts[currentContextId] || [], lineItemId, { discount }),
           },
-          lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() - 1000 }
+          lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
         }));
 
         const tableId = useOrderContextStore.getState().currentOrder?.tableId;
@@ -1098,13 +1108,13 @@ export const useCartStore = create<CartState>()(
              return {
                 carts: { ...state.carts, [currentContextId]: updatedCart },
                 cartQtyMap: { ...state.cartQtyMap, [currentContextId]: tempMap },
-                lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() - 1000 }
+                lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
              };
           }
 
           return {
             carts: { ...state.carts, [currentContextId]: updatedCart },
-            lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() - 1000 }
+            lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
           };
         });
         

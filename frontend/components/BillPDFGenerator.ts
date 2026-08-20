@@ -149,6 +149,7 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
                 companyLogo: formatUrl(settings.CompanyLogoUrl),
                 halalLogo: formatUrl(settings.HalalLogoUrl),
                 printerIp: settings.PrinterIP || '',
+                takeawayCharges: parseFloat(settings.TakeawayCharges ?? settings.takeawayCharges) || 0,
                 showCompanyLogo: showCompanyLogo === true,
                 showHalalLogo: showHalalLogo === true,
             };
@@ -178,6 +179,7 @@ static async loadSettings(userId?: string | number): Promise<CompanySettings> {
       cashierName: '',
       currency: 'SGD',
       currencySymbol: '$',
+      takeawayCharges: 0,
     };
   }
   
@@ -307,7 +309,8 @@ private static escapeHtml(str: string): string {
       const qtyNum = parseFloat(String(item.qty || item.quantity || 1)) || 1;
       const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
       const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
-      const baseTotal = (item.price || 0) * qtyNum;
+      // Round baseTotal to 2 decimals to match the printed item totals
+      const baseTotal = Math.round((item.price || 0) * qtyNum * 100) / 100;
       let itemDiscount = 0;
       const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
       const discType = item.discountType || 'percentage';
@@ -318,6 +321,8 @@ private static escapeHtml(str: string): string {
           itemDiscount = Math.min(discAmt, discountBasis) * qtyNum;
         }
       }
+      // Round itemDiscount to 2 decimals to match printed discounts
+      itemDiscount = Math.round(itemDiscount * 100) / 100;
       grossTotal += baseTotal;
       totalItemDiscount += itemDiscount;
       if (!saleData.vipDiscountAmount && item.vipDiscountAmount > 0) {
@@ -326,6 +331,9 @@ private static escapeHtml(str: string): string {
     });
 
     let orderDiscount = finalDiscountInfo?.amount || 0;
+    if (orderDiscount > 0 && totalItemDiscount > 0) {
+      orderDiscount = Math.max(0, orderDiscount - totalItemDiscount);
+    }
     if (finalDiscountInfo?.applied && orderDiscount === 0 && finalDiscountInfo.value > 0) {
       const subtotalPostItemDisc = grossTotal - totalItemDiscount;
       if (finalDiscountInfo.type === 'percentage') {
@@ -410,29 +418,26 @@ private static escapeHtml(str: string): string {
 
     const savedTakeawayCharge = saleData.takeawayCharge != null ? parseFloat(String(saleData.takeawayCharge)) : null;
     const takeawayRate = parseFloat(String((company as any).TakeawayCharges ?? company.takeawayCharges ?? 0)) || 0;
-    let takeawayQty = 0;
-    let takeawayCharge = 0;
-    if (savedTakeawayCharge !== null) {
-      takeawayCharge = savedTakeawayCharge;
-      takeawayQty = (saleData.items || []).reduce((sum: number, item: any) => {
-        const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
-        const isVoided = item.status === 'VOIDED' || item.StatusCode === 0;
-        if (isTW && !isVoided) {
-          return sum + (item.qty || item.Qty || item.quantity || 1);
+    let globalTakeawayQty = 0;
+    let globalTakeawayCharge = 0;
+    let specificTakeawayCharge = 0;
+
+    (saleData.items || []).forEach((item: any) => {
+      const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
+      const isVoided = item.status === 'VOIDED' || item.StatusCode === 0;
+      if (isTW && !isVoided) {
+        const qty = Number(item.qty || item.Qty || item.quantity || 1);
+        const hasSpecific = item.TakeawayCharge !== null && item.TakeawayCharge !== undefined && !isNaN(parseFloat(String(item.TakeawayCharge))) && parseFloat(String(item.TakeawayCharge)) > 0;
+        const isSpecific = hasSpecific && parseFloat(String(item.TakeawayCharge)) !== takeawayRate;
+        if (isSpecific) {
+          specificTakeawayCharge += qty * parseFloat(String(item.TakeawayCharge));
+        } else {
+          globalTakeawayQty += qty;
+          globalTakeawayCharge += qty * takeawayRate;
         }
-        return sum;
-      }, 0);
-    } else {
-      takeawayQty = (saleData.items || []).reduce((sum: number, item: any) => {
-        const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
-        const isVoided = item.status === 'VOIDED' || item.StatusCode === 0;
-        if (isTW && !isVoided) {
-          return sum + (item.qty || item.Qty || item.quantity || 1);
-        }
-        return sum;
-      }, 0);
-      takeawayCharge = takeawayQty * takeawayRate;
-    }
+      }
+    });
+    const takeawayCharge = savedTakeawayCharge !== null && savedTakeawayCharge !== undefined ? savedTakeawayCharge : (globalTakeawayCharge + specificTakeawayCharge);
 
     const taxableAmount = currentSubtotal + serviceChargeAmount + takeawayCharge;
     const hasSC = serviceChargeAmount > 0;
@@ -447,9 +452,8 @@ private static escapeHtml(str: string): string {
       finalTotal = taxableAmount + gstAmount;
     }
     
-    const printedRoundOff = saleData.roundOff && saleData.roundOff !== 0
-      ? parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2))
-      : 0;
+    const difference = parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2));
+    const printedRoundOff = Math.abs(difference) >= 0.01 ? difference : 0;
     
     const companyLogoUrl = company.companyLogo || '';
     const halalLogoUrl = company.halalLogo || '';
@@ -487,10 +491,14 @@ private static escapeHtml(str: string): string {
               }).join('')
             : '';
 
+          const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
+          const hasTWCharge = takeawayRate > 0 || (item.TakeawayCharge !== null && item.TakeawayCharge !== undefined && parseFloat(String(item.TakeawayCharge)) > 0);
+          const twTag = (isTW && hasTWCharge) ? ' [TW]' : '';
+
           return `
             <tr>
                 <td class="item-name">
-                    ${item.name || item.DishName || ''}
+                    ${item.name || item.DishName || ''}${twTag}
                     ${item.songName || item.SongName ? `<div style="font-size: 7.5px; color: #555; font-style: italic; margin-top: 0.3mm;">🎵 ${item.songName || item.SongName}</div>` : ''}
                     ${(Number(item.isServiceCharge) === 1 || item.isServiceCharge === true) && !allItemsHaveSC ? `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">[Service Charge ${company.serviceChargePercentage}%]</div>` : ''}
                     ${modifiersHTML}
@@ -882,12 +890,18 @@ private static escapeHtml(str: string): string {
                <span>${currencySymbol}${serviceChargeAmount.toFixed(2)}</span>
              </div>
              ` : ''}
-             ${takeawayCharge > 0 ? `
-              <div class="total-row">
-                <span>Takeaway Charges (${currencySymbol}${takeawayRate.toFixed(2)} * ${takeawayQty}):</span>
-                <span>${currencySymbol}${takeawayCharge.toFixed(2)}</span>
-              </div>
-              ` : ''}
+              ${globalTakeawayCharge > 0 ? `
+               <div class="total-row">
+                 <span>Takeaway Charges (${currencySymbol}${takeawayRate.toFixed(2)} * ${globalTakeawayQty}):</span>
+                 <span>${currencySymbol}${globalTakeawayCharge.toFixed(2)}</span>
+               </div>
+               ` : ''}
+              ${specificTakeawayCharge > 0 ? `
+               <div class="total-row">
+                 <span>Takeaway Charges (Item-wise):</span>
+                 <span>${currencySymbol}${specificTakeawayCharge.toFixed(2)}</span>
+               </div>
+               ` : ''}
              ${hasGST && gstAmount > 0 ? `
              <div class="total-row">
                <span>GST (${gstRate}%):</span>

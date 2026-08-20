@@ -1433,8 +1433,10 @@ export default function SummaryScreen() {
     totalItemDiscount,
     vipDiscountAmount,
     scEligibleSubtotal,
-    calcTakeawayChargeAmt,
-    takeawayQty,
+    globalTakeawayChargeAmt,
+    globalTakeawayQty,
+    specificTakeawayChargeAmt,
+    specificTakeawayQty,
     calculatedItems,
   } = useMemo(() => {
     const isVip = rewardMember?.IsVIP === true || rewardMember?.IsVIP === 1;
@@ -1579,7 +1581,47 @@ export default function SummaryScreen() {
         const isSC =
           !isTakeawayItem &&
           (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
-        const itemTWCharge = isTakeawayItem ? item.qty * takeawayCharges : 0;
+
+        // 🍱 Item-wise TW charge: use dish-specific rate if set, else fall back to global CompanySettings rate
+        let itemTWCharge = 0;
+        let isSpecific = false;
+        if (isTakeawayItem) {
+          let hasSpecific =
+            item.TakeawayCharge !== null &&
+            item.TakeawayCharge !== undefined &&
+            !isNaN(parseFloat(String(item.TakeawayCharge))) &&
+            parseFloat(String(item.TakeawayCharge)) > 0;
+          
+          let rate = hasSpecific ? parseFloat(String(item.TakeawayCharge)) : 0;
+          
+          // Check combo selections if parent doesn't have specific rate or is combo
+          const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
+          if (isCombo && item.comboSelections && Array.isArray(item.comboSelections)) {
+            let childSpecificRate = 0;
+            item.comboSelections.forEach((group: any) => {
+              if (group.items && Array.isArray(group.items)) {
+                group.items.forEach((opt: any) => {
+                  const optDishId = opt.dishId || opt.DishId || opt.id;
+                  if (optDishId) {
+                    const matched = allDishes.find((d: any) => String(d.DishId).toLowerCase() === String(optDishId).toLowerCase());
+                    const childRate = matched ? parseFloat(String(matched.TakeawayCharge)) : 0;
+                    if (childRate > 0) {
+                      childSpecificRate += childRate;
+                    }
+                  }
+                });
+              }
+            });
+            if (childSpecificRate > 0) {
+              rate = childSpecificRate;
+              hasSpecific = true;
+            }
+          }
+
+          const dishTWRate = hasSpecific ? rate : takeawayCharges; // global fallback
+          itemTWCharge = dishTWRate > 0 ? item.qty * dishTWRate : 0;
+          isSpecific = hasSpecific && rate !== takeawayCharges;
+        }
 
         acc.calculatedItems.push({
           ...item,
@@ -1593,8 +1635,10 @@ export default function SummaryScreen() {
           vipDiscountAmount: acc.vipDiscountAmount + vipItemDiscount,
           scEligibleSubtotal:
             acc.scEligibleSubtotal + (isSC ? itemSubtotal : 0),
-          calcTakeawayChargeAmt: acc.calcTakeawayChargeAmt + itemTWCharge,
-          takeawayQty: acc.takeawayQty + (isTakeawayItem ? item.qty : 0),
+          globalTakeawayChargeAmt: acc.globalTakeawayChargeAmt + (isTakeawayItem && !isSpecific ? itemTWCharge : 0),
+          globalTakeawayQty: acc.globalTakeawayQty + (isTakeawayItem && !isSpecific ? item.qty : 0),
+          specificTakeawayChargeAmt: acc.specificTakeawayChargeAmt + (isTakeawayItem && isSpecific ? itemTWCharge : 0),
+          specificTakeawayQty: acc.specificTakeawayQty + (isTakeawayItem && isSpecific ? item.qty : 0),
           calculatedItems: acc.calculatedItems,
         };
       },
@@ -1603,12 +1647,17 @@ export default function SummaryScreen() {
         totalItemDiscount: 0,
         vipDiscountAmount: 0,
         scEligibleSubtotal: 0,
-        calcTakeawayChargeAmt: 0,
-        takeawayQty: 0,
+        globalTakeawayChargeAmt: 0,
+        globalTakeawayQty: 0,
+        specificTakeawayChargeAmt: 0,
+        specificTakeawayQty: 0,
         calculatedItems: [],
       },
     );
   }, [finalItems, takeawayCharges, rewardMember, vipOffer, allDishes]);
+
+  const calcTakeawayChargeAmt = globalTakeawayChargeAmt + specificTakeawayChargeAmt;
+  const takeawayQty = globalTakeawayQty + specificTakeawayQty;
 
   const subtotal = useMemo(
     () => grossTotal - totalItemDiscount - vipDiscountAmount,
@@ -1661,10 +1710,19 @@ export default function SummaryScreen() {
     return subtotal > 0 ? discountAmount / subtotal : 0;
   }, [discountInfo, subtotal, discountAmount]);
 
-  const currentTakeawayCharge = useMemo(() => {
+  const currentGlobalTakeawayCharge = useMemo(() => {
     if (!takeawayChargeApplied) return 0;
-    return calcTakeawayChargeAmt * (1 - billDiscountProportion);
-  }, [takeawayChargeApplied, calcTakeawayChargeAmt, billDiscountProportion]);
+    return globalTakeawayChargeAmt * (1 - billDiscountProportion);
+  }, [takeawayChargeApplied, globalTakeawayChargeAmt, billDiscountProportion]);
+
+  const currentSpecificTakeawayCharge = useMemo(() => {
+    if (!takeawayChargeApplied) return 0;
+    return specificTakeawayChargeAmt * (1 - billDiscountProportion);
+  }, [takeawayChargeApplied, specificTakeawayChargeAmt, billDiscountProportion]);
+
+  const currentTakeawayCharge = useMemo(() => {
+    return currentGlobalTakeawayCharge + currentSpecificTakeawayCharge;
+  }, [currentGlobalTakeawayCharge, currentSpecificTakeawayCharge]);
 
   const serviceChargeAmount = useMemo(
     () => (scReduced ? 0 : scEligibleNet * scRate),
@@ -2310,9 +2368,32 @@ export default function SummaryScreen() {
                     <View
                       style={[
                         styles.priceBlock,
-                        { alignItems: "flex-end", justifyContent: "center" },
+                        { alignItems: "flex-end", justifyContent: "center", gap: 4 },
                       ]}
                     >
+                      {isTakeawayItem && (takeawayCharges > 0 || (item.TakeawayCharge !== null && item.TakeawayCharge !== undefined && parseFloat(String(item.TakeawayCharge)) > 0)) && (
+                        <View
+                          style={{
+                            backgroundColor: Theme.danger + "15",
+                            borderColor: Theme.danger + "30",
+                            borderWidth: 1,
+                            borderRadius: 6,
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            alignSelf: "flex-end",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 10,
+                              fontFamily: Fonts.black,
+                              color: Theme.danger,
+                            }}
+                          >
+                            TW
+                          </Text>
+                        </View>
+                      )}
                       {Number(item.discountAmount ?? item.discount ?? 0) >
                         0 && (
                         <View
@@ -2956,7 +3037,7 @@ export default function SummaryScreen() {
 
                 {discountAmount + totalItemDiscount + vipDiscountAmount > 0 && (
                   <>
-                    {discountAmount + totalItemDiscount > 0 && (
+                    {totalItemDiscount > 0 && (
                       <View
                         style={[
                           styles.summaryRow,
@@ -2971,7 +3052,7 @@ export default function SummaryScreen() {
                             isPhone && !isLandscape && { fontSize: 13 },
                           ]}
                         >
-                          Discount
+                          Item Discounts
                         </Text>
                         <Text
                           style={[
@@ -2981,7 +3062,37 @@ export default function SummaryScreen() {
                           ]}
                         >
                           -{currencySymbol}
-                          {(discountAmount + totalItemDiscount).toFixed(2)}
+                          {totalItemDiscount.toFixed(2)}
+                        </Text>
+                      </View>
+                    )}
+
+                    {discountAmount > 0 && (
+                      <View
+                        style={[
+                          styles.summaryRow,
+                          ((isLandscape && !isTablet) ||
+                            (isPhone && !isLandscape)) && { marginBottom: 6 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.summaryLabel,
+                            { color: Theme.danger },
+                            isPhone && !isLandscape && { fontSize: 13 },
+                          ]}
+                        >
+                          Discount{discountInfo?.type === "percentage" ? ` (${discountInfo.value}%)` : ""}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.summaryValue,
+                            { color: Theme.danger },
+                            isPhone && !isLandscape && { fontSize: 13 },
+                          ]}
+                        >
+                          -{currencySymbol}
+                          {discountAmount.toFixed(2)}
                         </Text>
                       </View>
                     )}
@@ -3087,7 +3198,7 @@ export default function SummaryScreen() {
                   </View>
                 )}
 
-                {currentTakeawayCharge > 0 && (
+                {currentGlobalTakeawayCharge > 0 && (
                   <View
                     style={[
                       styles.summaryRow,
@@ -3101,8 +3212,7 @@ export default function SummaryScreen() {
                         isPhone && !isLandscape && { fontSize: 13 },
                       ]}
                     >
-                      Takeaway Charges ({currencySymbol}
-                      {takeawayCharges.toFixed(2)} * {takeawayQty})
+                      TW Charges ({currencySymbol}{takeawayCharges.toFixed(2)} * {globalTakeawayQty})
                     </Text>
                     <Text
                       style={[
@@ -3111,7 +3221,35 @@ export default function SummaryScreen() {
                       ]}
                     >
                       {currencySymbol}
-                      {currentTakeawayCharge.toFixed(2)}
+                      {currentGlobalTakeawayCharge.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+
+                {currentSpecificTakeawayCharge > 0 && (
+                  <View
+                    style={[
+                      styles.summaryRow,
+                      ((isLandscape && !isTablet) ||
+                        (isPhone && !isLandscape)) && { marginBottom: 6 },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.summaryLabel,
+                        isPhone && !isLandscape && { fontSize: 13 },
+                      ]}
+                    >
+                      TW Charges (Item-wise)
+                    </Text>
+                    <Text
+                      style={[
+                        styles.summaryValue,
+                        isPhone && !isLandscape && { fontSize: 13 },
+                      ]}
+                    >
+                      {currencySymbol}
+                      {currentSpecificTakeawayCharge.toFixed(2)}
                     </Text>
                   </View>
                 )}

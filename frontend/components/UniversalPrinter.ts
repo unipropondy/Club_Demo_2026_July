@@ -1593,6 +1593,8 @@ class UniversalPrinter {
   ): string {
     const symbol = company.currencySymbol || "$";
     const isCheckout = !!saleData.isCheckout;
+    const companySettings = useCompanySettingsStore.getState().settings;
+    const takeawayRate = companySettings?.takeawayCharges || 0;
 
     // 📏 80mm standard is ~48 characters
     let text = "[C]================================================\n";
@@ -1611,8 +1613,19 @@ class UniversalPrinter {
     if (company.email) text += `[C]Email: ${company.email}\n`;
     text += "[C]------------------------------------------------\n";
 
-    const saleDate = saleData.originalDate ? new Date(saleData.originalDate) : 
-                     saleData.date ? new Date(saleData.date) : 
+    const parseLocalDate = (d: any) => {
+      if (!d) return new Date();
+      if (d instanceof Date) return d;
+      if (typeof d === 'string') {
+        // Strip trailing Z and any offset (like +00:00 or -00:00) so JS parses it as local time
+        const cleaned = d.replace(/Z$/, '').replace(/([+-]\d{2}:\d{2})$/, '');
+        return new Date(cleaned);
+      }
+      return new Date(d);
+    };
+
+    const saleDate = saleData.originalDate ? parseLocalDate(saleData.originalDate) : 
+                     saleData.date ? parseLocalDate(saleData.date) : 
                      new Date();
 
     text += `[L]Bill No: ${saleData.invoiceNumber || saleData.id || saleData.orderId || ""}\n`;
@@ -1644,9 +1657,11 @@ class UniversalPrinter {
 
     printItems.forEach((item: any) => {
       // 🛡️ Robust field mapping
-      const name = (item.name || item.DishName || item.ProductName || "")
-        .substring(0, 26)
-        .padEnd(26);
+      const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
+      const hasTWCharge = takeawayRate > 0 || (item.TakeawayCharge !== null && item.TakeawayCharge !== undefined && parseFloat(String(item.TakeawayCharge)) > 0);
+      const rawName = item.name || item.DishName || item.ProductName || "";
+      const fullName = isTW && hasTWCharge ? `${rawName} [TW]` : rawName;
+      const name = fullName.substring(0, 26).padEnd(26);
       const qtyNum =
         parseFloat(String(item.qty || item.quantity || item.Quantity || 1)) || 1;
       const qtyStr = Number.isInteger(qtyNum) ? String(qtyNum) : qtyNum.toFixed(1);
@@ -1681,7 +1696,7 @@ class UniversalPrinter {
       if (item.modifiers && Array.isArray(item.modifiers)) {
         item.modifiers.forEach((m: any) => {
           const mName = (m.ModifierName || m.modifierName || m.name || m.ModifierNameEn || "").trim();
-          if (mName) {
+          if (mName && !mName.startsWith("INSTR:")) {
             text += `[L]        <B>+ ${mName}</B>\n`;
           }
         });
@@ -1720,7 +1735,8 @@ class UniversalPrinter {
       const qtyNum = parseFloat(String(item.qty || item.quantity || 1)) || 1;
       const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
       const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
-      const baseTotal = (item.price || 0) * qtyNum;
+      // Round baseTotal to 2 decimals to match the printed item totals
+      const baseTotal = Math.round((item.price || 0) * qtyNum * 100) / 100;
       let itemDiscount = 0;
       const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
       const discType = item.discountType || "percentage";
@@ -1731,6 +1747,8 @@ class UniversalPrinter {
           itemDiscount = Math.min(discAmt, discountBasis) * qtyNum;
         }
       }
+      // Round itemDiscount to 2 decimals to match printed discounts
+      itemDiscount = Math.round(itemDiscount * 100) / 100;
       grossTotal += baseTotal;
       totalItemDiscount += itemDiscount;
       if (!saleData.vipDiscountAmount && item.vipDiscountAmount > 0) {
@@ -1757,6 +1775,9 @@ class UniversalPrinter {
           : null);
 
     let orderDiscount = finalDiscountInfo?.amount || 0;
+    if (orderDiscount > 0 && totalItemDiscount > 0) {
+      orderDiscount = Math.max(0, orderDiscount - totalItemDiscount);
+    }
     if (finalDiscountInfo?.applied && orderDiscount === 0 && finalDiscountInfo.value > 0) {
       const subtotalPostItemDisc = grossTotal - totalItemDiscount;
       if (finalDiscountInfo.type === "percentage") {
@@ -1864,31 +1885,28 @@ class UniversalPrinter {
       : scPercentage;
 
     const savedTakeawayCharge = saleData.takeawayCharge != null ? parseFloat(String(saleData.takeawayCharge)) : null;
-    const companySettings = useCompanySettingsStore.getState().settings;
-    const takeawayRate = companySettings?.takeawayCharges || 0;
-    let takeawayQty = 0;
-    let takeawayCharge = 0;
-    if (savedTakeawayCharge !== null) {
-      takeawayCharge = savedTakeawayCharge;
-      takeawayQty = (saleData.items || []).reduce((sum: number, item: any) => {
-        const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
-        const isVoided = item.status === "VOIDED" || item.StatusCode === 0;
-        if (isTW && !isVoided) {
-          return sum + (item.qty || item.quantity || 1);
+
+    let globalTakeawayQty = 0;
+    let globalTakeawayCharge = 0;
+    let specificTakeawayCharge = 0;
+
+    (saleData.items || []).forEach((item: any) => {
+      const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
+      const isVoided = item.status === "VOIDED" || item.StatusCode === 0;
+      if (isTW && !isVoided) {
+        const qty = Number(item.qty || item.quantity || item.Qty || item.Quantity || 1);
+        const hasSpecific = item.TakeawayCharge !== null && item.TakeawayCharge !== undefined && !isNaN(parseFloat(String(item.TakeawayCharge))) && parseFloat(String(item.TakeawayCharge)) > 0;
+        const isSpecific = hasSpecific && parseFloat(String(item.TakeawayCharge)) !== takeawayRate;
+        if (isSpecific) {
+          specificTakeawayCharge += qty * parseFloat(String(item.TakeawayCharge));
+        } else {
+          globalTakeawayQty += qty;
+          globalTakeawayCharge += qty * takeawayRate;
         }
-        return sum;
-      }, 0);
-    } else {
-      takeawayQty = (saleData.items || []).reduce((sum: number, item: any) => {
-        const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
-        const isVoided = item.status === "VOIDED" || item.StatusCode === 0;
-        if (isTW && !isVoided) {
-          return sum + (item.qty || item.quantity || 1);
-        }
-        return sum;
-      }, 0);
-      takeawayCharge = takeawayQty * takeawayRate;
-    }
+      }
+    });
+
+    const takeawayCharge = savedTakeawayCharge !== null && savedTakeawayCharge !== undefined ? savedTakeawayCharge : (globalTakeawayCharge + specificTakeawayCharge);
     const taxableAmount = currentSubtotal + serviceChargeAmount + takeawayCharge;
     const gstAmountRaw = hasGST ? taxableAmount * (gstRate / 100) : 0;
     const gstAmount = Math.round(gstAmountRaw * 100) / 100;
@@ -1897,9 +1915,8 @@ class UniversalPrinter {
       finalTotal = taxableAmount + gstAmount;
     }
     
-    const printedRoundOff = saleData.roundOff && saleData.roundOff !== 0
-      ? parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2))
-      : 0;
+    const difference = parseFloat((finalTotal - (taxableAmount + gstAmount)).toFixed(2));
+    const printedRoundOff = Math.abs(difference) >= 0.01 ? difference : 0;
 
     // Removed duplicate Sub Total print statement to prevent printing it twice when there is no discount.
     
@@ -1907,8 +1924,11 @@ class UniversalPrinter {
       text += this.formatTwoCols48(allItemsHaveSC ? "Service Charge:" : "Item Service Charge:", `${symbol}${serviceChargeAmount.toFixed(2)}`);
     }
 
-    if (takeawayCharge > 0) {
-      text += this.formatTwoCols48(`Takeaway Charges (${symbol}${takeawayRate.toFixed(2)}*${takeawayQty}):`, `${symbol}${takeawayCharge.toFixed(2)}`);
+    if (globalTakeawayCharge > 0) {
+      text += this.formatTwoCols48(`Takeaway Charges (${symbol}${takeawayRate.toFixed(2)}*${globalTakeawayQty}):`, `${symbol}${globalTakeawayCharge.toFixed(2)}`);
+    }
+    if (specificTakeawayCharge > 0) {
+      text += this.formatTwoCols48(`Takeaway Charges (Item-wise):`, `${symbol}${specificTakeawayCharge.toFixed(2)}`);
     }
 
     if (hasGST && gstAmount > 0) {

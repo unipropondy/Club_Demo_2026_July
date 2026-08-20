@@ -612,7 +612,19 @@ router.get("/detail/:id", async (req, res) => {
 
     const itemsResult = await pool.request()
       .input("Id", sql.UniqueIdentifier, cleanId)
-      .query("SELECT * FROM SettlementItemDetail WHERE SettlementID = @Id");
+      .query(`
+        SELECT 
+          sid.*,
+          ISNULL(rod.isTakeAway, ISNULL(rod_cur.isTakeAway, 0)) AS isTakeAway,
+          ISNULL(rod.ServiceCharge, ISNULL(rod_cur.ServiceCharge, ISNULL(d.isServiceCharge, 1))) AS isServiceCharge,
+          ISNULL(rod.TakeawayCharge, ISNULL(rod_cur.TakeawayCharge, ISNULL(d.TakeawayCharge, 0))) AS TakeawayCharge
+        FROM SettlementItemDetail sid
+        LEFT JOIN RestaurantInvoice ri ON sid.SettlementID = ri.RestaurantBillId
+        LEFT JOIN RestaurantOrderDetail rod ON ri.OrderId = rod.OrderId AND sid.OrderDetailId = rod.OrderDetailId
+        LEFT JOIN RestaurantOrderDetailCur rod_cur ON ri.OrderId = rod_cur.OrderId AND sid.OrderDetailId = rod_cur.OrderDetailId
+        LEFT JOIN DishMaster d ON sid.DishId = d.DishId
+        WHERE sid.SettlementID = @Id
+      `);
     
     const items = itemsResult.recordset || [];
     

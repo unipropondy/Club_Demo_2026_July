@@ -1576,6 +1576,10 @@ export default function SalesReport() {
         discountType: item.DiscountType || "fixed",
         vipDiscountAmount: item.VIPDiscountAmount || 0,
         modifiers: item.modifiers || [],
+        isTakeaway: item.isTakeAway === true || item.isTakeAway === 1 || item.IsTakeaway === true || item.IsTakeaway === 1,
+        isTakeAway: item.isTakeAway === true || item.isTakeAway === 1 || item.IsTakeaway === true || item.IsTakeaway === 1,
+        TakeawayCharge: item.TakeawayCharge,
+        isServiceCharge: item.isServiceCharge === true || item.isServiceCharge === 1,
       }));
 
       const isPercentage = selectedOrder.DiscountType === "percentage";
@@ -1610,6 +1614,7 @@ export default function SalesReport() {
         subTotal: Number(selectedOrder.SubTotal ?? 0),
         serviceCharge: Number(selectedOrder.ServiceCharge ?? 0),
         takeawayCharge: Number(selectedOrder.TakeawayCharge ?? 0),
+        waiterName: selectedOrder.SER_NAME || "",
         payments: displayedPayments.map(p => ({
           payMode: p.PayModeName,
           payModeName: p.PayModeName,

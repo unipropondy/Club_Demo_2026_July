@@ -265,6 +265,10 @@ async function syncToProfessionalTables(
   const serviceChargePercentage = companySettings
     ? Number(companySettings.ServiceChargePercentage || 0)
     : 0;
+  // 🍱 Global TW rate fallback — used when DishMaster.TakeawayCharge is NULL
+  const globalTakeawayRate = companySettings
+    ? parseFloat(companySettings.TakeawayCharges || 0)
+    : 0;
 
   // 🚀 OPTIMIZATION 1: Combined Initial Lookups (TableNo, BizId, OrderHeader)
   const initRes = await transaction
@@ -325,23 +329,6 @@ async function syncToProfessionalTables(
       `);
   } else {
     orderGuid = require("crypto").randomUUID();
-    let initialTakeawayCharge = 0;
-    if (isTakeaway) {
-      try {
-        const settingsRes = await transaction
-          .request()
-          .query(
-            "SELECT TOP 1 ISNULL(TakeawayCharges, 0) AS TakeawayCharges FROM CompanySettings WHERE Id = '1'",
-          );
-        initialTakeawayCharge =
-          parseFloat(settingsRes.recordset[0]?.TakeawayCharges) || 0;
-      } catch (settingsErr) {
-        console.warn(
-          "⚠️ [orders.js] Failed to fetch TakeawayCharges from settings:",
-          settingsErr.message,
-        );
-      }
-    }
 
     await transaction
       .request()
@@ -354,10 +341,9 @@ async function syncToProfessionalTables(
       .input("isTakeaway", sql.Bit, isTakeaway ? 1 : 0)
       .input("pax", sql.Int, tablePax)
       .input("customerName", sql.NVarChar, tableCustomerName)
-      .input("takeawayCharge", sql.Decimal(18, 2), initialTakeawayCharge)
       .input("startDate", sql.Date, startDate)
       .query(
-        "INSERT INTO RestaurantOrderCur (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, isOrderClosed, BusinessUnitId, PriorityCode, IsTakeAway, Pax, CustomerName, TakeawayCharge, start_date) VALUES (@orderId, @orderNo, GETDATE(), @tableNo, 1, @userId, GETDATE(), 0, @bizId, @priority, @isTakeaway, @pax, @customerName, @takeawayCharge, @startDate)",
+        "INSERT INTO RestaurantOrderCur (OrderId, OrderNumber, OrderDateTime, Tableno, StatusCode, CreatedBy, CreatedOn, isOrderClosed, BusinessUnitId, PriorityCode, IsTakeAway, Pax, CustomerName, start_date) VALUES (@orderId, @orderNo, GETDATE(), @tableNo, 1, @userId, GETDATE(), 0, @bizId, @priority, @isTakeaway, @pax, @customerName, @startDate)",
       );
   }
 
@@ -394,7 +380,8 @@ async function syncToProfessionalTables(
     VOIDED: 0,
   };
 
-  items.forEach((item, idx) => {
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
     const cleanProdId = String(item.id || item.ProductId || DEFAULT_GUID)
       .replace(/^\{|\}$/g, "")
       .trim();
@@ -406,6 +393,7 @@ async function syncToProfessionalTables(
     const currentStatusCode = statusCodes[item.status || item.Status] || 2;
     const dishName = (item.name || item.ProductName || "Dish").substring(
       0,
+      200,
       200,
     );
     const songName = (item.songName || item.SongName || "").substring(0, 200);
@@ -491,7 +479,8 @@ async function syncToProfessionalTables(
       p_disctype = `disctype${idx}`,
       p_created = `created${idx}`,
       p_sc = `sc${idx}`,
-      p_combo = `combo${idx}`;
+      p_combo = `combo${idx}`,
+      p_itemtw = `itemtw${idx}`;
 
     itemRequest.input(p_id, sql.UniqueIdentifier, lineItemId);
     itemRequest.input(p_dish, sql.UniqueIdentifier, finalProdId);
@@ -555,6 +544,63 @@ async function syncToProfessionalTables(
     }
     itemRequest.input(p_sc, sql.Decimal(18, 2), itemSC);
 
+    // 🍱 Per-item takeaway charge: use DishMaster rate if set, else fall back to global rate
+    let itemTWCharge = null;
+    if (isTWItem) {
+      let dishTWRate =
+        item.TakeawayCharge !== null &&
+        item.TakeawayCharge !== undefined &&
+        !isNaN(parseFloat(item.TakeawayCharge)) &&
+        parseFloat(item.TakeawayCharge) > 0
+          ? parseFloat(item.TakeawayCharge)
+          : 0;
+
+      // If rate is 0/null and this is a combo, look up child items' takeaway charges in the database
+      const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
+      const selections = item.comboSelections || item.ComboSelections || [];
+      if (dishTWRate === 0 && isCombo && Array.isArray(selections)) {
+        // Collect all child dish IDs
+        const childDishIds = [];
+        selections.forEach(group => {
+          if (group.items && Array.isArray(group.items)) {
+            group.items.forEach(opt => {
+              const cid = opt.dishId || opt.DishId || opt.id;
+              if (cid) childDishIds.push(cid);
+            });
+          }
+        });
+
+        if (childDishIds.length > 0) {
+          try {
+            const childReq = pool.request();
+            childDishIds.forEach((id, i) => {
+              childReq.input(`cid${i}`, sql.NVarChar(50), String(id).trim());
+            });
+            const childQuery = `
+              SELECT ISNULL(SUM(ISNULL(TakeawayCharge, 0)), 0) AS ComboTW
+              FROM DishMaster
+              WHERE DishId IN (${childDishIds.map((_, i) => `@cid${i}`).join(',')})
+            `;
+            const childRes = await childReq.query(childQuery);
+            const childTW = parseFloat(childRes.recordset[0]?.ComboTW) || 0;
+            if (childTW > 0) {
+              dishTWRate = childTW;
+            }
+          } catch (err) {
+            console.error("Error fetching combo child takeaway charge:", err);
+          }
+        }
+      }
+
+      if (dishTWRate === 0) {
+        dishTWRate = globalTakeawayRate;
+      }
+
+      const qtyVal = Number(item.qty || 1);
+      itemTWCharge = dishTWRate > 0 ? dishTWRate * qtyVal : 0;
+    }
+    itemRequest.input(p_itemtw, sql.Decimal(18, 2), itemTWCharge);
+
     let itemDate = null;
     const rawCreated = item.DateCreated || item.dateCreated || item.CreatedOn;
     if (rawCreated) {
@@ -580,14 +626,14 @@ async function syncToProfessionalTables(
           StatusCode = CASE WHEN @${p_status} = 0 THEN 0 ELSE (CASE WHEN @${p_status} > StatusCode THEN @${p_status} ELSE StatusCode END) END, 
           Description = @${p_name}, DishName = @${p_name},SongName = @${p_song}, ModifiedBy = @userId, ModifiedOn = GETDATE(), 
           ModifiersJSON = @${p_mods}, ComboDetailsJSON = @${p_combo}, OrderNumber = @orderNo, Remarks = @${p_note}, isTakeAway = @${p_tw},
-          DiscountAmount = @${p_disc}, DiscountType = @${p_disctype}, ServiceCharge = @${p_sc},
+          DiscountAmount = @${p_disc}, DiscountType = @${p_disctype}, ServiceCharge = @${p_sc}, TakeawayCharge = @${p_itemtw},
           CreatedOn = CASE WHEN StatusCode = 1 AND @${p_status} = 2 THEN GETDATE() ELSE ISNULL(CreatedOn, @${p_created}) END
         WHERE OrderDetailId = @${p_id};
       END
       ELSE
       BEGIN
-        INSERT INTO RestaurantOrderDetailCur (OrderDetailId, OrderId, DishId, Description, DishName,SongName, Quantity, PricePerUnit, ActualAmount, TotalDetailLineAmount, BaseAmount, StatusCode, CreatedBy, CreatedOn, ModifiersJSON, ComboDetailsJSON, OrderNumber, Remarks, isTakeAway, BusinessUnitId, OrderDateTime, DiscountAmount, DiscountType, ServiceCharge, start_date)
-        VALUES (@${p_id}, @orderId, @${p_dish}, @${p_name}, @${p_name}, @${p_song}, @${p_qty}, @${p_cost}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_status}, @userId, CASE WHEN @${p_status} = 2 THEN GETDATE() ELSE @${p_created} END, @${p_mods}, @${p_combo}, @orderNo, @${p_note}, @${p_tw}, @bizId, GETDATE(), @${p_disc}, @${p_disctype}, @${p_sc}, @startDate);
+        INSERT INTO RestaurantOrderDetailCur (OrderDetailId, OrderId, DishId, Description, DishName,SongName, Quantity, PricePerUnit, ActualAmount, TotalDetailLineAmount, BaseAmount, StatusCode, CreatedBy, CreatedOn, ModifiersJSON, ComboDetailsJSON, OrderNumber, Remarks, isTakeAway, BusinessUnitId, OrderDateTime, DiscountAmount, DiscountType, ServiceCharge, TakeawayCharge, start_date)
+        VALUES (@${p_id}, @orderId, @${p_dish}, @${p_name}, @${p_name}, @${p_song}, @${p_qty}, @${p_cost}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_cost} * @${p_qty}, @${p_status}, @userId, CASE WHEN @${p_status} = 2 THEN GETDATE() ELSE @${p_created} END, @${p_mods}, @${p_combo}, @orderNo, @${p_note}, @${p_tw}, @bizId, GETDATE(), @${p_disc}, @${p_disctype}, @${p_sc}, @${p_itemtw}, @startDate);
       END
 
       -- Sync Modifiers for Item ${idx}
@@ -628,7 +674,7 @@ async function syncToProfessionalTables(
         batchSql += `(@${p_id}, @orderId, @${p_dish}, @${pm_id}, @${pm_qty}, @${pm_amt}, @${pm_name}, @userId, GETDATE(), @startDate)${midx === modItems.length - 1 ? ";" : ","}`;
       });
     }
-  });
+  }
 
   // 🚀 OPTIMIZATION 3: Smart Removal in the same batch
   const incomingIds = items
@@ -727,11 +773,12 @@ async function syncTableStatus(req, tableId) {
 
     SELECT TOP 1 @takeawayRate = ISNULL(TakeawayCharges, 0) FROM CompanySettings;
 
+    -- 🍱 Item-wise TW: SUM per-line stored amounts (with fallback to global rate for NULL lines)
     SELECT 
         @count = COUNT(*), 
         @subtotal = ISNULL(SUM(ActualAmount), 0),
         @serviceCharge = CASE WHEN @SCOverride = 1 THEN 0 ELSE ISNULL(SUM(ServiceCharge), 0) END,
-        @takeawayCharge = CASE WHEN @TakeawayOverride = 1 THEN 0 ELSE ISNULL(SUM(Quantity * CASE WHEN isTakeAway = 1 THEN @takeawayRate ELSE 0 END), 0) END
+        @takeawayCharge = CASE WHEN @TakeawayOverride = 1 THEN 0 ELSE ISNULL(SUM(CASE WHEN isTakeAway = 1 THEN (CASE WHEN TakeawayCharge IS NOT NULL AND TakeawayCharge > 0 THEN TakeawayCharge ELSE Quantity * @takeawayRate END) ELSE 0 END), 0) END
     FROM RestaurantOrderDetailCur 
     WHERE OrderId = @ActualOrderId AND StatusCode <> 0;
 
@@ -855,6 +902,7 @@ router.post("/save-cart", async (req, res) => {
       skipTableStatusSync,
       entryStatus,
     } = req.body;
+    console.log('Incoming save-cart items:', JSON.stringify(items, null, 2));
     const pool = await poolPromise;
 
     // Day Start / Day End validation check
@@ -1215,6 +1263,7 @@ router.get("/cart/:tableId", async (req, res) => {
           ISNULL(d.DiscountAmount, 0) as discount,
           ISNULL(d.DiscountType, NULL) as discountType,
           CAST(ISNULL(dish.IsDiscountAllowed, 1) AS INT) as IsDiscountAllowed,
+          d.TakeawayCharge as TakeawayCharge,
           d.CreatedOn as DateCreated,
           CASE d.StatusCode 
             WHEN 1 THEN 'NEW' WHEN 2 THEN 'SENT' WHEN 3 THEN 'READY' 
@@ -1224,7 +1273,7 @@ router.get("/cart/:tableId", async (req, res) => {
           ISNULL(ckt.KitchenTypeCode, '2') as KitchenTypeCode, 
           ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') as KitchenTypeName,
           pm.PrinterPath as PrinterIP,
-          ISNULL(dish.isServiceCharge, 1) as isServiceCharge,
+          ISNULL(d.ServiceCharge, ISNULL(dish.isServiceCharge, 1)) as isServiceCharge,
           ISNULL(dish.IsOpenItem, 0) as IsOpenItem
         FROM RestaurantOrderDetailCur d 
         JOIN RestaurantOrderCur h ON d.OrderId = h.OrderId 
@@ -2410,13 +2459,28 @@ router.post("/apply-takeaway-charge", async (req, res) => {
 
     let chargeValue = 0;
     if (apply) {
-      // Get TakeawayCharges from CompanySettings
-      const settingsRes = await pool
+      // 🍱 Item-wise TW: SUM per-line stored TakeawayCharge from RestaurantOrderDetailCur
+      const globalRateRes = await pool
         .request()
         .query(
           "SELECT TOP 1 ISNULL(TakeawayCharges, 0) AS TakeawayCharges FROM CompanySettings WHERE Id = '1'",
         );
-      chargeValue = parseFloat(settingsRes.recordset[0]?.TakeawayCharges) || 0;
+      const globalRate = parseFloat(globalRateRes.recordset[0]?.TakeawayCharges) || 0;
+
+      const detailSumRes = await pool
+        .request()
+        .input("orderNo2", sql.NVarChar(50), String(orderId).trim())
+        .input("globalRate", sql.Decimal(18, 2), globalRate)
+        .query(`
+          SELECT ISNULL(SUM(
+            CASE WHEN isTakeAway = 1
+                 THEN (CASE WHEN TakeawayCharge IS NOT NULL AND TakeawayCharge > 0 THEN TakeawayCharge ELSE Quantity * @globalRate END)
+                 ELSE 0 END
+          ), 0) AS TakeawayCharge
+          FROM RestaurantOrderDetailCur
+          WHERE OrderNumber = @orderNo2 AND StatusCode <> 0
+        `);
+      chargeValue = parseFloat(detailSumRes.recordset[0]?.TakeawayCharge) || 0;
     }
 
     const overrideValue = apply ? 0 : 1;

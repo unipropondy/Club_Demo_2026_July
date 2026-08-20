@@ -422,6 +422,7 @@ export default function ComboCustomizer({
       KitchenTypeCode: dish.KitchenTypeCode || kitchenCode,
       isServiceCharge: dish.isServiceCharge,
       IsOpenItem: dish.IsOpenItem,
+      TakeawayCharge: dish.TakeawayCharge !== undefined ? dish.TakeawayCharge : null,
     } as any);
 
     onClose();
@@ -462,6 +463,7 @@ export default function ComboCustomizer({
       KitchenTypeCode: dish.KitchenTypeCode || kitchenCode,
       isServiceCharge: dish.isServiceCharge,
       IsOpenItem: dish.IsOpenItem,
+      TakeawayCharge: dish.TakeawayCharge !== undefined ? dish.TakeawayCharge : null,
     } as any);
     onClose();
   };

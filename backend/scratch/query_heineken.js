@@ -4,11 +4,11 @@ async function run() {
   try {
     const pool = await poolPromise;
     const result = await pool.request().query(`
-      SELECT DishGroupId, GroupName
-      FROM DishGroupMaster
-      WHERE DishGroupId IN ('79A30579-CB8A-48B1-859D-11BCEC4B7E45', '4B82EE14-DF26-4FF8-B333-0F2633A95BB9')
+      SELECT DishId, Name, TakeawayCharge 
+      FROM DishMaster 
+      WHERE Name LIKE '%Heineken%' OR Name LIKE '%Beer%'
     `);
-    console.log("Dish Groups:", result.recordset);
+    console.log("Database results:", result.recordset);
   } catch (err) {
     console.error(err);
   } finally {
