@@ -1131,7 +1131,11 @@ const fetchDayHistory = async () => {
       });
 
       if (response.data && response.data.success) {
-        setCashOutForm(prev => ({ ...prev, AttachmentUrl: response.data.imageUrl }));
+        if (showCashInModal) {
+          setCashInForm(prev => ({ ...prev, AttachmentUrl: response.data.imageUrl }));
+        } else {
+          setCashOutForm(prev => ({ ...prev, AttachmentUrl: response.data.imageUrl }));
+        }
         Alert.alert("Success", "Receipt uploaded successfully!");
       } else {
         Alert.alert("Upload Failed", "Could not upload image to server.");
@@ -2856,6 +2860,77 @@ const fetchDayHistory = async () => {
                   onChangeText={(v) => setCashInForm({ ...cashInForm, Reason: v })}
                   placeholderTextColor={Theme.textMuted}
                 />
+              </View>
+              
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontFamily: Fonts.bold, fontSize: 13, marginBottom: 8, color: Theme.textSecondary }}>Receipt Attachment</Text>
+                
+                {uploading ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 }}>
+                    <ActivityIndicator size="small" color={Theme.primary} />
+                    <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textMuted }}>Uploading receipt...</Text>
+                  </View>
+                ) : cashInForm.AttachmentUrl ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Theme.bgMuted, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: Theme.border }}>
+                    <Ionicons name="document-attach-outline" size={24} color={Theme.success} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }} numberOfLines={1}>
+                        {cashInForm.AttachmentUrl.split('/').pop()}
+                      </Text>
+                      <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted }}>Compressed receipt photo</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TouchableOpacity onPress={() => setViewerImageUrl(cashInForm.AttachmentUrl)} style={{ padding: 4 }}>
+                        <Ionicons name="eye-outline" size={20} color={Theme.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setCashInForm(prev => ({ ...prev, AttachmentUrl: '' }))} style={{ padding: 4 }}>
+                        <Ionicons name="trash-outline" size={20} color={Theme.danger} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <TouchableOpacity 
+                      onPress={() => handleSelectImage('camera')}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        backgroundColor: Theme.bgCard,
+                        borderWidth: 1.5,
+                        borderColor: Theme.primary + '30',
+                        borderStyle: 'dashed',
+                        paddingVertical: 12,
+                        borderRadius: 8
+                      }}
+                    >
+                      <Ionicons name="camera-outline" size={18} color={Theme.primary} />
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.primary }}>Take Photo</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity 
+                      onPress={() => handleSelectImage('library')}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        backgroundColor: Theme.bgCard,
+                        borderWidth: 1.5,
+                        borderColor: Theme.primary + '30',
+                        borderStyle: 'dashed',
+                        paddingVertical: 12,
+                        borderRadius: 8
+                      }}
+                    >
+                      <Ionicons name="image-outline" size={18} color={Theme.primary} />
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.primary }}>Upload Image</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </ScrollView>
 
