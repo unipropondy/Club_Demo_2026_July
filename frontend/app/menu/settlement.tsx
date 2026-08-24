@@ -2393,7 +2393,7 @@ const fetchDayHistory = async () => {
               <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>No.Of Currencies</Text>
             </View>
 
-            <ScrollView style={styles.modalList} nestedScrollEnabled>
+            <ScrollView style={styles.modalList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionHeaderText}>
                   {lovMode === "OPEN" ? "Opening Cash Notes" : "Count All Cash Notes"}
@@ -3680,16 +3680,17 @@ const styles = StyleSheet.create({
     color: Theme.textPrimary,
   },
   currencyInput: {
-    flex: 1,
-    height: 32,
+    width: 120,
+    height: 38,
     borderWidth: 1,
     borderColor: Theme.border,
-    borderRadius: 6,
-    paddingHorizontal: 8,
+    borderRadius: 8,
+    paddingHorizontal: 12,
     backgroundColor: Theme.bgInput,
     color: Theme.textPrimary,
     fontFamily: Fonts.bold,
     textAlign: "right",
+    fontSize: 14,
   },
   premiumInput: {
     height: 52,
