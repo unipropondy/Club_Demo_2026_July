@@ -845,7 +845,7 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
         >
           <View style={styles.dropdownModal}>
             <Text style={styles.dropdownTitle}>Select Payment Mode</Text>
-            <ScrollView style={styles.dropdownScroll}>
+            <ScrollView style={styles.dropdownScroll} showsVerticalScrollIndicator={false}>
               {dropdownOptions.map((m) => (
                 <TouchableOpacity
                   key={m.position}
@@ -1232,6 +1232,8 @@ textCancelled: {
     maxWidth: 300,
     maxHeight: 350,
     backgroundColor: Theme.bgCard,
+    borderWidth: 1.5,
+    borderColor: "#A855F7",
     borderRadius: 16,
     padding: 16,
     ...Theme.shadowLg,
