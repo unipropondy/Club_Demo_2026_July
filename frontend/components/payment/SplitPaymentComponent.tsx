@@ -228,6 +228,13 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
     return row.status === "Paid";
   };
 
+  const getRowMaxAllowed = (rowId: string) => {
+    const otherPaidSum = rows
+      .filter(r => r.id !== rowId && r.status === "Paid")
+      .reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+    return Math.max(0, targetTotal - otherPaidSum);
+  };
+
   // Adjust payment rows when targetTotal changes (due to rounding changes)
   useEffect(() => {
     if (rows.length === 0) return;
@@ -683,15 +690,33 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
 
  {row.status === "Pending" && (
   <TouchableOpacity
-    activeOpacity={0.8}
+    activeOpacity={((parseFloat(row.amount) || 0) <= 0 || (parseFloat(row.amount) || 0) > getRowMaxAllowed(row.id) + 0.01) ? 1 : 0.8}
     onPress={() => {
+      const rowAmt = parseFloat(row.amount) || 0;
+      const maxAllowed = getRowMaxAllowed(row.id);
+
+      if (rowAmt <= 0) {
+        Alert.alert("Invalid Amount", "Please enter an amount greater than zero.");
+        return;
+      }
+      if (rowAmt > maxAllowed + 0.01) {
+        Alert.alert(
+          "Amount Exceeds Balance",
+          `Amount cannot exceed the remaining balance of ${currencySymbol}${maxAllowed.toFixed(2)}.`
+        );
+        return;
+      }
+
       if (needsTerminalCall(row.payMode, paymentMethods) || isNormalPayNowMode(row.payMode)) {
         handleGenerateQR(row);
       } else {
         handleUpdateRow(row.id, { status: "Paid" });
       }
     }}
-    style={styles.generateQrBtn}
+    style={[
+      styles.generateQrBtn,
+      ((parseFloat(row.amount) || 0) <= 0 || (parseFloat(row.amount) || 0) > getRowMaxAllowed(row.id) + 0.01) && { backgroundColor: Theme.border, opacity: 0.6 }
+    ]}
   >
     <Ionicons 
       name={

@@ -2929,7 +2929,7 @@ export default function Category() {
       <Modal
         visible={isMenuVisible}
         transparent
-        animationType="fade"
+        animationType={Platform.OS === 'web' ? 'none' : 'fade'}
         onRequestClose={() => setIsMenuVisible(false)}
       >
         <View style={styles.menuOverlay}>
@@ -2942,7 +2942,9 @@ export default function Category() {
             style={[
               styles.menuContent,
               isTablet && { width: 300, right: 20 },
-              { maxHeight: height * 0.8 },
+              Platform.OS === 'web'
+                ? { height: 500 }
+                : { maxHeight: height * 0.8 },
             ]}
           >
             {/* User Info Header */}
