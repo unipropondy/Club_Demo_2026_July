@@ -632,6 +632,21 @@ export default function SettlementScreen() {
     message: '',
     onConfirm: () => {},
   });
+
+  // Supervisor Password Verification State
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordValue, setPasswordValue] = useState("");
+  const [passwordAction, setPasswordAction] = useState<{
+    onSuccess: () => void;
+    title: string;
+    description: string;
+  } | null>(null);
+
+  const promptPassword = (title: string, description: string, onSuccess: () => void) => {
+    setPasswordValue("");
+    setPasswordAction({ onSuccess, title, description });
+    setShowPasswordModal(true);
+  };
   const [lovMode, setLovMode] = useState<"OPEN" | "CLOSE">("OPEN");
 
   const [openingCash, setOpeningCash] = useState<string>("0");
@@ -1020,12 +1035,7 @@ const fetchDayHistory = async () => {
     }
   };
 
-  const handleSaveCashOut = async () => {
-    if (!cashOutForm.Amount || parseFloat(cashOutForm.Amount) <= 0) {
-      Alert.alert("Validation", "Please enter a valid amount");
-      return;
-    }
-
+  const executeSaveCashOut = async () => {
     try {
       setLoading(true);
       const payload = {
@@ -1062,6 +1072,18 @@ const fetchDayHistory = async () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveCashOut = () => {
+    if (!cashOutForm.Amount || parseFloat(cashOutForm.Amount) <= 0) {
+      Alert.alert("Validation", "Please enter a valid amount");
+      return;
+    }
+    promptPassword(
+      "Save Cash Out",
+      "Enter Admin/Void password to save/edit this Cash Out entry",
+      executeSaveCashOut
+    );
   };
 
   const handleSelectImage = async (mode: 'camera' | 'library') => {
@@ -1148,12 +1170,7 @@ const fetchDayHistory = async () => {
     }
   };
 
-  const handleSaveCashIn = async () => {
-    if (!cashInForm.Amount || parseFloat(cashInForm.Amount) <= 0) {
-      Alert.alert("Validation", "Please enter a valid amount");
-      return;
-    }
-
+  const executeSaveCashIn = async () => {
     try {
       setLoading(true);
       const payload = {
@@ -1192,7 +1209,19 @@ const fetchDayHistory = async () => {
     }
   };
 
-  const handleSaveCashBox = async () => {
+  const handleSaveCashIn = () => {
+    if (!cashInForm.Amount || parseFloat(cashInForm.Amount) <= 0) {
+      Alert.alert("Validation", "Please enter a valid amount");
+      return;
+    }
+    promptPassword(
+      "Save Cash In",
+      "Enter Admin/Void password to save/edit this Cash In entry",
+      executeSaveCashIn
+    );
+  };
+
+  const executeSaveCashBox = async () => {
     try {
       setLoading(true);
 
@@ -1234,6 +1263,18 @@ const fetchDayHistory = async () => {
     }
   };
 
+  const handleSaveCashBox = () => {
+    if (!cashBoxForm.ArtistName || !cashBoxForm.Amount || parseFloat(cashBoxForm.Amount) <= 0) {
+      Alert.alert("Validation", "Artist name and valid amount are required");
+      return;
+    }
+    promptPassword(
+      "Save Cash Box",
+      "Enter Admin/Void password to save/edit this Artist Cashbox entry",
+      executeSaveCashBox
+    );
+  };
+
   const executeDeleteCashBox = async (id: string) => {
     try {
       setLoading(true);
@@ -1257,8 +1298,12 @@ const fetchDayHistory = async () => {
       title: "Delete Cash Box",
       message: "Are you sure you want to delete this artist cashbox entry?",
       onConfirm: () => {
-        executeDeleteCashBox(id);
         setGenericConfirm(prev => ({ ...prev, visible: false }));
+        promptPassword(
+          "Delete Cash Box",
+          "Enter Admin/Void password to delete this Artist Cashbox entry",
+          () => executeDeleteCashBox(id)
+        );
       }
     });
   };
@@ -1286,8 +1331,12 @@ const fetchDayHistory = async () => {
       title: "Delete Cash Out",
       message: "Are you sure you want to delete this cash out entry?",
       onConfirm: () => {
-        executeDeleteCashOut(id);
         setGenericConfirm(prev => ({ ...prev, visible: false }));
+        promptPassword(
+          "Delete Cash Out",
+          "Enter Admin/Void password to delete this Cash Out entry",
+          () => executeDeleteCashOut(id)
+        );
       }
     });
   };
@@ -1315,8 +1364,12 @@ const fetchDayHistory = async () => {
       title: "Delete Cash In",
       message: "Are you sure you want to delete this cash in entry?",
       onConfirm: () => {
-        executeDeleteCashIn(id);
         setGenericConfirm(prev => ({ ...prev, visible: false }));
+        promptPassword(
+          "Delete Cash In",
+          "Enter Admin/Void password to delete this Cash In entry",
+          () => executeDeleteCashIn(id)
+        );
       }
     });
   };
@@ -3390,6 +3443,72 @@ const fetchDayHistory = async () => {
             </View>
           </TouchableWithoutFeedback>
         </TouchableOpacity>
+      </Modal>
+
+      {/* SUPERVISOR PASSWORD VERIFICATION MODAL */}
+      <Modal
+        visible={showPasswordModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowPasswordModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxWidth: 400 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{passwordAction?.title || "Verification Required"}</Text>
+              <TouchableOpacity onPress={() => setShowPasswordModal(false)} style={styles.modalCloseBtn}>
+                <Ionicons name="close" size={20} color={Theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalDivider} />
+            <Text style={{ fontFamily: Fonts.medium, fontSize: 14, color: Theme.textSecondary, marginBottom: 16 }}>
+              {passwordAction?.description || "Please enter the supervisor/admin password:"}
+            </Text>
+            <TextInput
+              style={[styles.premiumInput, { width: '100%', marginBottom: 20, textAlign: 'left' }]}
+              placeholder="Enter Password"
+              placeholderTextColor={Theme.textMuted}
+              secureTextEntry
+              value={passwordValue}
+              onChangeText={setPasswordValue}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10, width: '100%' }}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { flex: 1, backgroundColor: Theme.bgMuted }]}
+                onPress={() => setShowPasswordModal(false)}
+              >
+                <Text style={[styles.confirmBtnText, { color: Theme.textPrimary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { flex: 1 }]}
+                onPress={async () => {
+                  try {
+                    const verifyRes = await fetch(`${API_URL}/api/auth/verify`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ password: passwordValue, role: "Void,ADMIN" }),
+                    });
+                    const verifyData = await verifyRes.json();
+                    if (!verifyData.success) {
+                      Alert.alert("Incorrect Password", "The password you entered is incorrect.");
+                      return;
+                    }
+                    setShowPasswordModal(false);
+                    if (passwordAction?.onSuccess) {
+                      passwordAction.onSuccess();
+                    }
+                  } catch (err) {
+                    console.error("Password verification error:", err);
+                    Alert.alert("Error", "Failed to verify password");
+                  }
+                }}
+              >
+                <Text style={styles.confirmBtnText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* DAY HISTORY MODAL */}
