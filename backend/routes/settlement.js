@@ -69,16 +69,49 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
 
     const result = await request.query(`
       SELECT
-        CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(Remarks, '')))) = 'CAS' THEN 'CASH' ELSE LTRIM(RTRIM(ISNULL(Remarks, ''))) END AS PaymodeName,
+        LTRIM(RTRIM(ISNULL(Remarks, ''))) AS PaymodeName,
         ISNULL(SUM(Amount), 0) AS Amount,
         COUNT(*) AS PayCount
       FROM PaymentDetailCur
       WHERE ${dateFilter}
-      GROUP BY 
-        CASE WHEN UPPER(LTRIM(RTRIM(ISNULL(Remarks, '')))) = 'CAS' THEN 'CASH' ELSE LTRIM(RTRIM(ISNULL(Remarks, ''))) END
+      GROUP BY LTRIM(RTRIM(ISNULL(Remarks, '')))
     `);
 
-    res.json(result.recordset || []);
+    const normalizePayMode = (paymentMethod = "CASH") => {
+      const raw = String(paymentMethod || "CASH").toUpperCase().trim();
+      if (raw === "Q-R" || raw === "Q.R.") return "QR";
+      if (raw === "PAY_NOW") return "PAYNOW";
+      if (raw === "U-P-I") return "UPI";
+      if (raw === "G-PAY") return "GPAY";
+      if (raw === "P-H-O-N-E") return "PHONE";
+      if (raw === "P-A-Y-T-M") return "PAYTM";
+      if (raw === "CASHBOX" || raw === "CASH BOX" || raw === "CASH BOX ENTRY") return "CASH BOX ENTRY";
+      if (raw === "CASH" || raw === "CAS" || raw === "1") return "CASH";
+      if (raw.includes("CARD") || raw.includes("VISA") || raw.includes("MASTER") || raw.includes("AMEX") || raw.includes("DINERS")) return "CARD";
+      if (raw.includes("PAYNOW") || raw.includes("GRAB") || raw.includes("FOODPANDA") || raw === "3" || raw.includes("PAY NOW")) return "PAYNOW";
+      if (raw.includes("UPI") || raw === "4" || raw.includes("GPAY") || raw.includes("PHONE") || raw.includes("PAYTM")) return "UPI";
+      if (raw.includes("NETS") || raw === "2") return "NETS";
+      if (raw.includes("MEMBER") || raw === "5") return "MEMBER";
+      if (raw.includes("CREDIT") || raw === "6") return "CREDIT";
+      return raw;
+    };
+
+    const aggregated = {};
+    const dbRows = result.recordset || [];
+    dbRows.forEach(row => {
+      const normName = normalizePayMode(row.PaymodeName);
+      if (!aggregated[normName]) {
+        aggregated[normName] = {
+          PaymodeName: normName,
+          Amount: 0,
+          PayCount: 0
+        };
+      }
+      aggregated[normName].Amount += parseFloat(row.Amount) || 0;
+      aggregated[normName].PayCount += parseInt(row.PayCount, 10) || 0;
+    });
+
+    res.json(Object.values(aggregated));
 
   } catch (err) {
     console.error("❌ PAYMENT ERROR:", err);
