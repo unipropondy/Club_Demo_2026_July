@@ -640,11 +640,12 @@ export default function SettlementScreen() {
     onSuccess: () => void;
     title: string;
     description: string;
+    role: string;
   } | null>(null);
 
-  const promptPassword = (title: string, description: string, onSuccess: () => void) => {
+  const promptPassword = (title: string, description: string, role: string, onSuccess: () => void) => {
     setPasswordValue("");
-    setPasswordAction({ onSuccess, title, description });
+    setPasswordAction({ onSuccess, title, description, role });
     setShowPasswordModal(true);
   };
   const [lovMode, setLovMode] = useState<"OPEN" | "CLOSE">("OPEN");
@@ -1079,7 +1080,16 @@ const fetchDayHistory = async () => {
       Alert.alert("Validation", "Please enter a valid amount");
       return;
     }
-    executeSaveCashOut();
+    if (cashOutForm.CashOutId) {
+      promptPassword(
+        "Edit Cash Out",
+        "Enter Admin password to modify this Cash Out entry",
+        "ADMIN",
+        executeSaveCashOut
+      );
+    } else {
+      executeSaveCashOut();
+    }
   };
 
   const handleSelectImage = async (mode: 'camera' | 'library') => {
@@ -1210,7 +1220,16 @@ const fetchDayHistory = async () => {
       Alert.alert("Validation", "Please enter a valid amount");
       return;
     }
-    executeSaveCashIn();
+    if (cashInForm.CashInId) {
+      promptPassword(
+        "Edit Cash In",
+        "Enter Admin password to modify this Cash In entry",
+        "ADMIN",
+        executeSaveCashIn
+      );
+    } else {
+      executeSaveCashIn();
+    }
   };
 
   const executeSaveCashBox = async () => {
@@ -1260,7 +1279,16 @@ const fetchDayHistory = async () => {
       Alert.alert("Validation", "Artist name and valid amount are required");
       return;
     }
-    executeSaveCashBox();
+    if (cashBoxForm.CashBoxId) {
+      promptPassword(
+        "Edit Cash Box",
+        "Enter Admin password to modify this Artist Cashbox entry",
+        "ADMIN",
+        executeSaveCashBox
+      );
+    } else {
+      executeSaveCashBox();
+    }
   };
 
   const executeDeleteCashBox = async (id: string) => {
@@ -1290,6 +1318,7 @@ const fetchDayHistory = async () => {
         promptPassword(
           "Delete Cash Box",
           "Enter Admin/Void password to delete this Artist Cashbox entry",
+          "Void,ADMIN",
           () => executeDeleteCashBox(id)
         );
       }
@@ -1323,6 +1352,7 @@ const fetchDayHistory = async () => {
         promptPassword(
           "Delete Cash Out",
           "Enter Admin/Void password to delete this Cash Out entry",
+          "Void,ADMIN",
           () => executeDeleteCashOut(id)
         );
       }
@@ -1356,6 +1386,7 @@ const fetchDayHistory = async () => {
         promptPassword(
           "Delete Cash In",
           "Enter Admin/Void password to delete this Cash In entry",
+          "Void,ADMIN",
           () => executeDeleteCashIn(id)
         );
       }
@@ -2083,6 +2114,7 @@ const fetchDayHistory = async () => {
                     Alert.alert("Locked", "Manual Cash In entry is disabled when Cash Drawer is ON.");
                     return;
                   }
+                  setCashInForm({ CashInId: '', Amount: '', Reason: '', Remarks: '', PaymentMode: 'Cash', ReferenceNo: '', AttachmentUrl: '' });
                   setShowCashInModal(true);
                 }}
               >
@@ -2100,6 +2132,7 @@ const fetchDayHistory = async () => {
                     Alert.alert("Locked", "Manual Cash Out entry is disabled when Cash Drawer is ON.");
                     return;
                   }
+                  setCashOutForm({ CashOutId: '', Amount: '', Reason: '', Remarks: '', PaymentMode: 'Cash', ReferenceNo: '', AttachmentUrl: '' });
                   setShowCashOutModal(true);
                 }}
               >
@@ -2113,6 +2146,7 @@ const fetchDayHistory = async () => {
               <TouchableOpacity
                 style={[styles.card, { flex: isTablet ? 1 : undefined, minWidth: isTablet ? 0 : '48%', flexGrow: 1, padding: isTablet ? 15 : 10, alignItems: 'center', justifyContent: 'center', backgroundColor: Theme.warningBg, borderColor: Theme.warningBorder, borderWidth: 1 }]}
                 onPress={() => {
+                  setCashBoxForm({ ArtistName: '', Amount: '', CashBoxId: '' });
                   setShowCashBoxModal(true);
                 }}
               >
@@ -3475,7 +3509,7 @@ const fetchDayHistory = async () => {
                     const verifyRes = await fetch(`${API_URL}/api/auth/verify`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ password: passwordValue, role: "Void,ADMIN" }),
+                      body: JSON.stringify({ password: passwordValue, role: passwordAction?.role || "ADMIN" }),
                     });
                     const verifyData = await verifyRes.json();
                     if (!verifyData.success) {
