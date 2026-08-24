@@ -224,10 +224,10 @@ function CustomDatePicker({ visible, onClose, selectedDate, selectedEndDate, isR
                     rangeStart.getMonth() === dObj.month &&
                     rangeStart.getFullYear() === dObj.year;
                   
-                  isEnd = rangeEnd && 
+                  isEnd = !!(rangeEnd && 
                     rangeEnd.getDate() === dObj.day &&
                     rangeEnd.getMonth() === dObj.month &&
-                    rangeEnd.getFullYear() === dObj.year;
+                    rangeEnd.getFullYear() === dObj.year);
                   
                   isSelected = isStart || isEnd;
 
