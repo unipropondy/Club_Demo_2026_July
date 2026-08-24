@@ -1073,11 +1073,11 @@ export default function MenuScreen() {
         currentKitchen?.KitchenTypeCode || String(selectedKitchenId || "0");
 
       const addToCartSimple = (overridePrice?: number) => {
-        const actualGroupObj = groups.find((g: any) => g.DishGroupId === dish.DishGroupId) || groups.find((g: any) => g.DishGroupId === selectedGroup);
+        const selectedGroupObj = groups.find((g: any) => g.DishGroupId === selectedGroup);
         const dishGroupName =
+          selectedGroupObj?.DishGroupName ||
           dish.DishGroupName ||
-          dish.dishGroupName ||
-          actualGroupObj?.DishGroupName;
+          dish.dishGroupName;
         const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
         addToCartGlobal({
           id: dish.DishId,
@@ -1366,11 +1366,11 @@ export default function MenuScreen() {
       const currentKitchenCode =
         currentKitchen?.KitchenTypeCode || selectedKitchenId;
 
-      const actualGroupObj = groups.find((g: any) => g.DishGroupId === selectedDish.DishGroupId) || groups.find((g: any) => g.DishGroupId === selectedGroup);
+      const selectedGroupObj = groups.find((g: any) => g.DishGroupId === selectedGroup);
       const dishGroupName =
+        selectedGroupObj?.DishGroupName ||
         selectedDish.DishGroupName ||
-        selectedDish.dishGroupName ||
-        actualGroupObj?.DishGroupName;
+        selectedDish.dishGroupName;
       const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
 
       addToCartGlobal({
@@ -1413,11 +1413,11 @@ export default function MenuScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const currentGroupObj = groups.find((g: any) => g.DishGroupId === selectedGroup);
+    const selectedGroupObj = groups.find((g: any) => g.DishGroupId === selectedGroup);
     const dishGroupName =
+      selectedGroupObj?.DishGroupName ||
       dish.DishGroupName ||
-      dish.dishGroupName ||
-      currentGroupObj?.DishGroupName;
+      dish.dishGroupName;
     const groupPrefix = dishGroupName ? `${dishGroupName} - ` : "";
 
     addToCartGlobal({
@@ -1763,9 +1763,9 @@ export default function MenuScreen() {
 
                     const shareAmount = totalAmount / selected.length;
 
-                    const actualGroupObj = groups.find((g: any) => g.DishGroupId === selectedSplitDish.DishGroupId) || groups.find((g: any) => g.DishGroupId === selectedGroup);
+                    const selectedGroupObj = groups.find((g: any) => g.DishGroupId === selectedGroup);
                     const dishGroupName =
-                      actualGroupObj?.DishGroupName ||
+                      selectedGroupObj?.DishGroupName ||
                       selectedSplitDish?.DishGroupName;
                     const groupPrefix = dishGroupName
                       ? `${dishGroupName} - `
