@@ -629,6 +629,9 @@ export default function PaymentScreen() {
       applyPaymentMethodsFromCache();
       if (context?.tableId) {
         try {
+          // Fetch cart from DB to prevent empty items list on browser refresh
+          await useCartStore.getState().fetchCartFromDB(context.tableId);
+
           const res = await fetch(`${API_URL}/api/tables/${context.tableId}`);
           const data = await res.json();
           const oid = data.table?.currentOrderId || data.table?.CurrentOrderId;
@@ -638,6 +641,13 @@ export default function PaymentScreen() {
         } catch (err) {
           console.error("Failed to sync official Order ID:", err);
         }
+      }
+
+      // Also ensure active kitchen orders are loaded to resolve activeOrder on refresh
+      try {
+        await useActiveOrdersStore.getState().fetchActiveKitchenOrders();
+      } catch (err) {
+        console.error("Failed to load active kitchen orders on payment mount:", err);
       }
     };
     init();
