@@ -193,6 +193,7 @@ export default function SummaryScreen() {
   // Fetch settings on mount
   useEffect(() => {
     useGeneralSettingsStore.getState().fetchSettings();
+    useCompanySettingsStore.getState().fetchSettings("1");
   }, []);
 
   // 💎 VIP AUTOMATIC RULE AUTO-APPLIER

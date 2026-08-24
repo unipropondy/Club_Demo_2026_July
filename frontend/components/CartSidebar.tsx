@@ -1126,6 +1126,12 @@ export default React.memo(function CartSidebar({ width = 400 }: CartSidebarProps
     useTerminalStore.getState().joinSocketRoom();
   }, []);
 
+  // Fetch configurations on mount to prevent empty GST/SC/takeaway values on refresh
+  useEffect(() => {
+    useCompanySettingsStore.getState().fetchSettings("1");
+    useGeneralSettingsStore.getState().fetchSettings();
+  }, []);
+
   // 🖥️ CUSTOMER DISPLAY — LIVE CART SYNC
   // Triggers on every cart change: idle when empty, syncCart when items exist.
   // Only fires if the current user is ADMIN (guard is inside CustomerDisplaySync).

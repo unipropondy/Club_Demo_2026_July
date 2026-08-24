@@ -619,7 +619,9 @@ export default function PaymentScreen() {
       try {
         await Promise.all([
           store.fetchSettings(),
-          store.fetchPaymentMethods()
+          store.fetchPaymentMethods(),
+          useCompanySettingsStore.getState().fetchSettings("1"),
+          useGeneralSettingsStore.getState().fetchSettings()
         ]);
       } catch (err) {
         if (__DEV__) {

@@ -1564,6 +1564,7 @@ export const useCartStore = create<CartState>()(
       partialize: (state) => ({
         tableOrderIds: state.tableOrderIds,
         currentContextId: state.currentContextId,
+        discounts: state.discounts,
       }),
       merge: (persistedState: any, currentState) => {
         const merged = { ...currentState, ...persistedState };

@@ -1273,7 +1273,7 @@ router.get("/cart/:tableId", async (req, res) => {
           ISNULL(ckt.KitchenTypeCode, '2') as KitchenTypeCode, 
           ISNULL(ISNULL(ckt.KitchenTypeName, cat.CategoryName), 'KITCHEN') as KitchenTypeName,
           pm.PrinterPath as PrinterIP,
-          ISNULL(d.ServiceCharge, ISNULL(dish.isServiceCharge, 1)) as isServiceCharge,
+          CAST(ISNULL(dish.isServiceCharge, 1) AS INT) as isServiceCharge,
           ISNULL(dish.IsOpenItem, 0) as IsOpenItem
         FROM RestaurantOrderDetailCur d 
         JOIN RestaurantOrderCur h ON d.OrderId = h.OrderId 
