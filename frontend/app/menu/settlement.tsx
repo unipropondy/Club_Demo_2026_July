@@ -2156,7 +2156,7 @@ const fetchDayHistory = async () => {
               <View style={[styles.card, isTablet && styles.cardTablet]}>
                 <View style={[styles.cardHeader, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
                   <Text style={styles.cardHeaderTitle}>SALES</Text>
-                  {cashOutEntries.some(co => co.AttachmentUrl) && (
+                  {(cashOutEntries.some(co => co.AttachmentUrl) || cashInEntries.some(ci => ci.AttachmentUrl)) && (
                     <TouchableOpacity
                       onPress={() => setShowAllMediaModal(true)}
                       style={{
@@ -2529,7 +2529,7 @@ const fetchDayHistory = async () => {
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontFamily: Fonts.bold, fontSize: 13, marginBottom: 6, color: Theme.textSecondary }}>Amount *</Text>
                   <TextInput
-                    style={[styles.premiumInput, { textAlign: 'right', fontSize: 18 }]}
+                    style={[styles.premiumInput, { textAlign: 'left', fontSize: 18 }]}
                     keyboardType="numeric"
                     value={cashOutForm.Amount}
                     onChangeText={(v) => setCashOutForm({ ...cashOutForm, Amount: v })}
@@ -2701,7 +2701,7 @@ const fetchDayHistory = async () => {
           />
           <View style={[styles.modalContent, { maxWidth: 600, width: '90%', maxHeight: '80%' }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Cash Out Receipts Gallery</Text>
+              <Text style={styles.modalTitle}>Receipts Gallery</Text>
               <TouchableOpacity onPress={() => setShowAllMediaModal(false)} style={styles.modalCloseBtn}>
                 <Ionicons name="close" size={20} color={Theme.textPrimary} />
               </TouchableOpacity>
@@ -2710,69 +2710,88 @@ const fetchDayHistory = async () => {
             <View style={styles.modalDivider} />
 
             <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingVertical: 10 }} showsVerticalScrollIndicator={false}>
-              {cashOutEntries.filter(co => co.AttachmentUrl).length > 0 ? (
-                cashOutEntries.filter(co => co.AttachmentUrl).map((co, idx) => (
-                  <View key={idx} style={{ 
-                    flexDirection: 'row', 
-                    backgroundColor: Theme.bgMuted, 
-                    borderRadius: 12, 
-                    padding: 12, 
-                    marginBottom: 12, 
-                    borderWidth: 1, 
-                    borderColor: Theme.border,
-                    alignItems: 'center'
-                  }}>
-                    <TouchableOpacity onPress={() => {
-                      setShowAllMediaModal(false);
-                      setViewerImageUrl(co.AttachmentUrl);
+              {(() => {
+                const outs = cashOutEntries.filter(co => co.AttachmentUrl).map(co => ({
+                  ...co,
+                  type: 'OUT',
+                  date: co.CreatedOn || co.CreatedDate || new Date()
+                }));
+                const ins = cashInEntries.filter(ci => ci.AttachmentUrl).map(ci => ({
+                  ...ci,
+                  type: 'IN',
+                  date: ci.CreatedOn || ci.CreatedDate || new Date()
+                }));
+                const combined = [...outs, ...ins].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                if (combined.length === 0) {
+                  return (
+                    <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+                      <Text style={{ fontFamily: Fonts.medium, fontSize: 14, color: Theme.textMuted }}>No receipts found.</Text>
+                    </View>
+                  );
+                }
+
+                return combined.map((item, idx) => {
+                  const isOut = item.type === 'OUT';
+                  return (
+                    <View key={idx} style={{ 
+                      flexDirection: 'row', 
+                      backgroundColor: Theme.bgMuted, 
+                      borderRadius: 12, 
+                      padding: 12, 
+                      marginBottom: 12, 
+                      borderWidth: 1, 
+                      borderColor: Theme.border,
+                      alignItems: 'center'
                     }}>
-                      <Image 
-                        source={{ uri: co.AttachmentUrl.startsWith('http') ? co.AttachmentUrl : `${API_URL}${co.AttachmentUrl}` }} 
-                        style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12, resizeMode: 'cover' }} 
-                      />
-                    </TouchableOpacity>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: Theme.textPrimary }}>
-                        {co.Reason || 'Cash Out'}
-                      </Text>
-                      <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, marginTop: 2 }}>
-                        Ref: {co.ReferenceNo || 'N/A'}
-                      </Text>
-                      <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted, marginTop: 2 }}>
-                        By: {co.CreatedBy || 'Admin'}
-                      </Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ fontFamily: Fonts.black, fontSize: 15, color: Theme.danger }}>
-                        -{formatCurrency(co.Amount)}
-                      </Text>
-                      <TouchableOpacity 
-                        onPress={() => {
-                          setShowAllMediaModal(false);
-                          setViewerImageUrl(co.AttachmentUrl);
-                        }}
-                        style={{ 
-                          marginTop: 8, 
-                          flexDirection: 'row', 
-                          alignItems: 'center', 
-                          gap: 4, 
-                          backgroundColor: Theme.primary + '20', 
-                          paddingHorizontal: 8, 
-                          paddingVertical: 4, 
-                          borderRadius: 6 
-                        }}
-                      >
-                        <Ionicons name="eye-outline" size={14} color={Theme.primary} />
-                        <Text style={{ fontFamily: Fonts.bold, fontSize: 11, color: Theme.primary }}>View</Text>
+                      <TouchableOpacity onPress={() => {
+                        setShowAllMediaModal(false);
+                        setViewerImageUrl(item.AttachmentUrl);
+                      }}>
+                        <Image 
+                          source={{ uri: item.AttachmentUrl.startsWith('http') ? item.AttachmentUrl : `${API_URL}${item.AttachmentUrl}` }} 
+                          style={{ width: 60, height: 60, borderRadius: 8, marginRight: 12, resizeMode: 'cover' }} 
+                        />
                       </TouchableOpacity>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: Theme.textPrimary }}>
+                          {item.Reason || (isOut ? 'Cash Out' : 'Cash In')}
+                        </Text>
+                        <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, marginTop: 2 }}>
+                          Ref: {item.ReferenceNo || 'N/A'} ({isOut ? 'Withdrawal' : 'Deposit'})
+                        </Text>
+                        <Text style={{ fontFamily: Fonts.medium, fontSize: 11, color: Theme.textMuted, marginTop: 2 }}>
+                          By: {item.CreatedBy || 'Admin'}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontFamily: Fonts.black, fontSize: 15, color: isOut ? Theme.danger : Theme.success }}>
+                          {isOut ? '-' : '+'}{formatCurrency(item.Amount)}
+                        </Text>
+                        <TouchableOpacity 
+                          onPress={() => {
+                            setShowAllMediaModal(false);
+                            setViewerImageUrl(item.AttachmentUrl);
+                          }}
+                          style={{ 
+                            marginTop: 8, 
+                            flexDirection: 'row', 
+                            alignItems: 'center', 
+                            gap: 4, 
+                            backgroundColor: Theme.primary + '20', 
+                            paddingHorizontal: 8, 
+                            paddingVertical: 4, 
+                            borderRadius: 6 
+                          }}
+                        >
+                          <Ionicons name="eye-outline" size={14} color={Theme.primary} />
+                          <Text style={{ fontFamily: Fonts.bold, fontSize: 11, color: Theme.primary }}>View</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-                ))
-              ) : (
-                <View style={{ paddingVertical: 30, alignItems: 'center' }}>
-                  <Text style={{ fontFamily: Fonts.medium, fontSize: 14, color: Theme.textMuted }}>No receipts attached for today's cash outs.</Text>
-                </View>
-              )}
+                  );
+                });
+              })()}
             </ScrollView>
           </View>
         </View>
@@ -2832,7 +2851,7 @@ const fetchDayHistory = async () => {
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontFamily: Fonts.bold, fontSize: 13, marginBottom: 6, color: Theme.textSecondary }}>Amount *</Text>
                   <TextInput
-                    style={[styles.premiumInput, { textAlign: 'right', fontSize: 18 }]}
+                    style={[styles.premiumInput, { textAlign: 'left', fontSize: 18 }]}
                     keyboardType="numeric"
                     value={cashInForm.Amount}
                     onChangeText={(v) => setCashInForm({ ...cashInForm, Amount: v })}
@@ -3018,7 +3037,7 @@ const fetchDayHistory = async () => {
               <View style={{ marginBottom: 20 }}>
                 <Text style={{ fontFamily: Fonts.bold, fontSize: 13, marginBottom: 6, color: Theme.textSecondary }}>Amount *</Text>
                 <TextInput
-                  style={[styles.premiumInput, { textAlign: 'right', fontSize: 18, fontFamily: Fonts.medium }]}
+                  style={[styles.premiumInput, { textAlign: 'left', fontSize: 18, fontFamily: Fonts.medium }]}
                   keyboardType="number-pad"
                   value={cashBoxForm.Amount}
                   onChangeText={(v) => {
@@ -3689,7 +3708,7 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.bgInput,
     color: Theme.textPrimary,
     fontFamily: Fonts.bold,
-    textAlign: "right",
+    textAlign: "left",
     fontSize: 14,
   },
   premiumInput: {
