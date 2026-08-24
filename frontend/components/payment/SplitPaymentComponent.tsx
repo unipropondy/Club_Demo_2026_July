@@ -61,33 +61,55 @@ interface SplitPaymentComponentProps {
   onSelectMember?: (payMode?: string) => void;
 }
 
+const isYeahPayPayNowMode = (modeName: string): boolean => {
+  return modeName.trim().toUpperCase() === "YEAHPAY PAYNOW";
+};
+
+const isYeahPayCardMode = (modeName: string): boolean => {
+  return modeName.trim().toUpperCase() === "YEAHPAY CARD";
+};
+
+const isNormalPayNowMode = (modeName: string): boolean => {
+  return modeName.trim().toUpperCase() === "PAYNOW";
+};
+
+const isYeahPayMode = (modeName: string): boolean => {
+  return isYeahPayPayNowMode(modeName) || isYeahPayCardMode(modeName);
+};
+
 // ✅ STRICT: Only exact "paynow" (case-insensitive) is treated as PayNow QR mode.
 // UPI, GPay, Paytm etc are NOT QR modes here — they go to normal settlement or their own flows.
 const isQRMode = (modeName: string): boolean => {
-  return modeName.trim().toLowerCase() === "paynow";
+  return isNormalPayNowMode(modeName);
 };
 
 // ✅ STRICT: ONLY the exact name "Paynow" (case-insensitive) triggers the PayNow QR popup.
 // "QR", "Q-R", "GPay", "Paytm", "PhonePe" etc do NOT trigger this flow.
 const isPayNowMode = (modeName: string): boolean => {
-  return modeName.trim().toLowerCase() === "paynow";
+  return isNormalPayNowMode(modeName);
 };
 
 // ✅ ADD THIS - For Card detection
 // ✅ FIXED - Check for CARD without excluding PAYNOW
 const isCardMode = (modeName: string): boolean => {
-  const m = modeName.toUpperCase().trim();
-  // ✅ Check if it contains "CARD" 
-  return m.includes("CARD");
+  return isYeahPayCardMode(modeName);
 };
-// ✅ STRICT: needsTerminalCall covers the PayNow QR flow (exact "paynow") and CARD (YeahPay terminal).
-// Other modes like "QR" do NOT trigger a terminal call — they go straight to normal settlement.
-const needsTerminalCall = (modeName: string): boolean => {
-  return isPayNowMode(modeName) || isCardMode(modeName);
+
+const isTerminalOnlyMode = (modeName: string): boolean => {
+  return isYeahPayCardMode(modeName) || isYeahPayPayNowMode(modeName);
+};
+
+// ✅ STRICT: needsTerminalCall covers ONLY YeahPay terminal modes.
+// ✅ STRICT: needsTerminalCall covers ONLY YeahPay terminal modes configured with SN and enabled in DB.
+const needsTerminalCall = (modeName: string, paymentMethods: PaymentMethodType[]): boolean => {
+  const isYeahPayName = isYeahPayPayNowMode(modeName) || isYeahPayCardMode(modeName);
+  if (!isYeahPayName) return false;
+  const selectedMethod = paymentMethods.find(m => m.payMode === modeName);
+  return selectedMethod?.yeahPayEnabled === true && !!selectedMethod?.deviceSn;
 };
 const isUpiMode = (modeName: string): boolean => {
   const m = modeName.toUpperCase().trim();
-  return m.includes("UPI") || m.includes("GPAY") || m.includes("PHONE") || m.includes("PAYTM");
+  return m === "UPI" || m === "GPAY" || m === "PHONE" || m === "PAYTM";
 };
 
 export default function SplitPaymentComponent({
@@ -111,6 +133,9 @@ export default function SplitPaymentComponent({
   const [activeQrRowId, setActiveQrRowId] = useState<string | null>(null);
 const { showToast } = useToast();  
 const [isGeneratingQR, setIsGeneratingQR] = useState(false);
+  const [terminalStatusRowId, setTerminalStatusRowId] = useState<string | null>(null);
+  const [terminalStatus, setTerminalStatus] = useState<"idle" | "processing" | "success" | "cancelled" | "failed">("idle");
+  const [terminalMessage, setTerminalMessage] = useState<string>("");
   // Filter payment methods: for member collections, we shouldn't allow paying with MEMBER credit
   const availableMethods = useMemo(() => {
     if (memberFlow) {
@@ -309,6 +334,11 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
   };
 
   const handleUpdateRow = (id: string, updates: Partial<SplitPaymentRow>) => {
+    if (updates.payModeId !== undefined && terminalStatusRowId === id) {
+      setTerminalStatus("idle");
+      setTerminalMessage("");
+      setTerminalStatusRowId(null);
+    }
     setRows(prevRows => {
       const rowIndex = prevRows.findIndex(r => r.id === id);
       if (rowIndex === -1) return prevRows;
@@ -384,7 +414,7 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
   setQrModalAmount(amt);
 
   const selectedMethod = paymentMethods.find(m => m.payMode === row.payMode);
-  const isYeahPay = selectedMethod?.yeahPayEnabled === true;
+  const isYeahPay = selectedMethod?.yeahPayEnabled === true && !!selectedMethod?.deviceSn;
 
   if (isPayNowMode(row.payMode) && !isYeahPay) {
     setQrModalType("PAYNOW");
@@ -394,6 +424,9 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
 
   try {
     setIsGeneratingQR(true);
+    setTerminalStatusRowId(row.id);
+    setTerminalStatus("processing");
+    setTerminalMessage("Processing payment...");
     
     const selectedMethod = paymentMethods.find(m => m.payMode === row.payMode);
     const deviceSn = selectedMethod?.deviceSn || '';
@@ -405,6 +438,8 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
     console.log('   Salt:', salt ? 'Yes' : 'No');
     
     if (!deviceSn) {
+      setTerminalStatus("failed");
+      setTerminalMessage("DeviceSN not configured");
       Alert.alert('Configuration Error', 'DeviceSN not configured.');
       setIsGeneratingQR(false);
       return;
@@ -412,24 +447,26 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
     
     // ✅ Determine endpoint based on payment mode
     const isCard = isCardMode(row.payMode);
-const endpoint = isCard ? '/api/yeahpay/card-payment' : '/api/yeahpay/paynow-payment';
+    const endpoint = isCard ? '/api/yeahpay/card-payment' : '/api/yeahpay/paynow-payment';
 
-const response = await fetch(`${API_URL}${endpoint}`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    amount: amt,
-    deviceSn: deviceSn,
-    salt: salt || ''
-  })
-});
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        amount: amt,
+        deviceSn: deviceSn,
+        salt: salt || ''
+      })
+    });
     
     const result = await response.json();
     console.log('✅ [SplitPayment] Terminal response:', result);
     
     const responseCode = result.code;
     
-    if (result.success) {
+    if (result.success || responseCode === 0) {
+      setTerminalStatus("success");
+      setTerminalMessage(`✅ Payment Successful`);
       setRows(prevRows =>
         prevRows.map(r => 
           r.id === row.id 
@@ -449,6 +486,8 @@ const response = await fetch(`${API_URL}${endpoint}`, {
       setActiveQrRowId(null);
       
     } else if (responseCode === -1027) {
+      setTerminalStatus("cancelled");
+      setTerminalMessage(`❌ Transaction cancelled on terminal`);
       setRows(prevRows =>
         prevRows.map(r => 
           r.id === row.id 
@@ -468,6 +507,8 @@ const response = await fetch(`${API_URL}${endpoint}`, {
       setActiveQrRowId(null);
       
     } else if (responseCode === -1028 || responseCode === -1008) {
+      setTerminalStatus("failed");
+      setTerminalMessage(`⏰ Transaction timeout`);
       Alert.alert(
         'Transaction Timeout',
         `${isCard ? 'Card' : 'Payment'} read timed out. Please try again.`,
@@ -475,12 +516,16 @@ const response = await fetch(`${API_URL}${endpoint}`, {
       );
       
     } else {
+      setTerminalStatus("failed");
       const errorMsg = result.msg || result.error || 'Payment failed';
+      setTerminalMessage(`❌ ${errorMsg}`);
       Alert.alert('Payment Failed', errorMsg);
     }
     
   } catch (error: any) {
     console.error('❌ [SplitPayment] Terminal error:', error);
+    setTerminalStatus("failed");
+    setTerminalMessage(`❌ ${error.message || 'Failed to connect to terminal'}`);
     Alert.alert('Error', error.message || 'Failed to connect to terminal');
   } finally {
     setIsGeneratingQR(false);
@@ -640,7 +685,7 @@ const response = await fetch(`${API_URL}${endpoint}`, {
   <TouchableOpacity
     activeOpacity={0.8}
     onPress={() => {
-      if (needsTerminalCall(row.payMode)) {
+      if (needsTerminalCall(row.payMode, paymentMethods) || isNormalPayNowMode(row.payMode)) {
         handleGenerateQR(row);
       } else {
         handleUpdateRow(row.id, { status: "Paid" });
@@ -650,21 +695,56 @@ const response = await fetch(`${API_URL}${endpoint}`, {
   >
     <Ionicons 
       name={
-        needsTerminalCall(row.payMode) 
-          ? (isPayNowMode(row.payMode) ? "qr-code" : "call-outline") 
-          : "checkmark-circle-outline"
+        needsTerminalCall(row.payMode, paymentMethods) 
+          ? "call-outline" 
+          : (isNormalPayNowMode(row.payMode) ? "qr-code" : "checkmark-circle-outline")
       } 
       size={14} 
       color="#fff" 
     />
     <Text style={styles.generateQrText}>
-      {needsTerminalCall(row.payMode) 
-        ? (isPayNowMode(row.payMode) ? "Generate QR" : "Call Terminal") 
-        : "Confirm Payment"}
+      {needsTerminalCall(row.payMode, paymentMethods) 
+        ? "Call Terminal" 
+        : (isNormalPayNowMode(row.payMode) ? "Generate QR" : "Confirm Payment")}
     </Text>
   </TouchableOpacity>
 )}
 </View>
+
+              {terminalStatusRowId === row.id && terminalStatus !== "idle" && (
+                <View style={[
+                  styles.statusContainer,
+                  terminalStatus === "success" && styles.statusSuccess,
+                  terminalStatus === "cancelled" && styles.statusCancelled,
+                  terminalStatus === "failed" && styles.statusFailed,
+                  terminalStatus === "processing" && styles.statusProcessing,
+                ]}>
+                  <Ionicons
+                    name={
+                      terminalStatus === "success" ? "checkmark-circle" :
+                        terminalStatus === "cancelled" ? "close-circle" :
+                          terminalStatus === "failed" ? "alert-circle" :
+                            "sync"
+                    }
+                    size={20}
+                    color={
+                      terminalStatus === "success" ? "#22c55e" :
+                        terminalStatus === "cancelled" ? "#f59e0b" :
+                          terminalStatus === "failed" ? "#ef4444" :
+                            "#3b82f6"
+                    }
+                  />
+                  <Text style={[
+                    styles.statusMessage,
+                    terminalStatus === "success" && styles.statusMessageSuccess,
+                    terminalStatus === "cancelled" && styles.statusMessageCancelled,
+                    terminalStatus === "failed" && styles.statusMessageFailed,
+                    terminalStatus === "processing" && styles.statusMessageProcessing,
+                  ]}>
+                    {terminalMessage}
+                  </Text>
+                </View>
+              )}
 
               {/* Reference Number for Non-Cash, editable only if unlocked */}
               {row.payMode.toUpperCase().trim() !== "CASH" && row.payMode.toUpperCase().trim() !== "CAS" && (
@@ -1180,5 +1260,47 @@ textCancelled: {
     fontFamily: Fonts.bold,
     color: Theme.textSecondary,
     textAlign: "center",
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    marginVertical: 10,
+    gap: 10,
+    borderWidth: 1,
+  },
+  statusSuccess: {
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    borderColor: '#10B981',
+  },
+  statusCancelled: {
+    backgroundColor: 'rgba(245,158,11,0.12)',
+    borderColor: '#F59E0B',
+  },
+  statusFailed: {
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    borderColor: '#EF4444',
+  },
+  statusProcessing: {
+    backgroundColor: 'rgba(59,130,246,0.12)',
+    borderColor: '#3B82F6',
+  },
+  statusMessage: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    flex: 1,
+  },
+  statusMessageSuccess: {
+    color: '#16a34a',
+  },
+  statusMessageCancelled: {
+    color: '#d97706',
+  },
+  statusMessageFailed: {
+    color: '#dc2626',
+  },
+  statusMessageProcessing: {
+    color: '#2563eb',
   },
 });

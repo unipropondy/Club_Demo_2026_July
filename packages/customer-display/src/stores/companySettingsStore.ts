@@ -24,6 +24,8 @@ const getStorage = () => {
   return require('@react-native-async-storage/async-storage').default;
 };
 
+let lastCompanySettingsFetchTime = 0;
+
 export interface CompanySettings {
   name: string;
   address: string;
@@ -82,36 +84,42 @@ export const useCompanySettingsStore = create<CompanySettingsState>()(
       loading: false,
 
       fetchSettings: async (userId: string) => {
+        const now = Date.now();
+        if (lastCompanySettingsFetchTime && (now - lastCompanySettingsFetchTime < 300000)) {
+          return;
+        }
         set({ loading: true });
         try {
           const response = await fetch(`${API_URL}/api/company-settings/1`);
-          const data = await response.json();
-
-          if (data && data.success && data.settings) {
-            const s = data.settings;
-            set({
-              settings: {
-                name: s.CompanyName || '',
-                address: s.Address || '',
-                gstNo: s.GSTNo || '',
-                gstPercentage: parseFloat(s.GSTPercentage) || 0,
-                phone: s.Phone || '',
-                email: s.Email || '',
-                cashierName: s.CashierName || '',
-                currency: s.Currency || 'SGD',
-                currencySymbol: s.CurrencySymbol || '$',
-                companyLogo: s.CompanyLogoUrl || '',
-                halalLogo: s.HalalLogoUrl || '',
-                printerIp: s.PrinterIP || '',
-                showCompanyLogo: !!s.ShowCompanyLogo && !!s.CompanyLogoUrl,
-                showHalalLogo: !!s.ShowHalalLogo && !!s.HalalLogoUrl,
-                taxMode: s.TaxMode || 'exclusive',
-                waiterRequired: s.WaiterRequired !== undefined ? !!s.WaiterRequired : true,
-                holdOvertimeMinutes: parseInt(s.HoldOvertimeMinutes) || 30,
-                serviceChargePercentage: parseFloat(s.ServiceChargePercentage) || 0,
-                takeawayCharges: parseFloat(s.TakeawayCharges) || 0,
-              },
-            });
+          if (response.ok) {
+            const data = await response.json();
+            if (data && data.success && data.settings) {
+              const s = data.settings;
+              set({
+                settings: {
+                  name: s.CompanyName || '',
+                  address: s.Address || '',
+                  gstNo: s.GSTNo || '',
+                  gstPercentage: parseFloat(s.GSTPercentage) || 0,
+                  phone: s.Phone || '',
+                  email: s.Email || '',
+                  cashierName: s.CashierName || '',
+                  currency: s.Currency || 'SGD',
+                  currencySymbol: s.CurrencySymbol || '$',
+                  companyLogo: s.CompanyLogoUrl || '',
+                  halalLogo: s.HalalLogoUrl || '',
+                  printerIp: s.PrinterIP || '',
+                  showCompanyLogo: !!s.ShowCompanyLogo && !!s.CompanyLogoUrl,
+                  showHalalLogo: !!s.ShowHalalLogo && !!s.HalalLogoUrl,
+                  taxMode: s.TaxMode || 'exclusive',
+                  waiterRequired: s.WaiterRequired !== undefined ? !!s.WaiterRequired : true,
+                  holdOvertimeMinutes: parseInt(s.HoldOvertimeMinutes) || 30,
+                  serviceChargePercentage: parseFloat(s.ServiceChargePercentage) || 0,
+                  takeawayCharges: parseFloat(s.TakeawayCharges) || 0,
+                },
+              });
+              lastCompanySettingsFetchTime = now;
+            }
           }
         } catch (error) {
           console.error('❌ [CompanySettingsStore] Fetch Error:', error);
@@ -154,7 +162,11 @@ export const useCompanySettingsStore = create<CompanySettingsState>()(
             }),
           });
           const result = await response.json();
-          return !!result?.success;
+          if (result?.success) {
+            lastCompanySettingsFetchTime = 0;
+            return true;
+          }
+          return false;
         } catch (error) {
           console.error('❌ [CompanySettingsStore] Save Error:', error);
           return false;

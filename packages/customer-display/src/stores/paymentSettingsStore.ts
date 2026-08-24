@@ -46,6 +46,8 @@ interface PaymentSettingsState {
   loading: boolean;
   paymentMethods: CachedPaymentMethod[];
   hasLoadedMethods: boolean;
+  lastFetchedSettings: number | null;
+  lastFetchedMethods: number | null;
   fetchSettings: () => Promise<void>;
   fetchPaymentMethods: () => Promise<void>;
   updateSettings: (newSettings: Partial<PaymentSettings>) => void;
@@ -63,24 +65,34 @@ export const usePaymentSettingsStore = create<PaymentSettingsState>()(
       loading: false,
       paymentMethods: [],
       hasLoadedMethods: false,
+      lastFetchedSettings: null,
+      lastFetchedMethods: null,
 
       fetchSettings: async () => {
+        const currentStore = usePaymentSettingsStore.getState();
+        const now = Date.now();
+        if (currentStore.lastFetchedSettings && (now - currentStore.lastFetchedSettings < 300000)) {
+          return;
+        }
         set({ loading: true });
         try {
           const response = await fetch(`${API_URL}/api/settings`);
-          const data = await response.json();
-          if (data) {
-            set({
-              settings: {
-                upiId: data.UPI_ID || null,
-                payNowQrUrl: data.PayNow_QR_Url || null,
-                shopName: data.ShopName || 'My Restaurant',
-                customerSideDisplay:
-                  data.CustomerSideDisplay !== undefined
-                    ? Boolean(data.CustomerSideDisplay)
-                    : true,
-              },
-            });
+          if (response.ok) {
+            const data = await response.json();
+            if (data) {
+              set({
+                settings: {
+                  upiId: data.UPI_ID || null,
+                  payNowQrUrl: data.PayNow_QR_Url || null,
+                  shopName: data.ShopName || 'My Restaurant',
+                  customerSideDisplay:
+                    data.CustomerSideDisplay !== undefined
+                      ? Boolean(data.CustomerSideDisplay)
+                      : true,
+                },
+                lastFetchedSettings: now,
+              });
+            }
           }
         } catch (error) {
           console.error('❌ [PaymentSettingsStore] Fetch Error:', error);
@@ -90,6 +102,11 @@ export const usePaymentSettingsStore = create<PaymentSettingsState>()(
       },
 
       fetchPaymentMethods: async () => {
+        const currentStore = usePaymentSettingsStore.getState();
+        const now = Date.now();
+        if (currentStore.lastFetchedMethods && (now - currentStore.lastFetchedMethods < 300000)) {
+          return;
+        }
         try {
           const res = await fetch(`${API_URL}/api/sales/payment-methods`);
           if (!res.ok) return;
@@ -107,7 +124,7 @@ export const usePaymentSettingsStore = create<PaymentSettingsState>()(
             deviceSn: d.DeviceSN || null,
             deviceSalt: d.DeviceSalt || null,
           }));
-          set({ paymentMethods: mapped, hasLoadedMethods: true });
+          set({ paymentMethods: mapped, hasLoadedMethods: true, lastFetchedMethods: now });
         } catch (error) {
           console.error('❌ [PaymentSettingsStore] fetchPaymentMethods Error:', error);
         }
@@ -116,6 +133,7 @@ export const usePaymentSettingsStore = create<PaymentSettingsState>()(
       updateSettings: (newSettings) => {
         set((state) => ({
           settings: { ...state.settings, ...newSettings },
+          lastFetchedSettings: null,
         }));
       },
     }),

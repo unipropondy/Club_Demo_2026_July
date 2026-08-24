@@ -326,14 +326,24 @@ export default function ReceivablesScreen() {
       setAgingData([]);
       setRecentCollections([]);
 
-      // 1. Fetch dashboard stats
-      const statsRes = await fetch(
-        `${API_URL}/api/credit-customers/receivables/dashboard`,
-        {
-          headers: { Authorization: token ? `Bearer ${token}` : "" },
-        },
-      );
-      const statsJson = await statsRes.json();
+      // 1. Fetch dashboard stats, aging, and recent collections in parallel
+      const headers = { Authorization: token ? `Bearer ${token}` : "" };
+      const [statsRes, agingRes, recentRes] = await Promise.all([
+        fetch(`${API_URL}/api/credit-customers/receivables/dashboard`, { headers }),
+        fetch(`${API_URL}/api/credit-customers/receivables/aging`, { headers }),
+        fetch(`${API_URL}/api/credit-customers/receivables/recent-collections`, { headers })
+      ]);
+
+      if (!statsRes.ok) throw new Error("Dashboard fetch failed");
+      if (!agingRes.ok) throw new Error("Aging fetch failed");
+      if (!recentRes.ok) throw new Error("Recent collections fetch failed");
+
+      const [statsJson, agingJson, recentJson] = await Promise.all([
+        statsRes.json(),
+        agingRes.json(),
+        recentRes.json()
+      ]);
+
       if (statsJson.success && statsJson.stats) {
         setStats({
           totalOutstanding: Number(statsJson.stats.totalOutstanding || 0),
@@ -350,16 +360,7 @@ export default function ReceivablesScreen() {
         });
       }
 
-      // 2. Fetch customer aging report
-      const agingRes = await fetch(
-        `${API_URL}/api/credit-customers/receivables/aging`,
-        {
-          headers: { Authorization: token ? `Bearer ${token}` : "" },
-        },
-      );
-      const agingJson = await agingRes.json();
       if (agingJson.success) {
-        // If DB has no rows → agingJson.customers is [] → agingData becomes [] → UI shows placeholder
         const parsed = (agingJson.customers || []).map((c: any) => ({
           ...c,
           OutstandingBalance: Number(c.OutstandingBalance || 0),
@@ -371,14 +372,6 @@ export default function ReceivablesScreen() {
         setAgingData(parsed);
       }
 
-      // 3. Fetch recent collections
-      const recentRes = await fetch(
-        `${API_URL}/api/credit-customers/receivables/recent-collections`,
-        {
-          headers: { Authorization: token ? `Bearer ${token}` : "" },
-        },
-      );
-      const recentJson = await recentRes.json();
       if (recentJson.success) {
         setRecentCollections(recentJson.collections || []);
       }

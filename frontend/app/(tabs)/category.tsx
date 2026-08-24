@@ -4230,15 +4230,23 @@ export default function Category() {
           </View>
 
           {/* Row 1.5: Address */}
-          <Text
-            style={[
-              styles.licenseAddress,
-              isTabletOrDesktopWeb && { fontSize: 10, lineHeight: 14 },
-            ]}
-            numberOfLines={1}
-          >
-            {licenseInfo?.Address || "Shop Address"}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Ionicons
+              name="location-outline"
+              size={isTabletOrDesktopWeb ? 12 : 10}
+              color="#9B8EC4"
+            />
+            <Text
+              style={[
+                styles.licenseAddress,
+                isTabletOrDesktopWeb && { fontSize: 10, lineHeight: 14 },
+                { flex: 1 },
+              ]}
+              numberOfLines={1}
+            >
+              {licenseInfo?.Address || "Shop Address"}
+            </Text>
+          </View>
 
           {/* Row 2: Valid/Expired Range container */}
           {licenseInfo && (() => {

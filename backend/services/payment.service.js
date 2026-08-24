@@ -70,16 +70,19 @@ async function processSplitPayments({
     const referenceNo = payment.referenceNo || payment.referenceNumber || null;
 
     // ============================================================
-    // 🆕 CHECK: Is YeahPay enabled?
+    // 🆕 CHECK: Is YeahPay enabled? (Strict normalized exact comparison)
     // ============================================================
     let gatewayResponse = null;
     let gatewayReferenceNo = null;
-    let isYeahPay = false;
+    
+    const normalizedMode = String(payModeName || "").trim().toUpperCase();
+    const isYeahPayPayNow = normalizedMode === "YEAHPAY PAYNOW";
+    const isYeahPayCard = normalizedMode === "YEAHPAY CARD";
+    const isYeahPay = (isYeahPayPayNow || isYeahPayCard) && dbPaymode.YeahPayEnabled && dbPaymode.DeviceSN;
 
     // ✅✅✅ CRITICAL CHECK - YeahPay Enabled?
-    if (dbPaymode.YeahPayEnabled && dbPaymode.DeviceSN) {
+    if (isYeahPay) {
       
-      isYeahPay = true;
       console.log(`🔄 [YEAHPAY] 🔥🔥🔥 YeahPay ENABLED for ${payModeName}`);
       console.log(`🔄 [YEAHPAY] DeviceSN: ${dbPaymode.DeviceSN}`);
       console.log(`🔄 [YEAHPAY] Amount: ${amount}`);
@@ -103,12 +106,12 @@ async function processSplitPayments({
 
       // ✅ DETERMINE ACTION
       let action;
-      if (payModeName.toLowerCase().includes('paynow')) {
+      if (isYeahPayPayNow) {
         action = 'TRADE.QRCODE.PayNowPay';
-        console.log(`🔄 [YEAHPAY] Action: PayNow Payment`);
-      } else if (payModeName.toLowerCase().includes('card')) {
+        console.log(`🔄 [YEAHPAY] Action: YeahPay PayNow Payment`);
+      } else if (isYeahPayCard) {
         action = 'TRADE.CARD.CONSUME';
-        console.log(`🔄 [YEAHPAY] Action: Card Payment`);
+        console.log(`🔄 [YEAHPAY] Action: YeahPay Card Payment`);
       } else {
         throw new Error(`YeahPay not supported for ${payModeName}`);
       }
@@ -120,21 +123,21 @@ async function processSplitPayments({
         console.log(`🔄 [YEAHPAY] Amount: ${amount}`);
         console.log(`🔄 [YEAHPAY] bizOrderId: ${referenceId}`);
         
-if (payModeName.toLowerCase().includes('paynow')) {
-    gatewayResponse = await yeahpay.processPayNowPayment({
-        amount: amount,
-        deviceSn: dbPaymode.DeviceSN,
-        salt: dbPaymode.DeviceSalt,
-        appId: config.appId
-    });
-} else if (payModeName.toLowerCase().includes('card')) {
-    gatewayResponse = await yeahpay.processCardPayment({
-        amount: amount,
-        deviceSn: dbPaymode.DeviceSN,
-        salt: dbPaymode.DeviceSalt,
-        appId: config.appId
-    });
-}
+        if (isYeahPayPayNow) {
+          gatewayResponse = await yeahpay.processPayNowPayment({
+            amount: amount,
+            deviceSn: dbPaymode.DeviceSN,
+            salt: dbPaymode.DeviceSalt,
+            appId: config.appId
+          });
+        } else if (isYeahPayCard) {
+          gatewayResponse = await yeahpay.processCardPayment({
+            amount: amount,
+            deviceSn: dbPaymode.DeviceSN,
+            salt: dbPaymode.DeviceSalt,
+            appId: config.appId
+          });
+        }
 
         console.log(`✅ [YEAHPAY] Response received:`, JSON.stringify(gatewayResponse));
 

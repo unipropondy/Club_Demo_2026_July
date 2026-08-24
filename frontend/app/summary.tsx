@@ -44,6 +44,7 @@ import {
 import { useCartStore } from "../stores/cartStore";
 import { useCompanySettingsStore } from "../stores/companySettingsStore";
 import { useGeneralSettingsStore } from "../stores/generalSettingsStore";
+import { useMenuStore } from "../stores/menuStore";
 import {
   getOrderContext,
   setOrderContext,
@@ -136,7 +137,7 @@ export default function SummaryScreen() {
   const [splitQuantities, setSplitQuantities] = useState<
     Record<string, number>
   >({});
-  const [allDishes, setAllDishes] = useState<any[]>([]);
+  const allDishes = useMenuStore((state: any) => state.allDishes) as any[];
   const [searchDishText, setSearchDishText] = useState("");
   const [extraSplitItems, setExtraSplitItems] = useState<any[]>([]);
   const [hasAttemptedInitialFetch, setHasAttemptedInitialFetch] =
@@ -674,26 +675,28 @@ export default function SummaryScreen() {
     // 3. Fetch servers
     fetchServers();
 
-    // 4. Fetch all dishes for split search
-    fetch(`${API_URL}/api/menu/dishes/all`)
-      .then((res) => res.json())
-      .then((data) => setAllDishes(Array.isArray(data) ? data : []))
-      .catch((err) => console.error("Error fetching all dishes:", err));
+    // 4. Fetch all dishes for split search (if empty)
+    if (allDishes.length === 0) {
+      useMenuStore.getState().fetchMenu();
+    }
 
-    // 5. Fetch Dish Groups for VIP Offer Group dropdown
-    fetch(`${API_URL}/api/menu/dishgroups/all`)
-      .then((res) => res.json())
-      .then((data) => setDishGroupsList(Array.isArray(data) ? data : []))
-      .catch((err) =>
-        console.warn("Failed to fetch dish groups inside summary:", err),
-      );
-  }, [activeOrder]);
+    // 5. Fetch Dish Groups for VIP Offer Group dropdown (if empty)
+    if (dishGroupsList.length === 0) {
+      fetch(`${API_URL}/api/menu/dishgroups/all`)
+        .then((res) => res.json())
+        .then((data) => setDishGroupsList(Array.isArray(data) ? data : []))
+        .catch((err) =>
+          console.warn("Failed to fetch dish groups inside summary:", err),
+        );
+    }
+  }, [activeOrder, allDishes.length, dishGroupsList.length]);
 
   const user = useAuthStore((s: any) => s.user);
   const permissions = useAuthStore((s: any) => s.permissions);
   const isWaiter = useAuthStore((s: any) => s.isWaiter);
 
   const fetchServers = async () => {
+    if (servers.length > 0) return;
     try {
       setLoadingServers(true);
       const res = await fetch(`${API_URL}/api/servers`);

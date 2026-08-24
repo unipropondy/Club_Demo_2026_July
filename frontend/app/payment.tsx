@@ -130,7 +130,7 @@ export default function PaymentScreen() {
   const splitTotalParts = params.splitTotalParts ? parseInt(params.splitTotalParts as string, 10) : 0;
   const splitCurrentPart = params.splitCurrentPart ? parseInt(params.splitCurrentPart as string, 10) : 0;
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "cancelled" | "failed">("idle");
-  const [allDishes, setAllDishes] = useState<any[]>([]);
+  const allDishes = useMenuStore((state) => state.allDishes);
   const vipOffer = useMemo(() => {
     if (!params.vipOffer) return null;
     try {
@@ -168,11 +168,10 @@ export default function PaymentScreen() {
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/menu/dishes/all`)
-      .then((res) => res.json())
-      .then((data) => setAllDishes(Array.isArray(data) ? data : []))
-      .catch((err) => console.error("Error fetching all dishes inside payment:", err));
-  }, []);
+    if (allDishes.length === 0) {
+      useMenuStore.getState().fetchMenu();
+    }
+  }, [allDishes.length]);
 
   useEffect(() => {
     if (memberId) {
@@ -1170,8 +1169,12 @@ export default function PaymentScreen() {
     if (processing) return;
 
     const selectedMethod = paymentMethods.find(m => m.payMode === method);
-    const isYeahPay = selectedMethod?.yeahPayEnabled === true;
-    const isCard = method.trim().toUpperCase().includes("CARD") && !method.trim().toUpperCase().includes("PAYNOW");
+    const normalizedMethod = (method || '').trim().toUpperCase();
+    const isNormalPayNow = normalizedMethod === "PAYNOW";
+    const isYeahPayPayNow = normalizedMethod === "YEAHPAY PAYNOW";
+    const isYeahPayCard = normalizedMethod === "YEAHPAY CARD";
+    const isYeahPay = (isYeahPayPayNow || isYeahPayCard) && selectedMethod?.yeahPayEnabled === true && !!selectedMethod?.deviceSn;
+    const isCard = isYeahPayCard;
 
     // ✅ YEAHPAY - Direct terminal call
     if (isYeahPay && total > 0) {
@@ -1363,7 +1366,7 @@ export default function PaymentScreen() {
 
     // ✅ STRICT: Only exact "paynow" (case-insensitive) shows the PayNow QR popup.
     // Payment modes like "QR", "Paytm", "GPay" go straight to normal settlement.
-    if (method.trim().toLowerCase() === "paynow" && settings.payNowQrUrl) {
+    if (isNormalPayNow && settings.payNowQrUrl) {
       setIsPayNowVisible(true);
       return;
     }

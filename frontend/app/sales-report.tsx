@@ -36,6 +36,7 @@ import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
 import { getSingaporeDateString, parseDatabaseDate, formatToSingaporeDate, formatToSingaporeDateDMY } from "../utils/timezoneHelper";
 import { useAuthStore } from "../stores/authStore";
+import { usePaymentSettingsStore } from "../stores/paymentSettingsStore";
 
 type FilterType = "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | "CUSTOM";
 type DetailReportType = "CATEGORY" | "DISH" | "SETTLEMENT" | "ARTIST_TARGET";
@@ -313,12 +314,20 @@ export default function SalesReport() {
 
   const fetchPaymentMethods = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/sales/payment-methods`);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setDbPaymentModes(data);
+      const store = usePaymentSettingsStore.getState();
+      if (!store.hasLoadedMethods) {
+        await store.fetchPaymentMethods();
+      }
+      const data = store.paymentMethods;
+      if (Array.isArray(data) && data.length > 0) {
+        const mappedData = data.map((m: any) => ({
+          payMode: m.payMode,
+          description: m.description,
+          Position: m.position,
+        }));
+        setDbPaymentModes(mappedData);
         const stored = await AsyncStorage.getItem("sales_payment_modes");
-        const defaultModes = data.map((m: any) => m.payMode.toUpperCase().trim());
+        const defaultModes = mappedData.map((m: any) => m.payMode.toUpperCase().trim());
         if (!defaultModes.includes("VOID")) {
           defaultModes.push("VOID");
         }

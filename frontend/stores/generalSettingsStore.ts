@@ -31,6 +31,8 @@ export interface GeneralSettings {
   skipSummary: boolean;
 }
 
+let lastGeneralSettingsFetchTime = 0;
+
 interface GeneralSettingsState {
   settings: GeneralSettings;
   loading: boolean;
@@ -70,41 +72,48 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
       loading: false,
 
       fetchSettings: async () => {
+        const { settings } = get();
+        const now = Date.now();
+        if (lastGeneralSettingsFetchTime && (now - lastGeneralSettingsFetchTime < 300000)) {
+          return;
+        }
         set({ loading: true });
         try {
           const response = await fetch(`${API_URL}/api/settings`);
-          const data = await response.json();
-          
-          if (data) {
-            set((state) => ({
-              settings: {
-                ...state.settings,
-                enableKOT: data.EnableKOT !== undefined ? Boolean(data.EnableKOT) : true,
-                enableKDS: data.EnableKDS !== undefined ? Boolean(data.EnableKDS) : true,
-                enableCheckoutBill: data.EnableCheckoutBill !== undefined ? Boolean(data.EnableCheckoutBill) : true,
-                enableCheckoutFlow: data.EnableCheckoutFlow !== undefined ? Boolean(data.EnableCheckoutFlow) : true,
-                enableDirectProcessToPay: data.EnableDirectProcessToPay !== undefined ? Boolean(data.EnableDirectProcessToPay) : false,
-                customerSideDisplay: data.CustomerSideDisplay !== undefined ? Boolean(data.CustomerSideDisplay) : true,
-                enableGuestDetailsPopup: data.EnableGuestDetailsPopup !== undefined ? Boolean(data.EnableGuestDetailsPopup) : true,
-                enableCashDrawer: data.EnableCashDrawer !== undefined ? Boolean(data.EnableCashDrawer) : true,
-                SVCIdentification: data.SVCIdentification !== undefined ? Boolean(data.SVCIdentification) : true,
-                enableKDSPrint: data.EnableKDSPrint !== undefined ? Boolean(data.EnableKDSPrint) : true,
-                enableCombo: data.EnableCombo !== undefined ? Boolean(data.EnableCombo) : true,
-                showBillTime: data.ShowBillTime !== undefined ? Boolean(data.ShowBillTime) : true,
-                showLoyalty: data.ShowLoyalty !== undefined ? (String(data.ShowLoyalty) === "true" || data.ShowLoyalty === 1 || data.ShowLoyalty === true) : true,
-                showRewardPoints: data.ShowRewardPoints !== undefined ? (String(data.ShowRewardPoints) === "true" || data.ShowRewardPoints === 1 || data.ShowRewardPoints === true) : true,
-                showPromoCode: data.ShowPromoCode !== undefined ? (String(data.ShowPromoCode) === "true" || data.ShowPromoCode === 1 || data.ShowPromoCode === true) : true,
-                vipThreshold: data.VIPThreshold !== undefined ? Number(data.VIPThreshold) : 5000,
-                vipRuleEnabled: data.VipRuleEnabled !== undefined ? (String(data.VipRuleEnabled) === "true" || data.VipRuleEnabled === 1 || data.VipRuleEnabled === true) : false,
-                vipRuleTargetType: data.VipRuleTargetType || null,
-                vipRuleDishId: data.VipRuleDishId || null,
-                vipRuleDishGroupId: data.VipRuleDishGroupId || null,
-                vipRuleDiscountType: data.VipRuleDiscountType || null,
-                vipRuleDiscountValue: data.VipRuleDiscountValue !== undefined ? Number(data.VipRuleDiscountValue) : 0,
-                enableReceiptPrint: data.EnableReceiptPrint !== undefined ? Boolean(data.EnableReceiptPrint) : true,
-                skipSummary: data.SkipSummary !== undefined ? Boolean(data.SkipSummary) : false,
-              },
-            }));
+          if (response.ok) {
+            const data = await response.json();
+            if (data) {
+              set((state) => ({
+                settings: {
+                  ...state.settings,
+                  enableKOT: data.EnableKOT !== undefined ? Boolean(data.EnableKOT) : true,
+                  enableKDS: data.EnableKDS !== undefined ? Boolean(data.EnableKDS) : true,
+                  enableCheckoutBill: data.EnableCheckoutBill !== undefined ? Boolean(data.EnableCheckoutBill) : true,
+                  enableCheckoutFlow: data.EnableCheckoutFlow !== undefined ? Boolean(data.EnableCheckoutFlow) : true,
+                  enableDirectProcessToPay: data.EnableDirectProcessToPay !== undefined ? Boolean(data.EnableDirectProcessToPay) : false,
+                  customerSideDisplay: data.CustomerSideDisplay !== undefined ? Boolean(data.CustomerSideDisplay) : true,
+                  enableGuestDetailsPopup: data.EnableGuestDetailsPopup !== undefined ? Boolean(data.EnableGuestDetailsPopup) : true,
+                  enableCashDrawer: data.EnableCashDrawer !== undefined ? Boolean(data.EnableCashDrawer) : true,
+                  SVCIdentification: data.SVCIdentification !== undefined ? Boolean(data.SVCIdentification) : true,
+                  enableKDSPrint: data.EnableKDSPrint !== undefined ? Boolean(data.EnableKDSPrint) : true,
+                  enableCombo: data.EnableCombo !== undefined ? Boolean(data.EnableCombo) : true,
+                  showBillTime: data.ShowBillTime !== undefined ? Boolean(data.ShowBillTime) : true,
+                  showLoyalty: data.ShowLoyalty !== undefined ? (String(data.ShowLoyalty) === "true" || data.ShowLoyalty === 1 || data.ShowLoyalty === true) : true,
+                  showRewardPoints: data.ShowRewardPoints !== undefined ? (String(data.ShowRewardPoints) === "true" || data.ShowRewardPoints === 1 || data.ShowRewardPoints === true) : true,
+                  showPromoCode: data.ShowPromoCode !== undefined ? (String(data.ShowPromoCode) === "true" || data.ShowPromoCode === 1 || data.ShowPromoCode === true) : true,
+                  vipThreshold: data.VIPThreshold !== undefined ? Number(data.VIPThreshold) : 5000,
+                  vipRuleEnabled: data.VipRuleEnabled !== undefined ? (String(data.VipRuleEnabled) === "true" || data.VipRuleEnabled === 1 || data.VipRuleEnabled === true) : false,
+                  vipRuleTargetType: data.VipRuleTargetType || null,
+                  vipRuleDishId: data.VipRuleDishId || null,
+                  vipRuleDishGroupId: data.VipRuleDishGroupId || null,
+                  vipRuleDiscountType: data.VipRuleDiscountType || null,
+                  vipRuleDiscountValue: data.VipRuleDiscountValue !== undefined ? Number(data.VipRuleDiscountValue) : 0,
+                  enableReceiptPrint: data.EnableReceiptPrint !== undefined ? Boolean(data.EnableReceiptPrint) : true,
+                  skipSummary: data.SkipSummary !== undefined ? Boolean(data.SkipSummary) : false,
+                },
+              }));
+              lastGeneralSettingsFetchTime = now;
+            }
           }
         } catch (error) {
           console.error("❌ [GeneralSettingsStore] Fetch Error:", error);
@@ -177,6 +186,7 @@ export const useGeneralSettingsStore = create<GeneralSettingsState>()(
             throw new Error(`Server returned ${res.status}: ${errText}`);
           }
           
+          lastGeneralSettingsFetchTime = 0;
           set({ loading: false });
           return true;
         } catch (error: any) {
