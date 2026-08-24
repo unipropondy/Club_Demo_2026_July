@@ -1079,11 +1079,7 @@ const fetchDayHistory = async () => {
       Alert.alert("Validation", "Please enter a valid amount");
       return;
     }
-    promptPassword(
-      "Save Cash Out",
-      "Enter Admin/Void password to save/edit this Cash Out entry",
-      executeSaveCashOut
-    );
+    executeSaveCashOut();
   };
 
   const handleSelectImage = async (mode: 'camera' | 'library') => {
@@ -1214,11 +1210,7 @@ const fetchDayHistory = async () => {
       Alert.alert("Validation", "Please enter a valid amount");
       return;
     }
-    promptPassword(
-      "Save Cash In",
-      "Enter Admin/Void password to save/edit this Cash In entry",
-      executeSaveCashIn
-    );
+    executeSaveCashIn();
   };
 
   const executeSaveCashBox = async () => {
@@ -1268,11 +1260,7 @@ const fetchDayHistory = async () => {
       Alert.alert("Validation", "Artist name and valid amount are required");
       return;
     }
-    promptPassword(
-      "Save Cash Box",
-      "Enter Admin/Void password to save/edit this Artist Cashbox entry",
-      executeSaveCashBox
-    );
+    executeSaveCashBox();
   };
 
   const executeDeleteCashBox = async (id: string) => {
