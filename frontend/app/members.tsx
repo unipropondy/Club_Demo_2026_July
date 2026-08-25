@@ -792,7 +792,7 @@ export default function MembersScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         <View style={styles.headerBar}>
           <TouchableOpacity

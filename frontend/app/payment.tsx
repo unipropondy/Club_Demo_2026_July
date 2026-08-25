@@ -28,6 +28,7 @@ import { Theme } from "../constants/theme";
 
 import PayNowPaymentModal from "../components/payment/PayNowPaymentModal";
 import SplitPaymentComponent from "../components/payment/SplitPaymentComponent";
+import HomeButton from "../components/HomeButton";
 import UPIPaymentModal from "../components/payment/UPIPaymentModal";
 import {
   findActiveOrder,
@@ -45,6 +46,8 @@ import { usePaymentSettingsStore } from "../stores/paymentSettingsStore";
 import { useQuickCashStore } from "../stores/quickCashStore";
 import { useServiceChargeOverrideStore } from "../stores/serviceChargeOverrideStore";
 import { useTableStatusStore } from "../stores/tableStatusStore";
+import { useTableNavigationStore } from "../stores/tableNavigationStore";
+import { useTerminalPaymentStore } from "../stores/terminalPaymentStore";
 import { CustomerDisplaySync } from "../utils/CustomerDisplaySync";
 
 const EMPTY_ARRAY: any[] = [];
@@ -233,6 +236,12 @@ export default function PaymentScreen() {
     (isTablet && (isLandscape || width >= 1024)) || (isMobile && isLandscape);
 
   const context = useOrderContextStore((s) => s.currentOrder);
+
+  useEffect(() => {
+    if (isFocused && context?.tableId) {
+      useTableNavigationStore.getState().setLastScreen(context.tableId, "payment");
+    }
+  }, [isFocused, context?.tableId]);
   const hasHydrated = useActiveOrdersStore((s) => s._hasHydrated);
   const activeOrder = context ? findActiveOrder(context) : undefined;
 
@@ -255,9 +264,8 @@ export default function PaymentScreen() {
   const [cashInput, setCashInput] = useState("");
   const [collectionAmount, setCollectionAmount] = useState("");
   const [processing, setProcessing] = useState(false);
+
   // 🛡️ IDEMPOTENCY: Generate UUID immediately — never allow empty string.
-  // Using lazy initializer so the UUID is stable across re-renders but
-  // refreshes to a new UUID each time the screen comes back into focus.
   const generateSessionId = () =>
     "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
       const r = (Math.random() * 16) | 0;
@@ -265,14 +273,35 @@ export default function PaymentScreen() {
       return v.toString(16);
     });
   const [checkoutSessionId, setCheckoutSessionId] = useState(() => generateSessionId());
+  const [isSplitActive, setIsSplitActive] = useState(false);
 
   useEffect(() => {
     if (isFocused) {
-      // Refresh the session ID every time the payment screen gains focus
-      // so a new payment attempt always has a unique idempotency key.
+      if (context?.tableId) {
+        const wasSplitActive = useTableNavigationStore.getState().getSplitActive(context.tableId);
+        setIsSplitActive(wasSplitActive);
+
+        const session = useTerminalPaymentStore.getState().getSession(context.tableId);
+        if (session && !session.isSplit) {
+          if (session.sessionId) {
+            setCheckoutSessionId(session.sessionId);
+          }
+          setMethod(session.method);
+          setPaymentStatus(session.status);
+          setPaymentMessage(session.message);
+          setProcessing(session.status === "processing");
+          return;
+        }
+      }
       setCheckoutSessionId(generateSessionId());
     }
-  }, [isFocused]);
+  }, [isFocused, context?.tableId]);
+
+  useEffect(() => {
+    if (context?.tableId) {
+      useTableNavigationStore.getState().setSplitActive(context.tableId, isSplitActive);
+    }
+  }, [isSplitActive, context?.tableId]);
 
   useEffect(() => {
     if (isLedgerCollection && collectAmount !== undefined) {
@@ -305,7 +334,6 @@ export default function PaymentScreen() {
     }
   };
   const [time, setTime] = useState(new Date());
-  const [isSplitActive, setIsSplitActive] = useState(false);
 
   // Member flow state
   const [showMemberModal, setShowMemberModal] = useState(false);
@@ -1194,6 +1222,10 @@ export default function PaymentScreen() {
       setPaymentMessage("Processing payment...");
       setProcessing(true);
 
+      if (context?.tableId) {
+        useTerminalPaymentStore.getState().startSession(context.tableId, method, total, checkoutSessionId, false);
+      }
+
       try {
         const deviceSn = selectedMethod?.deviceSn || '';
         const salt = selectedMethod?.deviceSalt || '';
@@ -1205,6 +1237,12 @@ export default function PaymentScreen() {
         if (!deviceSn) {
           setPaymentStatus("failed");
           setPaymentMessage("DeviceSN not configured");
+          if (context?.tableId) {
+            useTerminalPaymentStore.getState().updateSession(context.tableId, {
+              status: "failed",
+              message: "DeviceSN not configured"
+            });
+          }
           Alert.alert('Configuration Error', 'DeviceSN not configured.');
           setProcessing(false);
           return;
@@ -1231,8 +1269,17 @@ export default function PaymentScreen() {
 
         // ✅ SUCCESS - Code 0
         if (result.success || responseCode === 0) {
+          const successMsg = `✅ ${currencySymbol}${total.toFixed(2)} paid successfully via ${method}`;
           setPaymentStatus("success");
-          setPaymentMessage(`✅ ${currencySymbol}${total.toFixed(2)} paid successfully via ${method}`);
+          setPaymentMessage(successMsg);
+
+          if (context?.tableId) {
+            useTerminalPaymentStore.getState().updateSession(context.tableId, {
+              status: "success",
+              message: successMsg,
+              result
+            });
+          }
 
           showToast({
             type: 'success',
@@ -1248,6 +1295,13 @@ export default function PaymentScreen() {
           setPaymentStatus("cancelled");
           setPaymentMessage(`❌ Transaction cancelled on terminal`);
 
+          if (context?.tableId) {
+            useTerminalPaymentStore.getState().updateSession(context.tableId, {
+              status: "cancelled",
+              message: `❌ Transaction cancelled on terminal`
+            });
+          }
+
           Alert.alert(
             '❌ Transaction Cancelled',
             'Payment was cancelled on the terminal. Please try again.',
@@ -1259,6 +1313,13 @@ export default function PaymentScreen() {
         } else if (responseCode === -1028 || responseCode === -1008) {
           setPaymentStatus("failed");
           setPaymentMessage(`⏰ Transaction timeout`);
+
+          if (context?.tableId) {
+            useTerminalPaymentStore.getState().updateSession(context.tableId, {
+              status: "failed",
+              message: `⏰ Transaction timeout`
+            });
+          }
 
           Alert.alert(
             '⏰ Transaction Timeout',
@@ -1273,6 +1334,13 @@ export default function PaymentScreen() {
           const errorMsg = result.msg || result.error || 'Payment declined';
           setPaymentMessage(`❌ ${errorMsg}`);
 
+          if (context?.tableId) {
+            useTerminalPaymentStore.getState().updateSession(context.tableId, {
+              status: "failed",
+              message: `❌ ${errorMsg}`
+            });
+          }
+
           Alert.alert(
             '❌ Payment Failed',
             errorMsg,
@@ -1285,6 +1353,14 @@ export default function PaymentScreen() {
         console.error('❌ [MainPayment] Terminal error:', error);
         setPaymentStatus("failed");
         setPaymentMessage(`❌ ${error.message}`);
+
+        if (context?.tableId) {
+          useTerminalPaymentStore.getState().updateSession(context.tableId, {
+            status: "failed",
+            message: `❌ ${error.message}`
+          });
+        }
+
         Alert.alert('Error', error.message || 'Failed to connect to terminal');
         setProcessing(false);
       }
@@ -2434,21 +2510,24 @@ export default function PaymentScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => {
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace("/(tabs)/category");
-              }
-            }}
-          >
-            <Ionicons name="arrow-back" size={24} color={Theme.textSecondary} />
-          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => {
+                const { skipSummary } = useGeneralSettingsStore.getState().settings;
+                if (skipSummary) {
+                  router.push("/menu/thai_kitchen");
+                } else {
+                  router.push("/summary");
+                }
+              }}
+            >
+              <Ionicons name="arrow-back" size={24} color={Theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
           <View style={styles.orderInfo}>
             <Text style={styles.orderTitle}>
               {isLedgerCollection ? "Ledger Collection" : "Checkout"}
@@ -2507,7 +2586,21 @@ export default function PaymentScreen() {
               </Text>
             </View>
           </View>
-          <View style={{ flexDirection: "row", gap: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TouchableOpacity
+              style={[
+                styles.backBtn,
+                { borderColor: Theme.primaryBorder },
+              ]}
+              onPress={() => router.replace("/(tabs)/category")}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="home-outline"
+                size={20}
+                color={Theme.primary}
+              />
+            </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.backBtn,
@@ -2544,7 +2637,6 @@ export default function PaymentScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-
           </View>
         </View>
 
@@ -4491,6 +4583,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   changeValue: { fontSize: 26, fontFamily: Fonts.black, color: Theme.primary },
+  statusProcessingBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: "rgba(59, 130, 246, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.3)",
+    marginBottom: 12,
+  },
+  statusProcessingText: {
+    fontSize: 14,
+    fontFamily: Fonts.bold,
+    color: Theme.textPrimary,
+  },
   completeBtn: {
     height: 50,
     backgroundColor: Theme.primary,

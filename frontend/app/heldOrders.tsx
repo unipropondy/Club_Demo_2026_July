@@ -46,7 +46,7 @@ export default function HeldOrdersScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={Theme.bgMain} />
+      <StatusBar barStyle="light-content" backgroundColor={Theme.bgMain} />
       
       <View style={styles.container}>
         <View style={styles.topBar}>

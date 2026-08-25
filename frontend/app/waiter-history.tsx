@@ -167,7 +167,7 @@ export default function WaiterHistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <LinearGradient colors={[Theme.bgMain, Theme.bgNav]} style={{ flex: 1 }}>
         <SafeAreaView style={{ flex: 1 }} edges={['top']}>
           {/* Header */}

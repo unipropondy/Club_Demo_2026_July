@@ -18,10 +18,12 @@ import UPIPaymentModal from "./UPIPaymentModal";
 import PayNowPaymentModal from "./PayNowPaymentModal";
 import { API_URL } from "@/constants/Config";  // ✅ ADD
 import { useToast } from "../Toast";  
+import { useTerminalPaymentStore } from "../../stores/terminalPaymentStore";
 import { CustomerDisplaySync } from "../../utils/CustomerDisplaySync";
 import { useCartStore } from "../../stores/cartStore";
 import { useOrderContextStore } from "../../stores/orderContextStore";
 import { usePaymentSettingsStore } from "../../stores/paymentSettingsStore";
+import { useTableNavigationStore } from "../../stores/tableNavigationStore";
 const formatMoney = (symbol: string, amount: number) => {
   try {
     return `${symbol}${(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -193,9 +195,26 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
     }
   }, [rows, selectedMember, targetTotal]);
 
-  // Initial rows: default to 2 payment rows
+  // Save rows to store
+  useEffect(() => {
+    const orderContext = useOrderContextStore.getState().currentOrder;
+    if (orderContext?.tableId && rows.length > 0) {
+      useTableNavigationStore.getState().setSplitRows(orderContext.tableId, rows);
+    }
+  }, [rows]);
+
+  // Initial rows: load from store or default to 2 payment rows
   useEffect(() => {
     if (availableMethods.length > 0 && rows.length === 0) {
+      const orderContext = useOrderContextStore.getState().currentOrder;
+      if (orderContext?.tableId) {
+        const savedRows = useTableNavigationStore.getState().getSplitRows(orderContext.tableId);
+        if (savedRows && savedRows.length > 0) {
+          setRows(savedRows);
+          return;
+        }
+      }
+
       const firstMode = availableMethods[0];
       const secondMode = availableMethods.length > 1 ? availableMethods[1] : availableMethods[0];
       
@@ -222,6 +241,21 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
       ]);
     }
   }, [availableMethods, targetTotal]);
+
+  useEffect(() => {
+    const context = useOrderContextStore.getState().currentOrder;
+    if (context?.tableId) {
+      const session = useTerminalPaymentStore.getState().getSession(context.tableId);
+      if (session && session.isSplit && session.splitRowId && rows.length > 0) {
+        const targetRow = rows.find(r => r.id === session.splitRowId);
+        if (targetRow) {
+          setTerminalStatusRowId(targetRow.id);
+          setTerminalStatus(session.status);
+          setTerminalMessage(session.message);
+        }
+      }
+    }
+  }, [rows]);
 
   // Check if a row is locked (a verified paid digital row)
   const isRowLocked = (row: SplitPaymentRow) => {
@@ -435,6 +469,11 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
     setTerminalStatus("processing");
     setTerminalMessage("Processing payment...");
     
+    const context = useOrderContextStore.getState().currentOrder;
+    if (context?.tableId) {
+      useTerminalPaymentStore.getState().startSession(context.tableId, row.payMode, amt, undefined, true, row.id);
+    }
+
     const selectedMethod = paymentMethods.find(m => m.payMode === row.payMode);
     const deviceSn = selectedMethod?.deviceSn || '';
     const salt = selectedMethod?.deviceSalt || '';
@@ -447,6 +486,9 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
     if (!deviceSn) {
       setTerminalStatus("failed");
       setTerminalMessage("DeviceSN not configured");
+      if (context?.tableId) {
+        useTerminalPaymentStore.getState().updateSession(context.tableId, { status: "failed", message: "DeviceSN not configured" });
+      }
       Alert.alert('Configuration Error', 'DeviceSN not configured.');
       setIsGeneratingQR(false);
       return;
@@ -474,6 +516,9 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
     if (result.success || responseCode === 0) {
       setTerminalStatus("success");
       setTerminalMessage(`✅ Payment Successful`);
+      if (context?.tableId) {
+        useTerminalPaymentStore.getState().updateSession(context.tableId, { status: "success", message: "✅ Payment Successful", result });
+      }
       setRows(prevRows =>
         prevRows.map(r => 
           r.id === row.id 
@@ -495,6 +540,9 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
     } else if (responseCode === -1027) {
       setTerminalStatus("cancelled");
       setTerminalMessage(`❌ Transaction cancelled on terminal`);
+      if (context?.tableId) {
+        useTerminalPaymentStore.getState().updateSession(context.tableId, { status: "cancelled", message: "❌ Transaction cancelled on terminal" });
+      }
       setRows(prevRows =>
         prevRows.map(r => 
           r.id === row.id 
@@ -516,6 +564,9 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
     } else if (responseCode === -1028 || responseCode === -1008) {
       setTerminalStatus("failed");
       setTerminalMessage(`⏰ Transaction timeout`);
+      if (context?.tableId) {
+        useTerminalPaymentStore.getState().updateSession(context.tableId, { status: "failed", message: "⏰ Transaction timeout" });
+      }
       Alert.alert(
         'Transaction Timeout',
         `${isCard ? 'Card' : 'Payment'} read timed out. Please try again.`,
@@ -526,6 +577,9 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
       setTerminalStatus("failed");
       const errorMsg = result.msg || result.error || 'Payment failed';
       setTerminalMessage(`❌ ${errorMsg}`);
+      if (context?.tableId) {
+        useTerminalPaymentStore.getState().updateSession(context.tableId, { status: "failed", message: `❌ ${errorMsg}` });
+      }
       Alert.alert('Payment Failed', errorMsg);
     }
     
@@ -533,6 +587,10 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
     console.error('❌ [SplitPayment] Terminal error:', error);
     setTerminalStatus("failed");
     setTerminalMessage(`❌ ${error.message || 'Failed to connect to terminal'}`);
+    const context = useOrderContextStore.getState().currentOrder;
+    if (context?.tableId) {
+      useTerminalPaymentStore.getState().updateSession(context.tableId, { status: "failed", message: `❌ ${error.message || 'Failed to connect to terminal'}` });
+    }
     Alert.alert('Error', error.message || 'Failed to connect to terminal');
   } finally {
     setIsGeneratingQR(false);

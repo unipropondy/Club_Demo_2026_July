@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { parseDatabaseDate } from '../utils/timezoneHelper';
+import { useTableNavigationStore } from './tableNavigationStore';
+import { useTerminalPaymentStore } from './terminalPaymentStore';
 export type TableStatusType = 'EMPTY' | 'HOLD' | 'SENT' | 'BILL_REQUESTED' | 'LOCKED' | 'CART' | 'DELIVERY';
 
 export type TableStatus = {
@@ -122,6 +124,13 @@ export const useTableStatusStore = create<TableStatusState>((set, get) => ({
         newMap[cleanKey] = updatedTable;
       }
 
+      if (status === 'EMPTY' || (status as any) === 0) {
+        if (cleanTableId) {
+          useTableNavigationStore.getState().clearLastScreen(cleanTableId);
+          useTerminalPaymentStore.getState().clearSession(cleanTableId);
+        }
+      }
+
       return {
         ...state,
         tables: newTables,
@@ -136,6 +145,10 @@ export const useTableStatusStore = create<TableStatusState>((set, get) => ({
       const { [tableNo]: _, ...rest } = state.lockedTableNames;
       const newTables = state.tables.map((t) => {
         if (t.section === section && t.tableNo === tableNo) {
+          if (t.tableId) {
+            useTableNavigationStore.getState().clearLastScreen(t.tableId);
+            useTerminalPaymentStore.getState().clearSession(t.tableId);
+          }
           return { ...t, status: 'EMPTY' as TableStatusType, totalAmount: 0, startTime: 0, orderId: '', customerName: undefined, pax: undefined };
         }
         return t;

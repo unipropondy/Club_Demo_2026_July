@@ -314,7 +314,6 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-
       {/* ── Base gradient ── */}
       <LinearGradient
         colors={["#08071A", "#0F083B", "#1A0840", "#08071A"]}
@@ -504,7 +503,7 @@ export default function LoginScreen() {
    STYLES
 ───────────────────────────────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  container:    { flex: 1, backgroundColor: "#08071A" },
+  container:    { flex: 1, backgroundColor: "#0A091A" },
   safeArea:     { flex: 1 },
   keyboardView: { flex: 1 },
   scrollContent:{ flexGrow: 1 },
@@ -546,11 +545,11 @@ const styles = StyleSheet.create({
   brandRow: { alignItems: "center", marginBottom: 28, zIndex: 2 },
   logoRing: {
     width: 76, height: 76, borderRadius: 22, marginBottom: 12,
-    backgroundColor: "rgba(168,85,247,0.10)",
+    backgroundColor: "#11102E",
     justifyContent: "center", alignItems: "center",
-    borderWidth: 1.5, borderColor: "rgba(168,85,247,0.45)",
-    shadowColor: "#A855F7", shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6, shadowRadius: 22, elevation: 10,
+    borderWidth: 1.5, borderColor: "#1E1B4B",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 8, elevation: 5,
   },
   appName: { color: "#F0EEFF", fontSize: 28, fontFamily: Fonts.black, letterSpacing: 0.5 },
   appTagline: {
@@ -561,17 +560,17 @@ const styles = StyleSheet.create({
   // ── Card ──
   card: {
     width: "100%", maxWidth: 460,
-    backgroundColor: "rgba(11,9,30,0.88)",
-    borderRadius: 36, padding: 36,
-    borderWidth: 1, borderColor: "rgba(168,85,247,0.30)",
+    backgroundColor: "#11102E",
+    borderRadius: 24, padding: 36,
+    borderWidth: 1.5, borderColor: "#1E1B4B",
     overflow: "hidden",
-    shadowColor: "#7C3AED", shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.40, shadowRadius: 28, elevation: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5, shadowRadius: 16, elevation: 12,
     zIndex: 2,
   },
   cardTopAccent: {
     position: "absolute", top: 0, left: 0, right: 0,
-    height: 2.5, borderRadius: 2,
+    height: 3, borderRadius: 2,
   },
   cardTitle: { color: "#F0EEFF", fontSize: 23, fontFamily: Fonts.black, marginTop: 6, marginBottom: 3 },
   cardSub:   { color: "rgba(155,142,196,0.80)", fontSize: 13, fontFamily: Fonts.medium, marginBottom: 26 },
@@ -593,8 +592,8 @@ const styles = StyleSheet.create({
   },
   inputWrap: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: "#18163A", borderRadius: 16,
-    borderWidth: 1.5, borderColor: "#3D3875",
+    backgroundColor: "#0A091A", borderRadius: 16,
+    borderWidth: 1.5, borderColor: "#1E1B4B",
     paddingHorizontal: 16, height: 56,
   },
   input: {
@@ -606,8 +605,8 @@ const styles = StyleSheet.create({
   rememberRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 24, paddingLeft: 2 },
   checkbox: {
     width: 22, height: 22, borderRadius: 7, borderWidth: 2,
-    borderColor: "#3D3875", justifyContent: "center",
-    alignItems: "center", backgroundColor: "#18163A",
+    borderColor: "#1E1B4B", justifyContent: "center",
+    alignItems: "center", backgroundColor: "#0A091A",
   },
   checkboxActive: { backgroundColor: Theme.primary, borderColor: Theme.primary },
   rememberText:   { fontSize: 15, fontFamily: Fonts.bold, color: "#9B8EC4" },
@@ -616,8 +615,8 @@ const styles = StyleSheet.create({
   btnWrapper: { width: "100%" },
   btn: {
     height: 56, borderRadius: 16, overflow: "hidden",
-    shadowColor: "#A855F7", shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.50, shadowRadius: 18, elevation: 10,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
   },
   btnGradient: {
     flex: 1, flexDirection: "row", justifyContent: "center",

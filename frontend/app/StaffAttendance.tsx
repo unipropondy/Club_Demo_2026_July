@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -312,7 +312,7 @@ export default function StaffAttendanceScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.header}>
         <TouchableOpacity 
           onPress={() => {

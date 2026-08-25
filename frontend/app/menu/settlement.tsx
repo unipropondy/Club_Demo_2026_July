@@ -1846,7 +1846,7 @@ const fetchDayHistory = async () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
         <View style={[styles.header, !isTablet && { flexDirection: 'column', alignItems: 'stretch', gap: 12, paddingVertical: 12 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -2284,7 +2284,7 @@ const fetchDayHistory = async () => {
                     >
                       <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center' }}>
                         <Text style={styles.tableCellText}>{ci.Reason || 'Cash In'}</Text>
-                        <Ionicons name="create-outline" size={14} color={Theme.textPrimary} style={{ marginLeft: 6 }} />
+                        <Ionicons name="create-outline" size={13} color={Theme.textSecondary} style={{ marginLeft: 6, opacity: 0.8 }} />
                         {!!ci.AttachmentUrl && (
                           <TouchableOpacity 
                             onPress={(e) => {
@@ -2292,13 +2292,10 @@ const fetchDayHistory = async () => {
                               setViewerImageUrl(ci.AttachmentUrl);
                             }}
                             style={{
-                              marginLeft: 8,
-                              width: 24,
-                              height: 24,
+                              marginLeft: 6,
+                              padding: 4,
                               borderRadius: 6,
-                              borderWidth: 1.5,
-                              borderColor: Theme.success,
-                              backgroundColor: Theme.success + "15",
+                              backgroundColor: "rgba(16, 185, 129, 0.12)",
                               justifyContent: 'center',
                               alignItems: 'center'
                             }}
@@ -2331,7 +2328,7 @@ const fetchDayHistory = async () => {
                     >
                       <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center' }}>
                         <Text style={styles.tableCellText}>{co.Reason || 'Cash Out'}</Text>
-                        <Ionicons name="create-outline" size={14} color={Theme.textPrimary} style={{ marginLeft: 6 }} />
+                        <Ionicons name="create-outline" size={13} color={Theme.textSecondary} style={{ marginLeft: 6, opacity: 0.8 }} />
                         {!!co.AttachmentUrl && (
                           <TouchableOpacity 
                             onPress={(e) => {
@@ -2339,13 +2336,10 @@ const fetchDayHistory = async () => {
                               setViewerImageUrl(co.AttachmentUrl);
                             }}
                             style={{
-                              marginLeft: 8,
-                              width: 24,
-                              height: 24,
+                              marginLeft: 6,
+                              padding: 4,
                               borderRadius: 6,
-                              borderWidth: 1.5,
-                              borderColor: Theme.success,
-                              backgroundColor: Theme.success + "15",
+                              backgroundColor: "rgba(16, 185, 129, 0.12)",
                               justifyContent: 'center',
                               alignItems: 'center'
                             }}
@@ -2388,51 +2382,66 @@ const fetchDayHistory = async () => {
                   })}
                   {payments.length === 0 && displayOpeningAmount === 0 && transactions.length === 0 && cashOutEntries.length === 0 && cashInEntries.length === 0 && <Text style={styles.emptyText}>No sales</Text>}
                 </View>
-                {/* 1. Total (All Modes) */}
-                <View style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, backgroundColor: Theme.bgNav, borderTopWidth: 1, borderTopColor: Theme.border, alignItems: "center" }}>
-                  <View style={{ flex: 2, alignItems: 'flex-end', paddingRight: 15 }}>
-                    <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: Theme.primary }}>TOTAL (ALL MODES)</Text>
+                {/* Custom Premium Aggregate Section */}
+                <View style={{ padding: 16, backgroundColor: "#0A091A", borderTopWidth: 1.5, borderTopColor: Theme.border }}>
+                  
+                  {/* Row 1: Total All Modes */}
+                  <View style={{ flexDirection: "row", paddingVertical: 10, alignItems: "center" }}>
+                    <View style={{ flex: 2 }}>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#C084FC" }}>TOTAL (ALL MODES)</Text>
+                    </View>
+                    <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 14, color: Theme.success }}>
+                      {formatCurrency(totalCashIn + nonCashTotal)}
+                    </Text>
+                    <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 14, color: Theme.danger }}>
+                      {formatCurrency(totalCashOutSum)}
+                    </Text>
                   </View>
-                  <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 13, color: Theme.success }}>
-                    {formatCurrency(totalCashIn + nonCashTotal)}
-                  </Text>
-                  <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 13, color: Theme.danger }}>
-                    {formatCurrency(totalCashOutSum)}
-                  </Text>
-                </View>
 
-                <View style={{ flexDirection: "row", paddingVertical: 8, paddingHorizontal: 12, backgroundColor: Theme.bgNav, borderBottomWidth: 1, borderBottomColor: Theme.border, alignItems: "center" }}>
-                  <View style={{ flex: 2, alignItems: 'flex-end', paddingRight: 15 }}>
-                    <Text style={{ fontFamily: Fonts.black, fontSize: 12, color: Theme.textSecondary }}>NET (ALL MODES)</Text>
+                  {/* Row 2: Net All Modes */}
+                  <View style={{ flexDirection: "row", paddingVertical: 8, borderBottomWidth: 1.5, borderBottomColor: Theme.border, alignItems: "center", paddingBottom: 12, marginBottom: 12 }}>
+                    <View style={{ flex: 2 }}>
+                      <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary }}>NET (ALL MODES)</Text>
+                    </View>
+                    <Text style={{ flex: 2, textAlign: "right", fontFamily: Fonts.black, fontSize: 15, color: ((totalCashIn + nonCashTotal) - totalCashOutSum) >= 0 ? Theme.success : Theme.danger }}>
+                      {formatCurrency((totalCashIn + nonCashTotal) - totalCashOutSum)}
+                    </Text>
                   </View>
-                  <Text style={{ flex: 2, textAlign: "right", fontFamily: Fonts.black, fontSize: 13, color: ((totalCashIn + nonCashTotal) - totalCashOutSum) >= 0 ? Theme.success : Theme.danger }}>
-                    {formatCurrency((totalCashIn + nonCashTotal) - totalCashOutSum)}
-                  </Text>
-                </View>
 
-                {/* Divider space */}
-                <View style={{ height: 4, backgroundColor: Theme.border }} />
-
-                {/* 2. Expected Cash (Cash Only) */}
-                <View style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, backgroundColor: Theme.bgNav, alignItems: "center" }}>
-                  <View style={{ flex: 2, alignItems: 'flex-end', paddingRight: 15 }}>
-                    <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: Theme.textSecondary }}>EXPECTED CASH (CASH ONLY)</Text>
+                  {/* Row 3: Expected Cash (Cash Only) */}
+                  <View style={{ flexDirection: "row", paddingVertical: 10, alignItems: "center" }}>
+                    <View style={{ flex: 2 }}>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textSecondary }}>EXPECTED CASH (CASH ONLY)</Text>
+                    </View>
+                    <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 14, color: Theme.success }}>
+                      {formatCurrency(totalCashIn)}
+                    </Text>
+                    <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 14, color: Theme.danger }}>
+                      {formatCurrency(totalCashOutSum)}
+                    </Text>
                   </View>
-                  <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 13, color: Theme.success }}>
-                    {formatCurrency(totalCashIn)}
-                  </Text>
-                  <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 13, color: Theme.danger }}>
-                    {formatCurrency(totalCashOutSum)}
-                  </Text>
-                </View>
 
-                <View style={{ flexDirection: "row", paddingVertical: 10, paddingHorizontal: 12, backgroundColor: Theme.primary + '15', borderTopWidth: 1.5, borderTopColor: Theme.primary, alignItems: "center" }}>
-                  <View style={{ flex: 2, alignItems: 'flex-end', paddingRight: 15 }}>
-                    <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary }}>EXPECTED DRAWER CASH</Text>
+                  {/* Row 4: Expected Drawer Cash Inset Card */}
+                  <View style={{ 
+                    flexDirection: "row", 
+                    paddingVertical: 14, 
+                    paddingHorizontal: 16, 
+                    backgroundColor: "rgba(168, 85, 247, 0.06)", 
+                    borderRadius: 12, 
+                    borderWidth: 1.5, 
+                    borderColor: "rgba(168, 85, 247, 0.35)", 
+                    alignItems: "center",
+                    marginTop: 10,
+                  }}>
+                    <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="wallet" size={18} color="#C084FC" />
+                      <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: "#F0EEFF", letterSpacing: 0.5 }}>EXPECTED DRAWER CASH</Text>
+                    </View>
+                    <Text style={{ flex: 2, textAlign: "right", fontFamily: Fonts.black, fontSize: 18, color: (totalCashIn - totalCashOutSum) >= 0 ? Theme.success : Theme.danger }}>
+                      {formatCurrency(totalCashIn - totalCashOutSum)}
+                    </Text>
                   </View>
-                  <Text style={{ flex: 2, textAlign: "right", fontFamily: Fonts.black, fontSize: 15, color: (totalCashIn - totalCashOutSum) >= 0 ? Theme.success : Theme.danger }}>
-                    {formatCurrency(totalCashIn - totalCashOutSum)}
-                  </Text>
+
                 </View>
               </View>
             </View>

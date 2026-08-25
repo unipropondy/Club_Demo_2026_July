@@ -569,7 +569,7 @@ export default function ReceivablesScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
         {/* --- Header --- */}
         <View style={styles.headerBar}>

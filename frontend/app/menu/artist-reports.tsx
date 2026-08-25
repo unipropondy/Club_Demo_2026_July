@@ -1,4 +1,4 @@
-﻿import { API_URL } from "@/constants/Config";
+import { API_URL } from "@/constants/Config";
 import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
@@ -541,7 +541,7 @@ export default function ArtistReportsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="dark-content" backgroundColor={Theme.bgMain} />
+      <StatusBar barStyle="light-content" backgroundColor={Theme.bgMain} />
 
       {/* Header */}
       <View style={styles.header}>

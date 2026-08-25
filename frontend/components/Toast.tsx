@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../constants/Fonts";
-import { BlurView } from "expo-blur";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type ToastType = "success" | "error" | "info" | "warning";
@@ -122,18 +121,18 @@ function ToastItem({
         },
       ]}
     >
-      <BlurView intensity={60} tint="dark" style={[styles.toast, { borderColor: tc.border }]}>
+      <View style={[styles.toast, { backgroundColor: "#11102E", borderColor: tc.border }]}>
         {/* Color accent strip on left */}
         <View style={[styles.accentStrip, { backgroundColor: tc.color }]} />
 
         {/* Icon */}
-        <View style={[styles.iconWrap, { backgroundColor: `${tc.color}20` }]}>
-          <Ionicons name={tc.icon} size={22} color={tc.color} />
+        <View style={[styles.iconWrap, { backgroundColor: `${tc.color}15` }]}>
+          <Ionicons name={tc.icon} size={20} color={tc.color} />
         </View>
 
         {/* Text */}
         <View style={styles.textBlock}>
-          <Text style={[styles.toastMsg, { color: tc.color }]} numberOfLines={3}>
+          <Text style={styles.toastMsg} numberOfLines={3}>
             {message}
           </Text>
           {subtitle ? (
@@ -147,7 +146,7 @@ function ToastItem({
         <TouchableOpacity onPress={dismiss} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="close" size={16} color="rgba(255,255,255,0.4)" />
         </TouchableOpacity>
-      </BlurView>
+      </View>
     </Animated.View>
   );
 }
@@ -212,12 +211,17 @@ const styles = StyleSheet.create({
   toast: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
     overflow: "hidden",
-    paddingRight: 12,
-    paddingVertical: 12,
-    gap: 10,
+    paddingRight: 16,
+    paddingVertical: 14,
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
   },
   accentStrip: {
     width: 4,
@@ -236,12 +240,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   toastMsg: {
-    fontFamily: Fonts.extraBold,
+    color: "#FFFFFF",
+    fontFamily: Fonts.bold,
     fontSize: 14,
     letterSpacing: 0.1,
   },
   toastSub: {
-    color: "rgba(255,255,255,0.55)",
+    color: "#94A3B8",
     fontFamily: Fonts.regular,
     fontSize: 12,
     marginTop: 2,

@@ -52,6 +52,7 @@ import { useGeneralSettingsStore } from "@/stores/generalSettingsStore";
 import { getHeldOrders } from "@/stores/heldOrdersStore";
 import { OrderContext, setOrderContext } from "@/stores/orderContextStore";
 import { usePaymentSettingsStore } from "@/stores/paymentSettingsStore";
+import { useTableNavigationStore } from "@/stores/tableNavigationStore";
 import {
   TableStatusType,
   useTableStatusStore,
@@ -1464,7 +1465,19 @@ export default function Category() {
           );
         }
 
-        router.push("/menu/thai_kitchen");
+        const { skipSummary } = useGeneralSettingsStore.getState().settings;
+        const lastScreen = useTableNavigationStore.getState().getLastScreen(item.id);
+        if (lastScreen === "payment") {
+          router.push("/payment");
+        } else if (lastScreen === "summary") {
+          if (skipSummary) {
+            router.push("/payment");
+          } else {
+            router.push("/summary");
+          }
+        } else {
+          router.push("/menu/thai_kitchen");
+        }
         return;
       }
 
@@ -1570,7 +1583,22 @@ export default function Category() {
       }
     }
 
-    router.push("/menu/thai_kitchen");
+    const { skipSummary } = useGeneralSettingsStore.getState().settings;
+    const lastScreen = newContext.tableId
+      ? useTableNavigationStore.getState().getLastScreen(newContext.tableId)
+      : null;
+
+    if (status !== 0 && lastScreen === "payment") {
+      router.push("/payment");
+    } else if (status !== 0 && lastScreen === "summary") {
+      if (skipSummary) {
+        router.push("/payment");
+      } else {
+        router.push("/summary");
+      }
+    } else {
+      router.push("/menu/thai_kitchen");
+    }
   };
 
   const handleGuestSubmit = async () => {
@@ -1682,7 +1710,7 @@ export default function Category() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor={Theme.bgNav} />
+        <StatusBar barStyle="light-content" backgroundColor={Theme.bgNav} />
         {/* Placeholder Nav Bar */}
         <View style={styles.topNavContainer}>
           <Skeleton
@@ -1712,7 +1740,7 @@ export default function Category() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={Theme.bgNav} />
+      <StatusBar barStyle="light-content" backgroundColor={Theme.bgNav} />
 
       {/* 〰〰〰〰〰〰〰〰〰〰〰 TOP NAV BAR 〰〰〰〰〰〰〰〰〰〰〰 */}
       {(!isTablet || !isLandscape) ? (
@@ -4232,12 +4260,14 @@ export default function Category() {
           </View>
 
           {/* Row 1.5: Address */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Ionicons
-              name="location-outline"
-              size={isTabletOrDesktopWeb ? 12 : 10}
-              color="#9B8EC4"
-            />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 1 }}>
+            <View style={{ width: 14, alignItems: "center" }}>
+              <Ionicons
+                name="location-outline"
+                size={isTabletOrDesktopWeb ? 13 : 11}
+                color="#9B8EC4"
+              />
+            </View>
             <Text
               style={[
                 styles.licenseAddress,
@@ -4250,7 +4280,7 @@ export default function Category() {
             </Text>
           </View>
 
-          {/* Row 2: Valid/Expired Range container */}
+          {/* Row 2: Valid/Expired Range */}
           {licenseInfo && (() => {
             const today = new Date();
             const fromDateStr = licenseInfo.FromDate ? licenseInfo.FromDate.split("T")[0] : null;
@@ -4263,29 +4293,18 @@ export default function Category() {
               isExpired = today > toDateObj;
             }
 
-            const rangeColor = isExpired ? "#EF4444" : "#9B8EC4";
+            const rangeColor = isExpired ? "#EF4444" : "#10B981";
+            const iconColor = isExpired ? "#EF4444" : "#22C55E";
 
             return (
-              <View style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: "#18163A",
-                borderColor: Theme.border,
-                borderWidth: 1,
-                borderRadius: 8,
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                alignSelf: "flex-start",
-                gap: 6,
-                marginTop: 2
-              }}>
-                {isTabletOrDesktopWeb && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                <View style={{ width: 14, alignItems: "center" }}>
                   <Ionicons
                     name={isExpired ? "alert-circle-outline" : "shield-checkmark-outline"}
-                    size={12}
-                    color={isExpired ? "#EF4444" : "#22C55E"}
+                    size={isTabletOrDesktopWeb ? 13 : 11}
+                    color={iconColor}
                   />
-                )}
+                </View>
                 <Text style={{
                   fontSize: 10,
                   fontFamily: Fonts.medium,

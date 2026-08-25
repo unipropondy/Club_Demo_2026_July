@@ -27,6 +27,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import CartSidebar from "../../components/CartSidebar";
+import HomeButton from "../../components/HomeButton";
 import ComboCustomizer from "../../components/ComboCustomizer";
 import { useToast } from "../../components/Toast";
 import { Skeleton } from "../../components/ui/Skeleton";
@@ -44,6 +45,7 @@ import { useGeneralSettingsStore } from "../../stores/generalSettingsStore";
 import { useMenuStore } from "../../stores/menuStore";
 import { useOrderContextStore } from "../../stores/orderContextStore";
 import { usePaymentSettingsStore } from "../../stores/paymentSettingsStore";
+import { useTableNavigationStore } from "../../stores/tableNavigationStore";
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -435,6 +437,12 @@ export default function MenuScreen() {
 
   const orderContext = useOrderContextStore((state) => state.currentOrder);
 
+  useEffect(() => {
+    if (orderContext?.tableId) {
+      useTableNavigationStore.getState().setLastScreen(orderContext.tableId, "kitchen");
+    }
+  }, [orderContext?.tableId]);
+
   // 🟢 OPTIMIZED SELECTORS: Removed cart subscription from main screen to prevent full-screen re-renders.
   const currentContextId = useCartStore((state) => state.currentContextId);
   const displayOrderId = useCartStore(
@@ -697,11 +705,7 @@ export default function MenuScreen() {
     >
       <TouchableOpacity
         onPress={() => {
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            router.replace("/(tabs)/category");
-          }
+          router.replace("/(tabs)/category");
         }}
         style={[
           styles.backBtn,
@@ -743,6 +747,21 @@ export default function MenuScreen() {
       </View>
 
       <View style={styles.headerRightActions}>
+        <TouchableOpacity
+          style={[
+            styles.headerBillBtn,
+            isPhone &&
+              isLandscape && { width: 36, height: 36, borderRadius: 8 },
+          ]}
+          onPress={() => router.replace("/(tabs)/category")}
+        >
+          <Ionicons
+            name="home-outline"
+            size={isPhone && isLandscape ? 20 : 24}
+            color={Theme.primary}
+          />
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[
             styles.headerBillBtn,

@@ -2919,7 +2919,7 @@ export default function SalesReport() {
 
   return (
     <View style={{ flex: 1, backgroundColor: Theme.bgMain }}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.overlay}>
 

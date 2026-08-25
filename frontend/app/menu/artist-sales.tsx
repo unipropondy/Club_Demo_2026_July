@@ -318,7 +318,7 @@ export default function ArtistSalesScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="dark-content" backgroundColor={Theme.bgMain} />
+      <StatusBar barStyle="light-content" backgroundColor={Theme.bgMain} />
 
       {/* Header */}
       <View style={styles.header}>

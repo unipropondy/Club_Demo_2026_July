@@ -36,6 +36,7 @@ import SplitChitPreview from "../components/SplitChitPreview";
 import SplitPartQueue from "../components/SplitPartQueue";
 import UniversalPrinter from "../components/UniversalPrinter";
 import VoidItemModal from "../components/VoidItemModal";
+import HomeButton from "../components/HomeButton";
 import {
   findActiveOrder,
   useActiveOrdersStore,
@@ -52,6 +53,7 @@ import {
 } from "../stores/orderContextStore";
 import { useServiceChargeOverrideStore } from "../stores/serviceChargeOverrideStore";
 import { useTableStatusStore } from "../stores/tableStatusStore";
+import { useTableNavigationStore } from "../stores/tableNavigationStore";
 import { CustomerDisplaySync } from "../utils/CustomerDisplaySync";
 
 const EMPTY_ARRAY: any[] = [];
@@ -96,6 +98,12 @@ export default function SummaryScreen() {
 
   const context = useOrderContextStore((state) => state.currentOrder);
   const activeOrder = context ? findActiveOrder(context) : undefined;
+
+  useEffect(() => {
+    if (isFocused && context?.tableId) {
+      useTableNavigationStore.getState().setLastScreen(context.tableId, "summary");
+    }
+  }, [isFocused, context?.tableId]);
 
   const [showDiscount, setShowDiscount] = useState(false);
   const [showDiscountTypeModal, setShowDiscountTypeModal] = useState(false);
@@ -1807,6 +1815,25 @@ export default function SummaryScreen() {
 
   const headerActions = (
     <>
+      <TouchableOpacity
+        style={[
+          styles.actionBtn,
+          {
+            backgroundColor: Theme.bgMuted,
+            borderColor: Theme.border,
+            borderWidth: 1,
+            paddingHorizontal: 12,
+          },
+          !isTablet && isLandscape && { height: 32, paddingHorizontal: 10 },
+        ]}
+        onPress={() => router.replace("/(tabs)/category")}
+      >
+        <Ionicons
+          name="home-outline"
+          size={!isTablet && isLandscape ? 16 : 18}
+          color={Theme.primary}
+        />
+      </TouchableOpacity>
       {showLoyalty && (
         <TouchableOpacity
           style={[
@@ -2005,7 +2032,7 @@ export default function SummaryScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={Theme.bgNav} />
+      <StatusBar barStyle="light-content" backgroundColor={Theme.bgNav} />
       <View style={styles.container}>
         {/* HEADER */}
         <View
@@ -2038,9 +2065,7 @@ export default function SummaryScreen() {
                   <Pressable
                     style={styles.iconBtn}
                     onPress={() =>
-                      router.canGoBack()
-                        ? router.back()
-                        : router.replace("/(tabs)/category")
+                      router.push("/menu/thai_kitchen")
                     }
                   >
                     <Ionicons
@@ -2110,9 +2135,7 @@ export default function SummaryScreen() {
                 <Pressable
                   style={styles.iconBtn}
                   onPress={() =>
-                    router.canGoBack()
-                      ? router.back()
-                      : router.replace("/(tabs)/category")
+                    router.push("/menu/thai_kitchen")
                   }
                 >
                   <Ionicons
