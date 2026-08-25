@@ -19,6 +19,8 @@ import {
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
+  Animated,
+  Easing,
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -133,6 +135,7 @@ export default function PaymentScreen() {
   const splitTotalParts = params.splitTotalParts ? parseInt(params.splitTotalParts as string, 10) : 0;
   const splitCurrentPart = params.splitCurrentPart ? parseInt(params.splitCurrentPart as string, 10) : 0;
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "processing" | "success" | "cancelled" | "failed">("idle");
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const allDishes = useMenuStore((state) => state.allDishes);
   const vipOffer = useMemo(() => {
     if (!params.vipOffer) return null;
@@ -281,21 +284,68 @@ export default function PaymentScreen() {
         const wasSplitActive = useTableNavigationStore.getState().getSplitActive(context.tableId);
         setIsSplitActive(wasSplitActive);
 
+        // Restore saved selected method for this table if any
+        const savedMethod = useTableNavigationStore.getState().getSelectedMethod(context.tableId);
+        if (savedMethod) {
+          setMethod(savedMethod);
+          const matched = paymentMethods.find((pm) => pm.payMode === savedMethod);
+          if (matched) {
+            setSelectedDetail(matched);
+          }
+        }
+
         const session = useTerminalPaymentStore.getState().getSession(context.tableId);
         if (session && !session.isSplit) {
           if (session.sessionId) {
             setCheckoutSessionId(session.sessionId);
           }
-          setMethod(session.method);
-          setPaymentStatus(session.status);
-          setPaymentMessage(session.message);
-          setProcessing(session.status === "processing");
           return;
         }
       }
       setCheckoutSessionId(generateSessionId());
     }
-  }, [isFocused, context?.tableId]);
+  }, [isFocused, context?.tableId, paymentMethods]);
+
+  // ⚡ Reactive subscription to the terminal session state
+  const currentTableId = context?.tableId;
+  const activeSession = useTerminalPaymentStore(
+    (state) => currentTableId ? state.sessions[currentTableId.toLowerCase()] : null
+  );
+
+  useEffect(() => {
+    if (activeSession && !activeSession.isSplit) {
+      setPaymentStatus(activeSession.status);
+      setPaymentMessage(activeSession.message);
+      setProcessing(activeSession.status === "processing");
+
+      // Auto-finalize single payments on success
+      if (activeSession.status === "success") {
+        executeFinalPayment();
+      }
+    }
+  }, [activeSession]);
+
+  const spinValue = React.useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (paymentStatus === "processing") {
+      Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      spinValue.setValue(0);
+    }
+  }, [paymentStatus]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   useEffect(() => {
     if (context?.tableId) {
@@ -470,7 +520,6 @@ export default function PaymentScreen() {
 
   const splitItems = useCartStore((s: any) => s.activeSplitItems);
 
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [loadingMethods, setLoadingMethods] = useState(true);
   const [selectedDetail, setSelectedDetail] = useState<PaymentMethod | null>(
     null,
@@ -1156,15 +1205,21 @@ export default function PaymentScreen() {
 
       setPaymentMethods(filtered);
       if (filtered.length > 0) {
+        const savedMethod = context?.tableId
+          ? useTableNavigationStore.getState().getSelectedMethod(context.tableId)
+          : null;
         setMethod((prev) => {
-          const isValid = filtered.some((x) => x.payMode === prev);
-          return (prev === "CAS" || !isValid) ? filtered[0].payMode : prev;
+          const currentVal = savedMethod || prev;
+          const isValid = filtered.some((x) => x.payMode === currentVal);
+          return (currentVal === "CAS" || !isValid) ? filtered[0].payMode : currentVal;
         });
         setSelectedDetail((prev) => {
-          const isValid = filtered.some((x) => x.payMode === prev?.payMode);
-          return (!prev || !isValid) ? filtered[0] : prev;
+          const currentVal = savedMethod || prev?.payMode;
+          const matched = filtered.find((x) => x.payMode === currentVal);
+          return matched || filtered[0];
         });
-        if (isCashMethod(filtered[0].payMode)) {
+        const initialMode = savedMethod || filtered[0].payMode;
+        if (isCashMethod(initialMode)) {
           setCashInput(total.toFixed(2));
         }
       }
@@ -1191,6 +1246,9 @@ export default function PaymentScreen() {
 
   const handleSelectMethod = (m: PaymentMethod) => {
     setMethod(m.payMode);
+    if (context?.tableId) {
+      useTableNavigationStore.getState().setSelectedMethod(context.tableId, m.payMode);
+    }
     if (!isCashMethod(m.payMode)) {
       setRoundOff(0);
       setRoundType(null);
@@ -2732,7 +2790,12 @@ export default function PaymentScreen() {
                     }))}
                     selectedMember={selectedMember}
                     onSelectMember={(mode) => {
-                      if (mode) setMethod(mode);
+                      if (mode) {
+                        setMethod(mode);
+                        if (context?.tableId) {
+                          useTableNavigationStore.getState().setSelectedMethod(context.tableId, mode);
+                        }
+                      }
                       setShowMemberModal(true);
                     }}
                     onComplete={(finalPayments) => {
@@ -2825,21 +2888,25 @@ export default function PaymentScreen() {
                         paymentStatus === "failed" && styles.statusFailed,
                         paymentStatus === "processing" && styles.statusProcessing,
                       ]}>
-                        <Ionicons
-                          name={
-                            paymentStatus === "success" ? "checkmark-circle" :
-                              paymentStatus === "cancelled" ? "close-circle" :
-                                paymentStatus === "failed" ? "alert-circle" :
-                                  "sync"
-                          }
-                          size={24}
-                          color={
-                            paymentStatus === "success" ? "#22c55e" :
-                              paymentStatus === "cancelled" ? "#f59e0b" :
-                                paymentStatus === "failed" ? "#ef4444" :
-                                  "#3b82f6"
-                          }
-                        />
+                        {paymentStatus === "processing" ? (
+                          <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                            <Ionicons name="sync" size={24} color="#3b82f6" />
+                          </Animated.View>
+                        ) : (
+                          <Ionicons
+                            name={
+                              paymentStatus === "success" ? "checkmark-circle" :
+                                paymentStatus === "cancelled" ? "close-circle" :
+                                  "alert-circle"
+                            }
+                            size={24}
+                            color={
+                              paymentStatus === "success" ? "#22c55e" :
+                                paymentStatus === "cancelled" ? "#f59e0b" :
+                                  "#ef4444"
+                            }
+                          />
+                        )}
                         <Text style={[
                           styles.statusMessage,
                           paymentStatus === "success" && styles.statusMessageSuccess,

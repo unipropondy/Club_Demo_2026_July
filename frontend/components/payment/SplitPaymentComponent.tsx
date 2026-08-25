@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Animated,
+  Easing,
 } from "react-native";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
 import { Fonts } from "../../constants/Fonts";
@@ -242,25 +244,64 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
     }
   }, [availableMethods, targetTotal]);
 
+  const context = useOrderContextStore((state) => state.currentOrder);
+  const currentTableId = context?.tableId;
+  const activeSession = useTerminalPaymentStore(
+    (state) => currentTableId ? state.sessions[currentTableId.toLowerCase()] : null
+  );
+
   useEffect(() => {
-    const context = useOrderContextStore.getState().currentOrder;
-    if (context?.tableId) {
-      const session = useTerminalPaymentStore.getState().getSession(context.tableId);
-      if (session && session.isSplit && session.splitRowId && rows.length > 0) {
-        const targetRow = rows.find(r => r.id === session.splitRowId);
-        if (targetRow) {
-          setTerminalStatusRowId(targetRow.id);
-          setTerminalStatus(session.status);
-          setTerminalMessage(session.message);
+    if (activeSession && activeSession.isSplit && activeSession.splitRowId && rows.length > 0) {
+      const targetRow = rows.find(r => r.id === activeSession.splitRowId);
+      if (targetRow) {
+        setTerminalStatusRowId(targetRow.id);
+        setTerminalStatus(activeSession.status);
+        setTerminalMessage(activeSession.message);
+
+        // Auto-mark row as Paid on success
+        if (activeSession.status === "success" && targetRow.status !== "Paid") {
+          setRows(prevRows =>
+            prevRows.map(r => r.id === activeSession.splitRowId ? { ...r, status: 'Paid' } : r)
+          );
+          if (currentTableId) {
+            useTerminalPaymentStore.getState().clearSession(currentTableId);
+          }
+          showToast({
+            type: 'success',
+            message: `✅ Payment Successful`,
+            subtitle: `$${(parseFloat(targetRow.amount) || 0).toFixed(2)} paid via ${targetRow.payMode}`
+          });
         }
       }
     }
-  }, [rows]);
+  }, [activeSession, rows]);
 
   // Check if a row is locked (a verified paid digital row)
   const isRowLocked = (row: SplitPaymentRow) => {
     return row.status === "Paid";
   };
+
+  const spinValue = React.useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (terminalStatus === "processing") {
+      Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      spinValue.setValue(0);
+    }
+  }, [terminalStatus]);
+
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   const getRowMaxAllowed = (rowId: string) => {
     const otherPaidSum = rows
@@ -802,21 +843,25 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
                   terminalStatus === "failed" && styles.statusFailed,
                   terminalStatus === "processing" && styles.statusProcessing,
                 ]}>
-                  <Ionicons
-                    name={
-                      terminalStatus === "success" ? "checkmark-circle" :
-                        terminalStatus === "cancelled" ? "close-circle" :
-                          terminalStatus === "failed" ? "alert-circle" :
-                            "sync"
-                    }
-                    size={20}
-                    color={
-                      terminalStatus === "success" ? "#22c55e" :
-                        terminalStatus === "cancelled" ? "#f59e0b" :
-                          terminalStatus === "failed" ? "#ef4444" :
-                            "#3b82f6"
-                    }
-                  />
+                  {terminalStatus === "processing" ? (
+                    <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                      <Ionicons name="sync" size={20} color="#3b82f6" />
+                    </Animated.View>
+                  ) : (
+                    <Ionicons
+                      name={
+                        terminalStatus === "success" ? "checkmark-circle" :
+                          terminalStatus === "cancelled" ? "close-circle" :
+                            "alert-circle"
+                      }
+                      size={20}
+                      color={
+                        terminalStatus === "success" ? "#22c55e" :
+                          terminalStatus === "cancelled" ? "#f59e0b" :
+                            "#ef4444"
+                      }
+                    />
+                  )}
                   <Text style={[
                     styles.statusMessage,
                     terminalStatus === "success" && styles.statusMessageSuccess,

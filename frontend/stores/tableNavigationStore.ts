@@ -6,12 +6,15 @@ interface TableNavigationState {
   navigationMap: Record<string, NavScreen>;
   splitStateMap: Record<string, boolean>;
   splitRowsMap: Record<string, any[]>;
+  selectedMethodMap: Record<string, string>;
   setLastScreen: (tableId: string, screen: NavScreen) => void;
   getLastScreen: (tableId: string) => NavScreen | null;
   setSplitActive: (tableId: string, isSplit: boolean) => void;
   getSplitActive: (tableId: string) => boolean;
   setSplitRows: (tableId: string, rows: any[]) => void;
   getSplitRows: (tableId: string) => any[] | null;
+  setSelectedMethod: (tableId: string, method: string) => void;
+  getSelectedMethod: (tableId: string) => string | null;
   clearLastScreen: (tableId: string) => void;
 }
 
@@ -25,6 +28,7 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
   navigationMap: {},
   splitStateMap: {},
   splitRowsMap: {},
+  selectedMethodMap: {},
 
   setLastScreen: (tableId: string, screen: NavScreen) => {
     const id = cleanId(tableId);
@@ -71,6 +75,23 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
     }));
   },
 
+  getSelectedMethod: (tableId: string) => {
+    const id = cleanId(tableId);
+    if (!id) return null;
+    return get().selectedMethodMap[id] || null;
+  },
+
+  setSelectedMethod: (tableId: string, method: string) => {
+    const id = cleanId(tableId);
+    if (!id) return;
+    set((state) => ({
+      selectedMethodMap: {
+        ...state.selectedMethodMap,
+        [id]: method,
+      },
+    }));
+  },
+
   getSplitRows: (tableId: string) => {
     const id = cleanId(tableId);
     if (!id) return null;
@@ -87,10 +108,13 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
       delete newSplitMap[id];
       const newRowsMap = { ...state.splitRowsMap };
       delete newRowsMap[id];
+      const newMethodMap = { ...state.selectedMethodMap };
+      delete newMethodMap[id];
       return {
         navigationMap: newMap,
         splitStateMap: newSplitMap,
         splitRowsMap: newRowsMap,
+        selectedMethodMap: newMethodMap,
       };
     });
   },
