@@ -1602,8 +1602,8 @@ const fetchDayHistory = async () => {
                   <td class="right">${formatCurrency(totalClosing)}</td>
                 </tr>
                 <tr>
-                  <td>Variance</td>
-                  <td class="right" style="color: ${totalClosing >= (totalCashIn - totalCashOutSum) ? '#2e7d32' : '#c62828'}">${totalClosing >= (totalCashIn - totalCashOutSum) ? '+' : ''}${formatCurrency(totalClosing - (totalCashIn - totalCashOutSum))}</td>
+                  <td>Variance (${(totalClosing - (totalCashIn - totalCashOutSum)) === 0 ? "BALANCED" : ((totalClosing - (totalCashIn - totalCashOutSum)) > 0 ? "SURPLUS" : "SHORTAGE")})</td>
+                  <td class="right" style="color: ${(totalClosing - (totalCashIn - totalCashOutSum)) === 0 ? '#2e7d32' : ((totalClosing - (totalCashIn - totalCashOutSum)) > 0 ? '#2e7d32' : '#c62828')}">${(totalClosing - (totalCashIn - totalCashOutSum)) > 0 ? '+' : ''}${formatCurrency(totalClosing - (totalCashIn - totalCashOutSum))}</td>
                 </tr>` : ''}
               </table>
 
@@ -1669,7 +1669,8 @@ const fetchDayHistory = async () => {
       if (totalClosing > 0) {
         text += formatTwoCols48("<B>CLOSING AMOUNT:</B>", "<B>" + formatCurrency(totalClosing) + "</B>\n");
         const variance = totalClosing - (totalCashIn - totalCashOutSum);
-        text += formatTwoCols48("Variance:", (variance >= 0 ? '+' : '') + formatCurrency(variance) + "\n");
+        const varianceStatus = variance === 0 ? "BALANCED" : (variance > 0 ? "SURPLUS" : "SHORTAGE");
+        text += formatTwoCols48(`Variance (${varianceStatus}):`, (variance > 0 ? '+' : '') + formatCurrency(variance) + "\n");
       }
       text += "[C]========================================\n";
       text += "[C]SMART-POS BY UNIPROSG\n";
@@ -2441,6 +2442,70 @@ const fetchDayHistory = async () => {
                       {formatCurrency(totalCashIn - totalCashOutSum)}
                     </Text>
                   </View>
+
+                  {/* Row 5: Variance Inset Card */}
+                  {totalClosing > 0 && (
+                    <View style={{ 
+                      flexDirection: "row", 
+                      paddingVertical: 14, 
+                      paddingHorizontal: 16, 
+                      backgroundColor: (totalClosing - (totalCashIn - totalCashOutSum)) === 0 
+                        ? "rgba(34, 197, 94, 0.06)" 
+                        : (totalClosing - (totalCashIn - totalCashOutSum)) > 0 
+                          ? "rgba(59, 130, 246, 0.06)" 
+                          : "rgba(239, 68, 68, 0.06)", 
+                      borderRadius: 12, 
+                      borderWidth: 1.5, 
+                      borderColor: (totalClosing - (totalCashIn - totalCashOutSum)) === 0 
+                        ? "rgba(34, 197, 94, 0.35)" 
+                        : (totalClosing - (totalCashIn - totalCashOutSum)) > 0 
+                          ? "rgba(59, 130, 246, 0.35)" 
+                          : "rgba(239, 68, 68, 0.35)", 
+                      alignItems: "center",
+                      marginTop: 10,
+                    }}>
+                      <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Ionicons 
+                          name={
+                            (totalClosing - (totalCashIn - totalCashOutSum)) === 0 
+                              ? "checkmark-circle" 
+                              : (totalClosing - (totalCashIn - totalCashOutSum)) > 0 
+                                ? "trending-up" 
+                                : "trending-down"
+                          } 
+                          size={18} 
+                          color={
+                            (totalClosing - (totalCashIn - totalCashOutSum)) === 0 
+                              ? "#22c55e" 
+                              : (totalClosing - (totalCashIn - totalCashOutSum)) > 0 
+                                ? "#3b82f6" 
+                                : "#ef4444"
+                          } 
+                        />
+                        <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: "#F0EEFF", letterSpacing: 0.5 }}>
+                          {(totalClosing - (totalCashIn - totalCashOutSum)) === 0 
+                            ? "VARIANCE (BALANCED)" 
+                            : (totalClosing - (totalCashIn - totalCashOutSum)) > 0 
+                              ? "VARIANCE (SURPLUS)" 
+                              : "VARIANCE (SHORTAGE)"}
+                        </Text>
+                      </View>
+                      <Text style={{ 
+                        flex: 2, 
+                        textAlign: "right", 
+                        fontFamily: Fonts.black, 
+                        fontSize: 18, 
+                        color: (totalClosing - (totalCashIn - totalCashOutSum)) === 0 
+                          ? "#22c55e" 
+                          : (totalClosing - (totalCashIn - totalCashOutSum)) > 0 
+                            ? "#3b82f6" 
+                            : "#ef4444" 
+                      }}>
+                        {(totalClosing - (totalCashIn - totalCashOutSum)) > 0 ? "+" : ""}
+                        {formatCurrency(totalClosing - (totalCashIn - totalCashOutSum))}
+                      </Text>
+                    </View>
+                  )}
 
                 </View>
               </View>

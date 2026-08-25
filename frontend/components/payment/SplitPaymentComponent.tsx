@@ -284,18 +284,34 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
   const spinValue = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    let isAnimated = true;
+    const startAnimation = () => {
+      if (!isAnimated) return;
+      spinValue.setValue(0);
+      Animated.timing(spinValue, {
+        toValue: 1,
+        duration: 1500,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished && isAnimated) {
+          startAnimation();
+        }
+      });
+    };
+
     if (terminalStatus === "processing") {
-      Animated.loop(
-        Animated.timing(spinValue, {
-          toValue: 1,
-          duration: 1500,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        })
-      ).start();
+      isAnimated = true;
+      startAnimation();
     } else {
+      isAnimated = false;
       spinValue.setValue(0);
     }
+
+    return () => {
+      isAnimated = false;
+      spinValue.stopAnimation();
+    };
   }, [terminalStatus]);
 
   const spin = spinValue.interpolate({

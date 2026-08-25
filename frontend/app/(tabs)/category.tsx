@@ -24,6 +24,8 @@ import {
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
+  Animated,
+  Easing,
 } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import {
@@ -53,6 +55,7 @@ import { getHeldOrders } from "@/stores/heldOrdersStore";
 import { OrderContext, setOrderContext } from "@/stores/orderContextStore";
 import { usePaymentSettingsStore } from "@/stores/paymentSettingsStore";
 import { useTableNavigationStore } from "@/stores/tableNavigationStore";
+import { useTerminalPaymentStore } from "../../stores/terminalPaymentStore";
 import {
   TableStatusType,
   useTableStatusStore,
@@ -194,11 +197,59 @@ const TableItemComponent = React.memo(
         : item.paymentStatus;
     const isPaid = rawEntryStatus === "q" && Number(rawPaymentStatus) === 1;
 
+    const session = useTerminalPaymentStore((state) => state.sessions[tableId]);
+    const isTerminalProcessing = session?.status === "processing";
+    const isTerminalFailed = session?.status === "failed";
+
+    const spinValue = React.useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+      let isAnimated = true;
+      const startAnimation = () => {
+        if (!isAnimated) return;
+        spinValue.setValue(0);
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (finished && isAnimated) {
+            startAnimation();
+          }
+        });
+      };
+
+      if (isTerminalProcessing) {
+        isAnimated = true;
+        startAnimation();
+      } else {
+        isAnimated = false;
+        spinValue.setValue(0);
+      }
+
+      return () => {
+        isAnimated = false;
+        spinValue.stopAnimation();
+      };
+    }, [isTerminalProcessing]);
+
+    const spin = spinValue.interpolate({
+      inputRange: [0, 1],
+      outputRange: ["0deg", "360deg"],
+    });
+
     if (isPaid) {
       ui = { text: "PAID", color: "#f43f5e", lightBg: "rgba(244,63,94,0.15)" };
     }
 
-    const borderColor = status === 0 ? Theme.border : ui.color;
+    const borderColor = isTerminalProcessing
+      ? "#3b82f6"
+      : isTerminalFailed
+        ? "#ef4444"
+        : status === 0
+          ? Theme.border
+          : ui.color;
     const bgColor = status !== 0 ? ui.lightBg : Theme.bgCard;
     const textColor = status === 0 ? Theme.textPrimary : ui.color;
     const labelColor = Theme.textPrimary;
@@ -223,7 +274,7 @@ const TableItemComponent = React.memo(
             height: itemSize,
             borderColor,
             backgroundColor: bgColor,
-            borderWidth: status !== 0 ? 2 : 1.5,
+            borderWidth: isTerminalProcessing || isTerminalFailed ? 3 : (status !== 0 ? 2 : 1.5),
             elevation: status !== 0 ? 0 : 2,
             opacity: isPaid ? 0.92 : 1,
           },
@@ -352,6 +403,20 @@ const TableItemComponent = React.memo(
                 />
               </View>
             )}
+
+          {/* Live Terminal Indicators */}
+          {isTerminalProcessing && (
+            <View style={styles.terminalIndicatorBadge}>
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Ionicons name="sync" size={14} color="#3b82f6" />
+              </Animated.View>
+            </View>
+          )}
+          {isTerminalFailed && (
+            <View style={[styles.terminalIndicatorBadge, { backgroundColor: "#ef4444", borderRadius: 8, paddingHorizontal: 4, paddingVertical: 1 }]}>
+              <Ionicons name="alert-circle" size={12} color="#fff" />
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -4757,6 +4822,13 @@ const styles = StyleSheet.create({
     padding: 2,
     zIndex: 10,
     ...Theme.shadowSm,
+  },
+  terminalIndicatorBadge: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    zIndex: 11,
+    padding: 2,
   },
   licenseCardContainer: {
     position: "absolute",
