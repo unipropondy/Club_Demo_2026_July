@@ -348,6 +348,14 @@ router.post("/update", async (req, res) => {
             @VipRuleDiscountType, @VipRuleDiscountValue, GETDATE()
           )
         END
+
+        -- Retroactively auto-upgrade qualified members based on the new threshold
+        IF @VipRuleEnabled = 1
+        BEGIN
+          UPDATE MemberMaster
+          SET IsVIP = 1, VIPType = 'Automatic', VIPSince = GETDATE(), ModifiedDate = GETDATE()
+          WHERE (IsVIP = 0 OR IsVIP IS NULL) AND LifetimeSpend >= @VIPThreshold;
+        END
       `);
 
     if (SVCIdentification !== undefined) {

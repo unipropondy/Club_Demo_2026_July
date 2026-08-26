@@ -21,22 +21,23 @@ router.get("/total-sales/:terminal", async (req, res) => {
     console.log("🔥🔥🔥 TOTAL SALES ROUTE HIT NEW FILE,toDate", toDate);
     const result = await request.query(`
       SELECT
-        ISNULL(SUM(sh.SubTotal),0) + ISNULL(SUM(discounts.ItemDiscount),0) AS SubTotal,
-        ISNULL(SUM(sh.DiscountAmount),0) + ISNULL(SUM(discounts.ItemDiscount),0) AS DiscountAmount,
-        ISNULL(SUM(sh.VIPDiscountAmount),0) + ISNULL(SUM(discounts.ItemVIPDiscount),0) AS VIPDiscountAmount,
-        ISNULL(SUM(sh.ServiceCharge),0) AS ServiceCharge,
-        ISNULL(SUM(sh.TotalTax),0) AS TotalTax,
-        ISNULL(SUM(sh.RoundedBy),0) AS RoundedBy,
+        ISNULL(SUM(sh.SubTotal + discounts.ItemDiscount + sh.VIPDiscountAmount), 0) AS SubTotal,
+        ISNULL(SUM((sh.DiscountAmount - sh.VIPDiscountAmount) + discounts.ItemDiscount), 0) AS RegularDiscount,
+        ISNULL(SUM(sh.VIPDiscountAmount), 0) AS VIPDiscountAmount,
+        ISNULL(SUM(sh.DiscountAmount + discounts.ItemDiscount), 0) AS DiscountAmount,
+        ISNULL(SUM(sh.ServiceCharge), 0) AS ServiceCharge,
+        ISNULL(SUM(sh.TotalTax), 0) AS TotalTax,
+        ISNULL(SUM(sh.RoundedBy), 0) AS RoundedBy,
+        ISNULL(SUM(sh.TakeawayCharge), 0) AS TakeawayCharge,
         COUNT(DISTINCT sh.SettlementID) AS InvoiceCount,
-        ISNULL(SUM(sh.SysAmount),0) AS NetTotal
+        ISNULL(SUM(sh.SysAmount), 0) AS NetTotal
       FROM SettlementHeader sh
       OUTER APPLY (
         SELECT 
           SUM(CASE 
             WHEN sid.DiscountType = 'percentage' THEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (ISNULL(sid.DiscountAmount, 0) / 100.0)
             ELSE ISNULL(sid.Qty, 0) * ISNULL(sid.DiscountAmount, 0)
-          END) AS ItemDiscount,
-          SUM(ISNULL(sid.VIPDiscountAmount, 0)) AS ItemVIPDiscount
+          END) AS ItemDiscount
         FROM SettlementItemDetail sid
         WHERE sid.SettlementID = sh.SettlementID AND ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
       ) discounts

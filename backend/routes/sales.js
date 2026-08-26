@@ -1327,22 +1327,32 @@ router.get("/day-end-summary", async (req, res) => {
     const analysisRes = await pool.request()
       .query(`
         SELECT 
-          SUM(ISNULL(sh.SubTotal, 0)) as BaseSales,
-          SUM(ISNULL(sh.SysAmount, 0)) as TotalSales,
-          SUM(ISNULL(sh.TotalTax, 0)) as TotalTax,
-          SUM(ISNULL(sh.DiscountAmount, 0)) as TotalDiscount,
-          SUM(ISNULL(sh.VIPDiscountAmount, 0)) as TotalVipDiscount,
-          SUM(ISNULL(sh.ServiceCharge, 0)) as TotalServiceCharge,
-          SUM(ISNULL(sh.RoundedBy, 0)) as TotalRoundOff,
-          SUM(ISNULL(sh.TakeawayCharge, 0)) as TotalTakeawayCharge,
+          ISNULL(SUM(sh.SubTotal + discounts.ItemDiscount + sh.VIPDiscountAmount), 0) as BaseSales,
+          ISNULL(SUM(sh.SysAmount), 0) as TotalSales,
+          ISNULL(SUM(sh.TotalTax), 0) as TotalTax,
+          ISNULL(SUM(sh.DiscountAmount + discounts.ItemDiscount), 0) as TotalDiscount,
+          ISNULL(SUM(sh.VIPDiscountAmount), 0) as TotalVipDiscount,
+          ISNULL(SUM((sh.DiscountAmount - sh.VIPDiscountAmount) + discounts.ItemDiscount), 0) as RegularDiscount,
+          ISNULL(SUM(sh.ServiceCharge), 0) as TotalServiceCharge,
+          ISNULL(SUM(sh.RoundedBy), 0) as TotalRoundOff,
+          ISNULL(SUM(sh.TakeawayCharge), 0) as TotalTakeawayCharge,
           COUNT(sh.SettlementID) as TotalBills,
-          SUM(ISNULL(sh.VoidItemQty, 0)) as VoidQty,
-          SUM(ISNULL(sh.VoidItemAmount, 0)) as VoidAmount,
+          ISNULL(SUM(sh.VoidItemQty), 0) as VoidQty,
+          ISNULL(SUM(sh.VoidItemAmount), 0) as VoidAmount,
           SUM(CASE WHEN sh.IsCancelled = 1 THEN 1 ELSE 0 END) as CancelledCount,
           SUM(CASE WHEN sh.IsCancelled = 1 THEN ISNULL(sh.VoidItemAmount, 0) ELSE 0 END) as CancelledAmount,
           MAX(sh.TerminalCode) as TerminalCode,
           MAX(sh.RefNo) as RefNo
         FROM SettlementHeader sh
+        OUTER APPLY (
+          SELECT 
+            SUM(CASE 
+              WHEN sid.DiscountType = 'percentage' THEN (ISNULL(sid.Qty, 0) * ISNULL(sid.Price, 0)) * (ISNULL(sid.DiscountAmount, 0) / 100.0)
+              ELSE ISNULL(sid.Qty, 0) * ISNULL(sid.DiscountAmount, 0)
+            END) AS ItemDiscount
+          FROM SettlementItemDetail sid
+          WHERE sid.SettlementID = sh.SettlementID AND ISNULL(sid.Status, 'NORMAL') <> 'VOIDED'
+        ) discounts
         WHERE ${whereSql}
       `);
  
@@ -1545,9 +1555,13 @@ router.get("/day-end-summary", async (req, res) => {
       },
       salesAnalysis: {
         baseSales: analysis.BaseSales || 0,
+        grossSales: analysis.BaseSales || 0,
         totalSales,
+        netSales: totalSales,
         totalTax: analysis.TotalTax || 0,
         totalDiscount: analysis.TotalDiscount || 0,
+        regularDiscount: analysis.RegularDiscount || 0,
+        vipDiscount: analysis.TotalVipDiscount || 0,
         totalVipDiscount: analysis.TotalVipDiscount || 0,
         totalServiceCharge: analysis.TotalServiceCharge || 0,
         takeawayCharge: analysis.TotalTakeawayCharge || 0,

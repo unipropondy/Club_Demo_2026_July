@@ -1203,6 +1203,7 @@ export default function SalesReport() {
           acc.TotalDiscount += Math.max(0, (s.DiscountAmount || 0) - (s.VIPDiscountAmount || 0)) + (s.TotalLineItemDiscountAmount || 0);
           acc.ServiceCharge += Number(s.ServiceCharge) || 0;
           acc.TotalTax += Number(s.TotalTax) || 0;
+          acc.TakeawayCharge += Number(s.TakeawayCharge) || 0;
         }
 
         const mode = s.PayMode?.trim().toUpperCase() || "";
@@ -1248,6 +1249,7 @@ export default function SalesReport() {
         CreditOutstanding: 0,
         ServiceCharge: 0,
         TotalTax: 0,
+        TakeawayCharge: 0,
       },
     );
   }, [dateScopedSales]);
@@ -2394,6 +2396,12 @@ export default function SalesReport() {
           Theme.warning,
         )}
         {renderMetricTile(
+          "Takeaway Charge",
+          formatCurrency(filteredMetrics.TakeawayCharge),
+          "cart-outline",
+          Theme.warning,
+        )}
+        {renderMetricTile(
           "Total Orders",
           filteredMetrics.TotalTransactions + filteredMetrics.CancelledCount,
           "receipt-outline",
@@ -2418,17 +2426,18 @@ export default function SalesReport() {
           Theme.danger,
         )}
         {renderMetricTile(
+          "Regular Discount",
+          formatCurrency(filteredMetrics.TotalDiscount),
+          "pricetag-outline",
+          Theme.primary,
+        )}
+        {renderMetricTile(
           "VIP Discount Savings",
           formatCurrency(filteredMetrics.TotalVIPDiscount),
           "gift-outline",
           "#a855f7",
         )}
-        {renderMetricTile(
-          "Total Discount",
-          formatCurrency(filteredMetrics.TotalDiscount),
-          "pricetag-outline",
-          "#f43f5e",
-        )}
+
       </View>
 
       <View style={styles.reportSwitchRow}>

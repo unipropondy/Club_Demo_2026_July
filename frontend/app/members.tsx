@@ -982,7 +982,11 @@ export default function MembersScreen() {
                     placeholder="5000.00"
                     placeholderTextColor={Theme.textMuted}
                     value={tempThreshold}
-                    onChangeText={setTempThreshold}
+                    onChangeText={(val) => {
+                      const cleanVal = val.replace(/[^0-9]/g, "");
+                      const formatted = (cleanVal.length > 1 && cleanVal.startsWith("0")) ? cleanVal.replace(/^0+/, "") : cleanVal;
+                      setTempThreshold(formatted);
+                    }}
                   />
                   <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 6, lineHeight: 16 }}>
                     If a member's total lifetime spending reaches or exceeds this amount, they will automatically receive VIP status at checkout.
@@ -1061,6 +1065,9 @@ export default function MembersScreen() {
                                         onChange={(e) => {
                                           const next = [...vipRuleDishRules];
                                           next[idx].discountType = e.target.value;
+                                          if (e.target.value === "PERCENTAGE" && Number(next[idx].discountValue) > 100) {
+                                            next[idx].discountValue = 100;
+                                          }
                                           setVipRuleDishRules(next);
                                         }}
                                         style={{
@@ -1086,7 +1093,15 @@ export default function MembersScreen() {
                                       value={String(rule.discountValue)}
                                       onChangeText={(val) => {
                                         const next = [...vipRuleDishRules];
-                                        next[idx].discountValue = val;
+                                        const cleanVal = val.replace(/[^0-9]/g, "");
+                                        let formatted = (cleanVal.length > 1 && cleanVal.startsWith("0")) ? cleanVal.replace(/^0+/, "") : cleanVal;
+                                        if (rule.discountType === "PERCENTAGE") {
+                                          const num = parseInt(formatted || "0", 10);
+                                          if (num > 100) {
+                                            formatted = "100";
+                                          }
+                                        }
+                                        next[idx].discountValue = formatted;
                                         setVipRuleDishRules(next);
                                       }}
                                     />
@@ -1168,6 +1183,9 @@ export default function MembersScreen() {
                                         onChange={(e) => {
                                           const next = [...vipRuleGroupRules];
                                           next[idx].discountType = e.target.value;
+                                          if (e.target.value === "PERCENTAGE" && Number(next[idx].discountValue) > 100) {
+                                            next[idx].discountValue = 100;
+                                          }
                                           setVipRuleGroupRules(next);
                                         }}
                                         style={{
@@ -1193,7 +1211,15 @@ export default function MembersScreen() {
                                       value={String(rule.discountValue)}
                                       onChangeText={(val) => {
                                         const next = [...vipRuleGroupRules];
-                                        next[idx].discountValue = val;
+                                        const cleanVal = val.replace(/[^0-9]/g, "");
+                                        let formatted = (cleanVal.length > 1 && cleanVal.startsWith("0")) ? cleanVal.replace(/^0+/, "") : cleanVal;
+                                        if (rule.discountType === "PERCENTAGE") {
+                                          const num = parseInt(formatted || "0", 10);
+                                          if (num > 100) {
+                                            formatted = "100";
+                                          }
+                                        }
+                                        next[idx].discountValue = formatted;
                                         setVipRuleGroupRules(next);
                                       }}
                                     />

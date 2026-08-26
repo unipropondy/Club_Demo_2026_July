@@ -2884,28 +2884,25 @@ export default function SummaryScreen() {
                           <>
                             <TouchableOpacity
                               onPress={() => {
-                                setOfferTargetType(
-                                  vipOffer?.targetType || "DISH",
-                                );
-                                setSelectedOfferDishId(vipOffer?.dishId || "");
-                                setSelectedOfferGroupId(
-                                  vipOffer?.dishGroupId || "",
-                                );
-                                setOfferDiscountType(
-                                  vipOffer?.discountType || "PERCENTAGE",
-                                );
-                                setOfferDiscountValue(
-                                  vipOffer
-                                    ? String(vipOffer.discountValue)
-                                    : "",
-                                );
-                                setShowVipOfferModal(true);
+                                if (vipOffer) {
+                                  setVipOffer(null);
+                                } else {
+                                  const settings = useGeneralSettingsStore.getState().settings;
+                                  setVipOffer({
+                                    targetType: (settings.vipRuleTargetType as any) || "BOTH",
+                                    dishId: settings.vipRuleDishId || null,
+                                    dishGroupId: settings.vipRuleDishGroupId || null,
+                                    discountType:
+                                      settings.vipRuleDiscountType === "AMOUNT" ? "FIXED" : "PERCENTAGE",
+                                    discountValue: Number(settings.vipRuleDiscountValue) || 0,
+                                  });
+                                }
                               }}
                               style={{
                                 marginTop: 8,
                                 marginLeft: 22,
                                 backgroundColor: vipOffer
-                                  ? "#10B981"
+                                  ? "#EF4444"
                                   : "#A855F7",
                                 borderRadius: 8,
                                 paddingVertical: 8,
@@ -2917,7 +2914,7 @@ export default function SummaryScreen() {
                               }}
                             >
                               <Ionicons
-                                name="sparkles"
+                                name={vipOffer ? "trash-outline" : "sparkles"}
                                 size={14}
                                 color="#fff"
                               />
@@ -2929,24 +2926,9 @@ export default function SummaryScreen() {
                                 }}
                               >
                                 {vipOffer
-                                  ? "Edit VIP Offer"
-                                  : "Apply VIP Offer"}
+                                  ? "Remove VIP Discount"
+                                  : "Apply VIP Discount"}
                               </Text>
-                              {vipOffer && (
-                                <TouchableOpacity
-                                  onPress={(e) => {
-                                    e.stopPropagation();
-                                    setVipOffer(null);
-                                  }}
-                                  style={{ marginLeft: 8, padding: 2 }}
-                                >
-                                  <Ionicons
-                                    name="close-circle"
-                                    size={14}
-                                    color="#fff"
-                                  />
-                                </TouchableOpacity>
-                              )}
                             </TouchableOpacity>
 
                             {vipOffer && (
@@ -4340,27 +4322,6 @@ export default function SummaryScreen() {
                     <Text style={styles.billOptionText}>Merge Bill</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={styles.billOptionItem}
-                    onPress={() => {
-                      setShowBillOptions(false);
-                      handleFOC();
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.billOptionIcon,
-                        { backgroundColor: Theme.warningBg },
-                      ]}
-                    >
-                      <Ionicons
-                        name="gift-outline"
-                        size={20}
-                        color={Theme.warning}
-                      />
-                    </View>
-                    <Text style={styles.billOptionText}>FOC</Text>
-                  </TouchableOpacity>
 
                   <TouchableOpacity
                     style={styles.billOptionItem}

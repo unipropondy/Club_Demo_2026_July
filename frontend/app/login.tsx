@@ -387,13 +387,6 @@ export default function LoginScreen() {
                   isLandscape && { padding: 20 },
                 ]}
               >
-                {/* Gradient top border accent */}
-                <LinearGradient
-                  colors={["#7C3AED", "#A855F7", "#EC4899"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.cardTopAccent}
-                />
 
                 <Text style={styles.cardTitle}>Welcome Back</Text>
                 <Text style={styles.cardSub}>Sign in to manage your venue</Text>
@@ -547,7 +540,7 @@ const styles = StyleSheet.create({
     width: 76, height: 76, borderRadius: 22, marginBottom: 12,
     backgroundColor: "#11102E",
     justifyContent: "center", alignItems: "center",
-    borderWidth: 1.5, borderColor: "#1E1B4B",
+    borderWidth: 1.5, borderColor: "#3D3875",
     shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25, shadowRadius: 8, elevation: 5,
   },
@@ -562,7 +555,7 @@ const styles = StyleSheet.create({
     width: "100%", maxWidth: 460,
     backgroundColor: "#11102E",
     borderRadius: 24, padding: 36,
-    borderWidth: 1.5, borderColor: "#1E1B4B",
+    borderWidth: 1.5, borderColor: "#3D3875",
     overflow: "hidden",
     shadowColor: "#000", shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5, shadowRadius: 16, elevation: 12,
@@ -593,7 +586,7 @@ const styles = StyleSheet.create({
   inputWrap: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: "#0A091A", borderRadius: 16,
-    borderWidth: 1.5, borderColor: "#1E1B4B",
+    borderWidth: 1.5, borderColor: "#2E2A5E",
     paddingHorizontal: 16, height: 56,
   },
   input: {
@@ -605,7 +598,7 @@ const styles = StyleSheet.create({
   rememberRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 24, paddingLeft: 2 },
   checkbox: {
     width: 22, height: 22, borderRadius: 7, borderWidth: 2,
-    borderColor: "#1E1B4B", justifyContent: "center",
+    borderColor: "#2E2A5E", justifyContent: "center",
     alignItems: "center", backgroundColor: "#0A091A",
   },
   checkboxActive: { backgroundColor: Theme.primary, borderColor: Theme.primary },

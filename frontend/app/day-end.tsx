@@ -20,6 +20,8 @@ import { Theme } from "@/constants/theme";
 import { Fonts } from "@/constants/Fonts";
 import { API_URL } from "@/constants/Config";
 import { useAuthStore } from "@/stores/authStore";
+import { useGeneralSettingsStore } from "@/stores/generalSettingsStore";
+import { useCompanySettingsStore } from "@/stores/companySettingsStore";
 import API from "../api";
 import CalendarPicker from "../components/CalendarPicker";
 import { 
@@ -43,6 +45,7 @@ function parseLocalDate(dateStr: string): Date {
 export default function DayEndScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const currencySymbol = useCompanySettingsStore(state => state.settings.currencySymbol) || "₹";
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -255,15 +258,22 @@ export default function DayEndScreen() {
             </View>
           )}
 
-          <View style={styles.dateDisplay}>
-            <Ionicons name="calendar-outline" size={16} color={Theme.textSecondary} />
-            <Text style={styles.dateDisplayText}>
+          <TouchableOpacity 
+            style={[styles.dateDisplay, { cursor: 'pointer' } as any]} 
+            onPress={() => {
+              setIsRangeMode(dateRange.start !== dateRange.end);
+              setShowCalendar(true);
+            }}
+          >
+            <Ionicons name="calendar-outline" size={16} color={Theme.primary} />
+            <Text style={[styles.dateDisplayText, { color: Theme.primary }]}>
               {dateRange.start === dateRange.end 
                 ? format(parseLocalDate(dateRange.start), "dd MMM yyyy")
                 : `${format(parseLocalDate(dateRange.start), "dd MMM")} - ${format(parseLocalDate(dateRange.end), "dd MMM yyyy")}`
               }
             </Text>
-          </View>
+            <Ionicons name="chevron-down-outline" size={14} color={Theme.primary} style={{ marginLeft: 2 }} />
+          </TouchableOpacity>
 
           {showCalendar && tempRange.start ? (
             <Modal
@@ -319,10 +329,12 @@ export default function DayEndScreen() {
                       }}
                       onPress={() => {
                         if (tempRange.start) {
+                          const isRange = tempRange.start !== tempRange.end && tempRange.end;
                           setDateRange({
                             start: tempRange.start,
                             end: tempRange.end || tempRange.start
                           });
+                          setSelectedFilter(isRange ? "CUSTOM" : "DAILY");
                           setShowCalendar(false);
                         }
                       }}
@@ -520,24 +532,35 @@ export default function DayEndScreen() {
             </View>
             
             <View style={styles.analysisRow}>
-              <Text style={styles.analysisLabel}>Sales Amount</Text>
-              <Text style={styles.analysisValue}>{formatCurrency(analysis?.totalSales || 0)}</Text>
+              <Text style={styles.analysisLabel}>Gross Sales</Text>
+              <Text style={styles.analysisValue}>{formatCurrency(analysis?.baseSales || 0)}</Text>
+            </View>
+            <View style={styles.analysisRow}>
+              <Text style={styles.analysisLabel}>Regular Discount</Text>
+              <Text style={styles.analysisValue}>
+                {parseFloat(analysis?.regularDiscount) > 0 ? `-${currencySymbol}${formatCurrency(analysis.regularDiscount)}` : "0.00"}
+              </Text>
+            </View>
+            <View style={styles.analysisRow}>
+              <Text style={styles.analysisLabel}>VIP Discount</Text>
+              <Text style={[styles.analysisValue, { color: "#a855f7" }]}>
+                {parseFloat(analysis?.vipDiscount) > 0 ? `-${currencySymbol}${formatCurrency(analysis.vipDiscount)}` : "0.00"}
+              </Text>
+            </View>
+
+            {parseFloat(analysis?.takeawayCharge) > 0 && (
+              <View style={styles.analysisRow}>
+                <Text style={styles.analysisLabel}>Takeaway Charge</Text>
+                <Text style={styles.analysisValue}>{formatCurrency(analysis.takeawayCharge)}</Text>
+              </View>
+            )}
+            <View style={styles.analysisRow}>
+              <Text style={styles.analysisLabel}>Service Charge</Text>
+              <Text style={styles.analysisValue}>{formatCurrency(analysis?.totalServiceCharge || 0)}</Text>
             </View>
             <View style={styles.analysisRow}>
               <Text style={styles.analysisLabel}>Total Tax</Text>
               <Text style={styles.analysisValue}>{formatCurrency(analysis?.totalTax || 0)}</Text>
-            </View>
-            <View style={styles.analysisRow}>
-              <Text style={styles.analysisLabel}>Discount</Text>
-              <Text style={styles.analysisValue}>{formatCurrency(analysis?.totalDiscount || 0)}</Text>
-            </View>
-            <View style={styles.analysisRow}>
-              <Text style={styles.analysisLabel}>VIP Discount</Text>
-              <Text style={[styles.analysisValue, { color: "#a855f7" }]}>{formatCurrency(analysis?.totalVipDiscount || 0)}</Text>
-            </View>
-            <View style={styles.analysisRow}>
-              <Text style={styles.analysisLabel}>Service Charge</Text>
-              <Text style={styles.analysisValue}>{formatCurrency(analysis?.totalServiceCharge || 0)}</Text>
             </View>
             <View style={styles.analysisRow}>
               <Text style={styles.analysisLabel}>Round Off</Text>
@@ -677,12 +700,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
-    marginTop: 4,
+    marginTop: 8,
+    backgroundColor: Theme.bgMuted,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: "center",
+    ...Platform.select({
+      web: {
+        boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+      }
+    }) as any,
   },
   dateDisplayText: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: Fonts.bold,
-    color: Theme.textSecondary,
+    color: Theme.primary,
   },
   content: {
     padding: 16,

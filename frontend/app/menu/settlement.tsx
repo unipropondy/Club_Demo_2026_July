@@ -3,6 +3,7 @@ import { Fonts } from "@/constants/Fonts";
 import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import { useGeneralSettingsStore } from "../../stores/generalSettingsStore";
+import { useCompanySettingsStore } from "../../stores/companySettingsStore";
 import { useToast } from "../../components/Toast";
 import { Ionicons } from "@expo/vector-icons";
 import API from "../../api";
@@ -511,6 +512,7 @@ export default function SettlementScreen() {
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const enableCashDrawer = useGeneralSettingsStore(state => state.settings.enableCashDrawer);
+  const currencySymbol = useCompanySettingsStore((state: any) => state.settings.currencySymbol) || "₹";
   const { showToast } = useToast();
 
   const [loading, setLoading] = useState(false);
@@ -1511,13 +1513,20 @@ const fetchDayHistory = async () => {
                   <td class="right">${formatCurrency(totalSales.SubTotal)}</td>
                 </tr>
                 <tr>
-                  <td>Discount</td>
-                  <td class="right">${formatCurrency((parseFloat(totalSales.DiscountAmount) || 0) - (parseFloat(totalSales.VIPDiscountAmount) || 0))}</td>
+                  <td>Regular Discount</td>
+                  <td class="right">${parseFloat(totalSales.RegularDiscount) > 0 ? `-${currencySymbol}${formatCurrency(totalSales.RegularDiscount)}` : "0.00"}</td>
                 </tr>
                 <tr>
                   <td>VIP Discount</td>
-                  <td class="right">${formatCurrency(totalSales.VIPDiscountAmount)}</td>
+                  <td class="right">${parseFloat(totalSales.VIPDiscountAmount) > 0 ? `-${currencySymbol}${formatCurrency(totalSales.VIPDiscountAmount)}` : "0.00"}</td>
                 </tr>
+
+                ${parseFloat(totalSales.TakeawayCharge) > 0 ? `
+                <tr>
+                  <td>Takeaway Charge</td>
+                  <td class="right">${formatCurrency(totalSales.TakeawayCharge)}</td>
+                </tr>
+                ` : ''}
                 <tr>
                   <td>Service Charge</td>
                   <td class="right">${formatCurrency(totalSales.ServiceCharge)}</td>
@@ -1638,8 +1647,15 @@ const fetchDayHistory = async () => {
       text += "[C]<B>SALES SUMMARY</B>\n";
       text += "[C]========================================\n";
       text += formatTwoCols48("Gross Sales:", formatCurrency(totalSales.SubTotal));
-      text += formatTwoCols48("Discount:", formatCurrency((parseFloat(totalSales.DiscountAmount) || 0) - (parseFloat(totalSales.VIPDiscountAmount) || 0)));
-      text += formatTwoCols48("VIP Discount:", formatCurrency(totalSales.VIPDiscountAmount));
+      const regularDiscVal = parseFloat(totalSales.RegularDiscount) || 0;
+      text += formatTwoCols48("Regular Discount:", regularDiscVal > 0 ? `-${currencySymbol}${formatCurrency(regularDiscVal)}` : "0.00");
+      const vipDiscVal = parseFloat(totalSales.VIPDiscountAmount) || 0;
+      text += formatTwoCols48("VIP Discount:", vipDiscVal > 0 ? `-${currencySymbol}${formatCurrency(vipDiscVal)}` : "0.00");
+
+      const takeawayVal = parseFloat(totalSales.TakeawayCharge) || 0;
+      if (takeawayVal > 0) {
+        text += formatTwoCols48("Takeaway Charge:", formatCurrency(takeawayVal));
+      }
       text += formatTwoCols48("Service Charge:", formatCurrency(totalSales.ServiceCharge));
       text += formatTwoCols48("GST Collected:", formatCurrency(totalSales.TotalTax));
       text += formatTwoCols48("Tips:", formatCurrency(totalSales.Tips));
@@ -1774,8 +1790,15 @@ const fetchDayHistory = async () => {
             await SunmiModule.printText("         SALES SUMMARY\n");
             await SunmiModule.printText("================================\n");
             await SunmiModule.printText(formatTwoCols32("Gross Sales:", formatCurrency(totalSales.SubTotal)));
-            await SunmiModule.printText(formatTwoCols32("Discount:", formatCurrency((parseFloat(totalSales.DiscountAmount) || 0) - (parseFloat(totalSales.VIPDiscountAmount) || 0))));
-            await SunmiModule.printText(formatTwoCols32("VIP Discount:", formatCurrency(totalSales.VIPDiscountAmount)));
+            const regularDiscVal = parseFloat(totalSales.RegularDiscount) || 0;
+            await SunmiModule.printText(formatTwoCols32("Regular Discount:", regularDiscVal > 0 ? `-${currencySymbol}${formatCurrency(regularDiscVal)}` : "0.00"));
+            const vipDiscVal = parseFloat(totalSales.VIPDiscountAmount) || 0;
+            await SunmiModule.printText(formatTwoCols32("VIP Discount:", vipDiscVal > 0 ? `-${currencySymbol}${formatCurrency(vipDiscVal)}` : "0.00"));
+
+            const takeawayVal = parseFloat(totalSales.TakeawayCharge) || 0;
+            if (takeawayVal > 0) {
+              await SunmiModule.printText(formatTwoCols32("Takeaway Charge:", formatCurrency(takeawayVal)));
+            }
             await SunmiModule.printText(formatTwoCols32("Service Charge:", formatCurrency(totalSales.ServiceCharge)));
             await SunmiModule.printText(formatTwoCols32("GST Collected:", formatCurrency(totalSales.TotalTax)));
             await SunmiModule.printText(formatTwoCols32("Tips:", formatCurrency(totalSales.Tips)));
@@ -2194,17 +2217,28 @@ const fetchDayHistory = async () => {
                 </View>
                 <View style={[styles.cardBody, { flex: 1 }]}>
                   <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Sales Total</Text>
+                    <Text style={styles.rowLabel}>Gross Sales</Text>
                     <Text style={styles.rowValue}>{formatCurrency(totalSales.SubTotal)}</Text>
                   </View>
                   <View style={styles.row}>
-                    <Text style={styles.rowLabel}>Total Discount</Text>
-                    <Text style={styles.rowValue}>{formatCurrency((parseFloat(totalSales.DiscountAmount) || 0) - (parseFloat(totalSales.VIPDiscountAmount) || 0))}</Text>
+                    <Text style={styles.rowLabel}>Regular Discount</Text>
+                    <Text style={styles.rowValue}>
+                      {parseFloat(totalSales.RegularDiscount) > 0 ? `-${currencySymbol}${formatCurrency(totalSales.RegularDiscount)}` : "0.00"}
+                    </Text>
                   </View>
                   <View style={styles.row}>
                     <Text style={[styles.rowLabel, { color: '#a855f7' }]}>VIP Discount</Text>
-                    <Text style={[styles.rowValue, { color: '#a855f7' }]}>{formatCurrency(totalSales.VIPDiscountAmount)}</Text>
+                    <Text style={[styles.rowValue, { color: '#a855f7' }]}>
+                      {parseFloat(totalSales.VIPDiscountAmount) > 0 ? `-${currencySymbol}${formatCurrency(totalSales.VIPDiscountAmount)}` : "0.00"}
+                    </Text>
                   </View>
+
+                  {parseFloat(totalSales.TakeawayCharge) > 0 && (
+                    <View style={styles.row}>
+                      <Text style={styles.rowLabel}>Takeaway Charge</Text>
+                      <Text style={styles.rowValue}>{formatCurrency(totalSales.TakeawayCharge)}</Text>
+                    </View>
+                  )}
                   <View style={styles.row}>
                     <Text style={styles.rowLabel}>Service Charge</Text>
                     <Text style={styles.rowValue}>{formatCurrency(totalSales.ServiceCharge)}</Text>
@@ -2389,7 +2423,7 @@ const fetchDayHistory = async () => {
                   {/* Row 1: Total All Modes */}
                   <View style={{ flexDirection: "row", paddingVertical: 10, alignItems: "center" }}>
                     <View style={{ flex: 2 }}>
-                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#C084FC" }}>TOTAL (ALL MODES)</Text>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#C084FC" }}>TOTAL INFLOWS</Text>
                     </View>
                     <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 14, color: Theme.success }}>
                       {formatCurrency(totalCashIn + nonCashTotal)}
@@ -2402,7 +2436,7 @@ const fetchDayHistory = async () => {
                   {/* Row 2: Net All Modes */}
                   <View style={{ flexDirection: "row", paddingVertical: 8, borderBottomWidth: 1.5, borderBottomColor: Theme.border, alignItems: "center", paddingBottom: 12, marginBottom: 12 }}>
                     <View style={{ flex: 2 }}>
-                      <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary }}>NET (ALL MODES)</Text>
+                      <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary }}>NET CASH / PAYMENT MOVEMENTS</Text>
                     </View>
                     <Text style={{ flex: 2, textAlign: "right", fontFamily: Fonts.black, fontSize: 15, color: ((totalCashIn + nonCashTotal) - totalCashOutSum) >= 0 ? Theme.success : Theme.danger }}>
                       {formatCurrency((totalCashIn + nonCashTotal) - totalCashOutSum)}
