@@ -4261,7 +4261,7 @@ export default function Category() {
         <View
           style={[
             styles.licenseLogoContainer,
-            isTabletOrDesktopWeb && { width: 64, height: 64, borderRadius: 12 },
+            isTabletOrDesktopWeb && { width: 70, height: 70, borderRadius: 10 },
           ]}
         >
           {licenseInfo?.CompanyLogoUrl ? (
@@ -4861,9 +4861,9 @@ const styles = StyleSheet.create({
     zIndex: 100,                                // Below AI button (zIndex 9999)
   },
   licenseLogoContainer: {
-    width: 46,
-    height: 46,
-    borderRadius: 10,
+    width: 52,
+    height: 52,
+    borderRadius: 8,
     backgroundColor: "#18163A",
     borderWidth: 1,
     borderColor: "#3D3875",
