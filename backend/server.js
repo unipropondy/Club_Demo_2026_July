@@ -131,6 +131,12 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ⚡ REQUEST ACTIVE SESSIONS: Allow a newly connected client to request terminal payment states from other active tablets
+  socket.on("request_active_sessions", () => {
+    console.log("⚡ [Server] Request active terminal sessions from:", socket.id);
+    socket.broadcast.emit("request_active_sessions");
+  });
+
   // ⚡ TERMINAL SESSION SYNC: Broadcast terminal payment session updates to all tablets
   socket.on("terminal_session_update", (data) => {
     console.log("⚡ [Server] Terminal session update:", data.tableId, data.session?.status || "CLEARED");

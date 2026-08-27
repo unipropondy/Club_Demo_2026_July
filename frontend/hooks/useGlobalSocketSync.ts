@@ -36,6 +36,16 @@ export function useGlobalSocketSync() {
         console.log(`🔌 [Socket-Global] CONNECTED: ${socket.id} | API: ${API_URL}`);
       }
       useActiveOrdersStore.getState().fetchActiveKitchenOrders();
+      
+      // ⚡ Request active terminal sessions from other devices and broadcast our own
+      socket.emit("request_active_sessions");
+      const sessions = useTerminalPaymentStore.getState().sessions;
+      Object.keys(sessions).forEach((tableId) => {
+        const session = sessions[tableId];
+        if (session) {
+          socket.emit("terminal_session_update", { tableId, session });
+        }
+      });
     };
 
     // 🏓 KEEP-ALIVE: Ping the server every 4 minutes to prevent Railway from sleeping.
@@ -434,6 +444,19 @@ export function useGlobalSocketSync() {
       useTerminalPaymentStore.getState().applySessionFromSocket(cleanTableId, session);
     };
 
+    const handleRequestActiveSessions = () => {
+      if (__DEV__) {
+        console.log("⚡ [Socket-Global] Received request for active terminal sessions");
+      }
+      const sessions = useTerminalPaymentStore.getState().sessions;
+      Object.keys(sessions).forEach((tableId) => {
+        const session = sessions[tableId];
+        if (session) {
+          socket.emit("terminal_session_update", { tableId, session });
+        }
+      });
+    };
+
     socket.on("connect", handleConnect);
     socket.on("connect_error", handleConnectError);
     socket.on("new_order", handleNewOrder);
@@ -445,6 +468,7 @@ export function useGlobalSocketSync() {
     socket.on("qr_payment_confirmed", handleQrPaymentConfirmed);
     socket.on("cart_change", handleCartChange);
     socket.on("terminal_session_update", handleTerminalSession);
+    socket.on("request_active_sessions", handleRequestActiveSessions);
 
     return () => {
       clearInterval(keepAliveInterval);
@@ -459,6 +483,7 @@ export function useGlobalSocketSync() {
       socket.off("qr_payment_confirmed", handleQrPaymentConfirmed);
       socket.off("cart_change", handleCartChange);
       socket.off("terminal_session_update", handleTerminalSession);
+      socket.off("request_active_sessions", handleRequestActiveSessions);
     };
   }, []);
 
