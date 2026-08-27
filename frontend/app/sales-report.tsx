@@ -2371,6 +2371,12 @@ export default function SalesReport() {
           Theme.warning,
         )}
         {renderMetricTile(
+          "Cash Box Entry",
+          formatCurrency(filteredMetrics.CashBoxEntry),
+          "briefcase-outline",
+          "#0ea5e9",
+        )}
+        {renderMetricTile(
           "Total Collections",
           // Exclude credit *sales* from TotalSales — they are deferred revenue (not collected at
           // point of sale). Add credit/member *payment* collections separately so a credit bill

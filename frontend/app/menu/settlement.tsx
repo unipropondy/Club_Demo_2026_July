@@ -2423,7 +2423,7 @@ const fetchDayHistory = async () => {
                   {/* Row 1: Total All Modes */}
                   <View style={{ flexDirection: "row", paddingVertical: 10, alignItems: "center" }}>
                     <View style={{ flex: 2 }}>
-                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#C084FC" }}>TOTAL INFLOWS</Text>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: "#C084FC" }}>TOTAL MOVEMENTS</Text>
                     </View>
                     <Text style={{ flex: 1, textAlign: "right", fontFamily: Fonts.black, fontSize: 14, color: Theme.success }}>
                       {formatCurrency(totalCashIn + nonCashTotal)}

@@ -197,7 +197,8 @@ const TableItemComponent = React.memo(
         : item.paymentStatus;
     const isPaid = rawEntryStatus === "q" && Number(rawPaymentStatus) === 1;
 
-    const session = useTerminalPaymentStore((state) => state.sessions[tableId]);
+    const cleanTableKey = String(tableId || "").replace(/^\{|\}$/g, "").trim().toLowerCase();
+    const session = useTerminalPaymentStore((state) => state.sessions[cleanTableKey]);
     const isTerminalProcessing = session?.status === "processing";
     const isTerminalFailed = session?.status === "failed";
 
@@ -859,6 +860,9 @@ export default function Category() {
     s.settings.enableGuestDetailsPopup !== undefined
       ? s.settings.enableGuestDetailsPopup
       : true,
+  );
+  const enableCashDrawer = useGeneralSettingsStore((s: any) =>
+    s.settings.enableCashDrawer !== undefined ? s.settings.enableCashDrawer : true
   );
 
   const [licenseInfo, setLicenseInfo] = useState<{
@@ -3641,8 +3645,15 @@ export default function Category() {
 
                           {/* Cash Drawer */}
                           <TouchableOpacity
-                            style={styles.subMenuItem}
+                            style={[styles.subMenuItem, !enableCashDrawer && { opacity: 0.4 }]}
                             onPress={() => {
+                              if (!enableCashDrawer) {
+                                Alert.alert(
+                                  "Module Disabled",
+                                  "The Cash Drawer Module is currently disabled in General Settings. Please enable it in Settings to access this."
+                                );
+                                return;
+                              }
                               setIsMenuVisible(false);
                               router.push("/cash-drawer");
                             }}

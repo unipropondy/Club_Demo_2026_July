@@ -602,7 +602,7 @@ export default function SummaryScreen() {
 
   useEffect(() => {
     // Only show loading briefly — don't block forever
-    const t = setTimeout(() => setOrderLoadTimeout(false), 2000);
+    const t = setTimeout(() => setOrderLoadTimeout(false), 300);
     useCartStore.getState().setActiveSplitItems(null);
     return () => clearTimeout(t);
   }, []);

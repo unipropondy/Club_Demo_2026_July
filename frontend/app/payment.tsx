@@ -309,7 +309,11 @@ export default function PaymentScreen() {
   // ⚡ Reactive subscription to the terminal session state
   const currentTableId = context?.tableId;
   const activeSession = useTerminalPaymentStore(
-    (state) => currentTableId ? state.sessions[currentTableId.toLowerCase()] : null
+    (state) => {
+      if (!currentTableId) return null;
+      const cleanKey = String(currentTableId).replace(/^\{|\}$/g, "").trim().toLowerCase();
+      return state.sessions[cleanKey] || null;
+    }
   );
 
   useEffect(() => {
@@ -1261,6 +1265,11 @@ export default function PaymentScreen() {
   };
 
   const handleSelectMethod = (m: PaymentMethod) => {
+    if (context?.tableId) {
+      useTerminalPaymentStore.getState().clearSession(context.tableId);
+    }
+    setPaymentStatus("idle");
+    setPaymentMessage("");
     setMethod(m.payMode);
     if (context?.tableId) {
       useTableNavigationStore.getState().setSelectedMethod(context.tableId, m.payMode);
@@ -2932,6 +2941,28 @@ export default function PaymentScreen() {
                         ]}>
                           {paymentMessage}
                         </Text>
+                        {paymentStatus !== "processing" && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              if (context?.tableId) {
+                                useTerminalPaymentStore.getState().clearSession(context.tableId);
+                              }
+                              setPaymentStatus("idle");
+                              setPaymentMessage("");
+                            }}
+                            style={{ padding: 4 }}
+                          >
+                            <Ionicons
+                              name="close"
+                              size={20}
+                              color={
+                                paymentStatus === "success" ? "#22c55e" :
+                                  paymentStatus === "cancelled" ? "#f59e0b" :
+                                    "#ef4444"
+                              }
+                            />
+                          </TouchableOpacity>
+                        )}
                       </View>
                     )}
 

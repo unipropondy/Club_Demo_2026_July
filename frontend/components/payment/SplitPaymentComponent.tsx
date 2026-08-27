@@ -247,7 +247,11 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
   const context = useOrderContextStore((state) => state.currentOrder);
   const currentTableId = context?.tableId;
   const activeSession = useTerminalPaymentStore(
-    (state) => currentTableId ? state.sessions[currentTableId.toLowerCase()] : null
+    (state) => {
+      if (!currentTableId) return null;
+      const cleanKey = String(currentTableId).replace(/^\{|\}$/g, "").trim().toLowerCase();
+      return state.sessions[cleanKey] || null;
+    }
   );
 
   useEffect(() => {
@@ -275,6 +279,16 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
       }
     }
   }, [activeSession, rows]);
+
+  useEffect(() => {
+    return () => {
+      // Clear split payment terminal session upon unmount if it is not in processing state
+      const currentSession = useTerminalPaymentStore.getState().getSession(currentTableId || "");
+      if (currentSession && currentSession.isSplit && currentSession.status !== "processing") {
+        useTerminalPaymentStore.getState().clearSession(currentTableId || "");
+      }
+    };
+  }, [currentTableId]);
 
   // Check if a row is locked (a verified paid digital row)
   const isRowLocked = (row: SplitPaymentRow) => {
@@ -887,6 +901,29 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
                   ]}>
                     {terminalMessage}
                   </Text>
+                  {terminalStatus !== "processing" && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (currentTableId) {
+                          useTerminalPaymentStore.getState().clearSession(currentTableId);
+                        }
+                        setTerminalStatus("idle");
+                        setTerminalMessage("");
+                        setTerminalStatusRowId(null);
+                      }}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={18}
+                        color={
+                          terminalStatus === "success" ? "#22c55e" :
+                            terminalStatus === "cancelled" ? "#f59e0b" :
+                              "#ef4444"
+                        }
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
 

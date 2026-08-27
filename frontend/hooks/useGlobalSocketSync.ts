@@ -6,6 +6,7 @@ import { useOrderContextStore } from "../stores/orderContextStore";
 import { useTableStatusStore } from "../stores/tableStatusStore";
 import { API_URL } from "../constants/Config";
 import UniversalPrinter from "../components/UniversalPrinter";
+import { useTerminalPaymentStore } from "../stores/terminalPaymentStore";
 
 /**
  * useGlobalSocketSync
@@ -425,6 +426,14 @@ export function useGlobalSocketSync() {
       store.setCartItems(payload.contextId, payload.items, true, "SOCKET_CHANGE");
     };
 
+    // --- 7. TERMINAL SESSION SYNC ---
+    const handleTerminalSession = (payload: { tableId: string; session: any }) => {
+      const { tableId, session } = payload;
+      if (!tableId) return;
+      const cleanTableId = tableId.replace(/^\{|\}$/g, "").trim().toLowerCase();
+      useTerminalPaymentStore.getState().applySessionFromSocket(cleanTableId, session);
+    };
+
     socket.on("connect", handleConnect);
     socket.on("connect_error", handleConnectError);
     socket.on("new_order", handleNewOrder);
@@ -435,6 +444,7 @@ export function useGlobalSocketSync() {
     socket.on("order_closed", handleOrderClosed);
     socket.on("qr_payment_confirmed", handleQrPaymentConfirmed);
     socket.on("cart_change", handleCartChange);
+    socket.on("terminal_session_update", handleTerminalSession);
 
     return () => {
       clearInterval(keepAliveInterval);
@@ -448,6 +458,7 @@ export function useGlobalSocketSync() {
       socket.off("order_closed", handleOrderClosed);
       socket.off("qr_payment_confirmed", handleQrPaymentConfirmed);
       socket.off("cart_change", handleCartChange);
+      socket.off("terminal_session_update", handleTerminalSession);
     };
   }, []);
 

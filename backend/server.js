@@ -131,6 +131,12 @@ io.on("connection", (socket) => {
     }
   });
 
+  // ⚡ TERMINAL SESSION SYNC: Broadcast terminal payment session updates to all tablets
+  socket.on("terminal_session_update", (data) => {
+    console.log("⚡ [Server] Terminal session update:", data.tableId, data.session?.status || "CLEARED");
+    socket.broadcast.emit("terminal_session_update", data);
+  });
+
   socket.on("disconnect", () => {
     console.log("🔌 Client disconnected:", socket.id);
   });
