@@ -1288,6 +1288,18 @@ export default function PaymentScreen() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    return () => {
+      // Clear terminal session upon exiting payment page if it is not in processing state
+      if (context?.tableId) {
+        const currentSession = useTerminalPaymentStore.getState().getSession(context.tableId);
+        if (currentSession && currentSession.status !== "processing") {
+          useTerminalPaymentStore.getState().clearSession(context.tableId);
+        }
+      }
+    };
+  }, [context?.tableId]);
+
   const confirmPayment = async () => {
     if (processing) return;
 
@@ -3138,7 +3150,12 @@ export default function PaymentScreen() {
                           <TextInput
                             style={styles.cashInput}
                             value={cashInput}
-                            onChangeText={setCashInput}
+                            onChangeText={(val) => {
+                              const cleaned = val.replace(/[^0-9.]/g, "");
+                              const parts = cleaned.split(".");
+                              const formatted = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
+                              setCashInput(formatted);
+                            }}
                             keyboardType="numeric"
                             placeholder="0.00"
                             {...Platform.select({

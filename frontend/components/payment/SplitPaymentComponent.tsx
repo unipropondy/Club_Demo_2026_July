@@ -447,6 +447,9 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
 
   const handleUpdateRow = (id: string, updates: Partial<SplitPaymentRow>) => {
     if (updates.payModeId !== undefined && terminalStatusRowId === id) {
+      if (currentTableId) {
+        useTerminalPaymentStore.getState().clearSession(currentTableId);
+      }
       setTerminalStatus("idle");
       setTerminalMessage("");
       setTerminalStatusRowId(null);
@@ -762,7 +765,12 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
                     style={[styles.amountInput, locked && styles.disabledText]}
                     keyboardType="numeric"
                     value={row.amount}
-                    onChangeText={(val) => handleUpdateRow(row.id, { amount: val })}
+                    onChangeText={(val) => {
+                      const cleaned = val.replace(/[^0-9.]/g, "");
+                      const parts = cleaned.split(".");
+                      const formatted = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
+                      handleUpdateRow(row.id, { amount: formatted });
+                    }}
                     placeholder="0.00"
                     placeholderTextColor={Theme.textMuted}
                     editable={!locked}
