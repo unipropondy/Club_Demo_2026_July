@@ -254,6 +254,23 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
     }
   );
 
+  // ⚡ Reactive subscription to the split rows map across devices
+  const savedSplitRows = useTableNavigationStore(
+    (state) => {
+      if (!currentTableId) return null;
+      const cleanKey = String(currentTableId).replace(/^\{|\}$/g, "").trim().toLowerCase();
+      return state.splitRowsMap[cleanKey] || null;
+    }
+  );
+
+  useEffect(() => {
+    if (savedSplitRows && savedSplitRows.length > 0) {
+      if (JSON.stringify(savedSplitRows) !== JSON.stringify(rows)) {
+        setRows(savedSplitRows);
+      }
+    }
+  }, [savedSplitRows]);
+
   useEffect(() => {
     if (activeSession && activeSession.isSplit && activeSession.splitRowId && rows.length > 0) {
       const targetRow = rows.find(r => r.id === activeSession.splitRowId);
@@ -766,7 +783,16 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
                     keyboardType="numeric"
                     value={row.amount}
                     onChangeText={(val) => {
-                      const cleaned = val.replace(/[^0-9.]/g, "");
+                      let cleaned = val.replace(/[^0-9.]/g, "");
+                      const isZeroVal = row.amount === "0.00" || row.amount === "0.0" || row.amount === "0";
+                      if (isZeroVal && cleaned.length > 0) {
+                        const lastChar = val.slice(-1);
+                        if (lastChar === ".") {
+                          cleaned = "0.";
+                        } else if (lastChar >= "0" && lastChar <= "9") {
+                          cleaned = lastChar;
+                        }
+                      }
                       const parts = cleaned.split(".");
                       const formatted = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
                       handleUpdateRow(row.id, { amount: formatted });
@@ -825,52 +851,65 @@ const handleGenerateQR = async (row: SplitPaymentRow) => {
     </View>
   </View>
 
- {row.status === "Pending" && (
-  <TouchableOpacity
-    activeOpacity={((parseFloat(row.amount) || 0) <= 0 || (parseFloat(row.amount) || 0) > getRowMaxAllowed(row.id) + 0.01) ? 1 : 0.8}
-    onPress={() => {
-      const rowAmt = parseFloat(row.amount) || 0;
-      const maxAllowed = getRowMaxAllowed(row.id);
+  {row.status === "Pending" && (() => {
+    const isRowProcessing = terminalStatusRowId === row.id && terminalStatus === "processing";
+    const isAmtInvalid = (parseFloat(row.amount) || 0) <= 0 || (parseFloat(row.amount) || 0) > getRowMaxAllowed(row.id) + 0.01;
+    return (
+      <TouchableOpacity
+        activeOpacity={(isAmtInvalid || isRowProcessing) ? 1 : 0.8}
+        disabled={isRowProcessing || isAmtInvalid}
+        onPress={() => {
+          const rowAmt = parseFloat(row.amount) || 0;
+          const maxAllowed = getRowMaxAllowed(row.id);
 
-      if (rowAmt <= 0) {
-        Alert.alert("Invalid Amount", "Please enter an amount greater than zero.");
-        return;
-      }
-      if (rowAmt > maxAllowed + 0.01) {
-        Alert.alert(
-          "Amount Exceeds Balance",
-          `Amount cannot exceed the remaining balance of ${currencySymbol}${maxAllowed.toFixed(2)}.`
-        );
-        return;
-      }
+          if (rowAmt <= 0) {
+            Alert.alert("Invalid Amount", "Please enter an amount greater than zero.");
+            return;
+          }
+          if (rowAmt > maxAllowed + 0.01) {
+            Alert.alert(
+              "Amount Exceeds Balance",
+              `Amount cannot exceed the remaining balance of ${currencySymbol}${maxAllowed.toFixed(2)}.`
+            );
+            return;
+          }
 
-      if (needsTerminalCall(row.payMode, paymentMethods) || isNormalPayNowMode(row.payMode)) {
-        handleGenerateQR(row);
-      } else {
-        handleUpdateRow(row.id, { status: "Paid" });
-      }
-    }}
-    style={[
-      styles.generateQrBtn,
-      ((parseFloat(row.amount) || 0) <= 0 || (parseFloat(row.amount) || 0) > getRowMaxAllowed(row.id) + 0.01) && { backgroundColor: Theme.border, opacity: 0.6 }
-    ]}
-  >
-    <Ionicons 
-      name={
-        needsTerminalCall(row.payMode, paymentMethods) 
-          ? "call-outline" 
-          : (isNormalPayNowMode(row.payMode) ? "qr-code" : "checkmark-circle-outline")
-      } 
-      size={14} 
-      color="#fff" 
-    />
-    <Text style={styles.generateQrText}>
-      {needsTerminalCall(row.payMode, paymentMethods) 
-        ? "Call Terminal" 
-        : (isNormalPayNowMode(row.payMode) ? "Generate QR" : "Confirm Payment")}
-    </Text>
-  </TouchableOpacity>
-)}
+          if (needsTerminalCall(row.payMode, paymentMethods) || isNormalPayNowMode(row.payMode)) {
+            handleGenerateQR(row);
+          } else {
+            handleUpdateRow(row.id, { status: "Paid" });
+          }
+        }}
+        style={[
+          styles.generateQrBtn,
+          isAmtInvalid && { backgroundColor: Theme.border, opacity: 0.6 },
+          isRowProcessing && { opacity: 0.7 }
+        ]}
+      >
+        {isRowProcessing && needsTerminalCall(row.payMode, paymentMethods) ? (
+          <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
+        ) : (
+          <Ionicons 
+            name={
+              needsTerminalCall(row.payMode, paymentMethods) 
+                ? "call-outline" 
+                : (isNormalPayNowMode(row.payMode) ? "qr-code" : "checkmark-circle-outline")
+            } 
+            size={14} 
+            color="#fff" 
+            style={{ marginRight: 6 }}
+          />
+        )}
+        <Text style={styles.generateQrText}>
+          {isRowProcessing && needsTerminalCall(row.payMode, paymentMethods)
+            ? "Calling..."
+            : needsTerminalCall(row.payMode, paymentMethods) 
+              ? "Call Terminal" 
+              : (isNormalPayNowMode(row.payMode) ? "Generate QR" : "Confirm Payment")}
+        </Text>
+      </TouchableOpacity>
+    );
+  })()}
 </View>
 
               {terminalStatusRowId === row.id && terminalStatus !== "idle" && (

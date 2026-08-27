@@ -137,6 +137,12 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("request_active_sessions");
   });
 
+  // ⚡ TABLE NAVIGATION SYNC: Broadcast table navigation updates (split rows, screens, methods) to all tablets
+  socket.on("table_navigation_update", (data) => {
+    console.log("⚡ [Server] Table navigation update:", data.tableId, Object.keys(data).filter(k => k !== "tableId"));
+    socket.broadcast.emit("table_navigation_update", data);
+  });
+
   // ⚡ TERMINAL SESSION SYNC: Broadcast terminal payment session updates to all tablets
   socket.on("terminal_session_update", (data) => {
     console.log("⚡ [Server] Terminal session update:", data.tableId, data.session?.status || "CLEARED");

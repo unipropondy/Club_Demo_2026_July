@@ -278,6 +278,21 @@ export default function PaymentScreen() {
   const [checkoutSessionId, setCheckoutSessionId] = useState(() => generateSessionId());
   const [isSplitActive, setIsSplitActive] = useState(false);
 
+  // ⚡ Reactive subscription to the split active state across devices
+  const savedSplitActive = useTableNavigationStore(
+    (state) => {
+      if (!currentTableId) return false;
+      const cleanKey = String(currentTableId).replace(/^\{|\}$/g, "").trim().toLowerCase();
+      return state.splitStateMap[cleanKey] || false;
+    }
+  );
+
+  useEffect(() => {
+    if (savedSplitActive !== isSplitActive) {
+      setIsSplitActive(savedSplitActive);
+    }
+  }, [savedSplitActive]);
+
   useEffect(() => {
     if (isFocused) {
       if (context?.tableId) {
@@ -3150,8 +3165,17 @@ export default function PaymentScreen() {
                           <TextInput
                             style={styles.cashInput}
                             value={cashInput}
-                            onChangeText={(val) => {
-                              const cleaned = val.replace(/[^0-9.]/g, "");
+                           onChangeText={(val) => {
+                              let cleaned = val.replace(/[^0-9.]/g, "");
+                              const isZeroVal = cashInput === "0.00" || cashInput === "0.0" || cashInput === "0";
+                              if (isZeroVal && cleaned.length > 0) {
+                                const lastChar = val.slice(-1);
+                                if (lastChar === ".") {
+                                  cleaned = "0.";
+                                } else if (lastChar >= "0" && lastChar <= "9") {
+                                  cleaned = lastChar;
+                                }
+                              }
                               const parts = cleaned.split(".");
                               const formatted = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join("")}` : cleaned;
                               setCashInput(formatted);

@@ -7,6 +7,7 @@ import { useTableStatusStore } from "../stores/tableStatusStore";
 import { API_URL } from "../constants/Config";
 import UniversalPrinter from "../components/UniversalPrinter";
 import { useTerminalPaymentStore } from "../stores/terminalPaymentStore";
+import { useTableNavigationStore } from "../stores/tableNavigationStore";
 
 /**
  * useGlobalSocketSync
@@ -39,11 +40,23 @@ export function useGlobalSocketSync() {
       
       // ⚡ Request active terminal sessions from other devices and broadcast our own
       socket.emit("request_active_sessions");
+      
       const sessions = useTerminalPaymentStore.getState().sessions;
       Object.keys(sessions).forEach((tableId) => {
         const session = sessions[tableId];
         if (session) {
           socket.emit("terminal_session_update", { tableId, session });
+        }
+      });
+
+      const navStore = useTableNavigationStore.getState();
+      Object.keys(navStore.splitRowsMap).forEach((tableId) => {
+        const rows = navStore.splitRowsMap[tableId];
+        const isSplit = navStore.splitStateMap[tableId];
+        const selectedMethod = navStore.selectedMethodMap[tableId];
+        const screen = navStore.navigationMap[tableId];
+        if (rows || isSplit !== undefined || selectedMethod || screen) {
+          socket.emit("table_navigation_update", { tableId, rows, isSplit, selectedMethod, screen });
         }
       });
     };
@@ -444,6 +457,13 @@ export function useGlobalSocketSync() {
       useTerminalPaymentStore.getState().applySessionFromSocket(cleanTableId, session);
     };
 
+    const handleTableNavigationUpdate = (payload: { tableId: string; [key: string]: any }) => {
+      const { tableId, ...data } = payload;
+      if (!tableId) return;
+      const cleanTableId = tableId.replace(/^\{|\}$/g, "").trim().toLowerCase();
+      useTableNavigationStore.getState().applyNavigationFromSocket(cleanTableId, data);
+    };
+
     const handleRequestActiveSessions = () => {
       if (__DEV__) {
         console.log("⚡ [Socket-Global] Received request for active terminal sessions");
@@ -453,6 +473,17 @@ export function useGlobalSocketSync() {
         const session = sessions[tableId];
         if (session) {
           socket.emit("terminal_session_update", { tableId, session });
+        }
+      });
+
+      const navStore = useTableNavigationStore.getState();
+      Object.keys(navStore.splitRowsMap).forEach((tableId) => {
+        const rows = navStore.splitRowsMap[tableId];
+        const isSplit = navStore.splitStateMap[tableId];
+        const selectedMethod = navStore.selectedMethodMap[tableId];
+        const screen = navStore.navigationMap[tableId];
+        if (rows || isSplit !== undefined || selectedMethod || screen) {
+          socket.emit("table_navigation_update", { tableId, rows, isSplit, selectedMethod, screen });
         }
       });
     };
@@ -468,6 +499,7 @@ export function useGlobalSocketSync() {
     socket.on("qr_payment_confirmed", handleQrPaymentConfirmed);
     socket.on("cart_change", handleCartChange);
     socket.on("terminal_session_update", handleTerminalSession);
+    socket.on("table_navigation_update", handleTableNavigationUpdate);
     socket.on("request_active_sessions", handleRequestActiveSessions);
 
     return () => {
@@ -483,6 +515,7 @@ export function useGlobalSocketSync() {
       socket.off("qr_payment_confirmed", handleQrPaymentConfirmed);
       socket.off("cart_change", handleCartChange);
       socket.off("terminal_session_update", handleTerminalSession);
+      socket.off("table_navigation_update", handleTableNavigationUpdate);
       socket.off("request_active_sessions", handleRequestActiveSessions);
     };
   }, []);
