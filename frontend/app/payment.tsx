@@ -239,6 +239,7 @@ export default function PaymentScreen() {
     (isTablet && (isLandscape || width >= 1024)) || (isMobile && isLandscape);
 
   const context = useOrderContextStore((s) => s.currentOrder);
+  const currentTableId = context?.tableId;
 
   useEffect(() => {
     if (isFocused && context?.tableId) {
@@ -276,29 +277,24 @@ export default function PaymentScreen() {
       return v.toString(16);
     });
   const [checkoutSessionId, setCheckoutSessionId] = useState(() => generateSessionId());
-  const [isSplitActive, setIsSplitActive] = useState(false);
-
-  // ⚡ Reactive subscription to the split active state across devices
-  const savedSplitActive = useTableNavigationStore(
+  // ⚡ isSplitActive reads directly from the store — no local state, no sync loops
+  const isSplitActive = useTableNavigationStore(
     (state) => {
       if (!currentTableId) return false;
       const cleanKey = String(currentTableId).replace(/^\{|\}$/g, "").trim().toLowerCase();
-      return state.splitStateMap[cleanKey] || false;
+      return (state.splitStateMap || {})[cleanKey] || false;
     }
   );
 
-  useEffect(() => {
-    if (savedSplitActive !== isSplitActive) {
-      setIsSplitActive(savedSplitActive);
+  const setIsSplitActive = (value: boolean) => {
+    if (context?.tableId) {
+      useTableNavigationStore.getState().setSplitActive(context.tableId, value);
     }
-  }, [savedSplitActive]);
+  };
 
   useEffect(() => {
     if (isFocused) {
       if (context?.tableId) {
-        const wasSplitActive = useTableNavigationStore.getState().getSplitActive(context.tableId);
-        setIsSplitActive(wasSplitActive);
-
         // Restore saved selected method for this table if any
         const savedMethod = useTableNavigationStore.getState().getSelectedMethod(context.tableId);
         if (savedMethod) {
@@ -322,7 +318,6 @@ export default function PaymentScreen() {
   }, [isFocused, context?.tableId, paymentMethods]);
 
   // ⚡ Reactive subscription to the terminal session state
-  const currentTableId = context?.tableId;
   const activeSession = useTerminalPaymentStore(
     (state) => {
       if (!currentTableId) return null;
@@ -382,11 +377,7 @@ export default function PaymentScreen() {
     outputRange: ["0deg", "360deg"],
   });
 
-  useEffect(() => {
-    if (context?.tableId) {
-      useTableNavigationStore.getState().setSplitActive(context.tableId, isSplitActive);
-    }
-  }, [isSplitActive, context?.tableId]);
+
 
   useEffect(() => {
     if (isLedgerCollection && collectAmount !== undefined) {

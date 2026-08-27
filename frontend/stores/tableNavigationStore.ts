@@ -1,4 +1,7 @@
-import { create } from "zustand";
+import { create, StateCreator } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { socket } from "../constants/socket";
 
 export type NavScreen = "payment" | "summary" | "kitchen";
@@ -34,7 +37,10 @@ const cleanId = (tableId: string) =>
     .trim()
     .toLowerCase();
 
-export const useTableNavigationStore = create<TableNavigationState>((set, get) => ({
+const storeCreator: StateCreator<
+  TableNavigationState,
+  [["zustand/persist", unknown]]
+> = (set, get) => ({
   navigationMap: {},
   splitStateMap: {},
   splitRowsMap: {},
@@ -43,10 +49,11 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
   setLastScreen: (tableId: string, screen: NavScreen) => {
     const id = cleanId(tableId);
     if (!id) return;
-    if (get().navigationMap[id] === screen) return;
+    const currentNavMap = get().navigationMap || {};
+    if (currentNavMap[id] === screen) return;
     set((state) => ({
       navigationMap: {
-        ...state.navigationMap,
+        ...(state.navigationMap || {}),
         [id]: screen,
       },
     }));
@@ -60,16 +67,17 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
   getLastScreen: (tableId: string) => {
     const id = cleanId(tableId);
     if (!id) return null;
-    return get().navigationMap[id] || null;
+    return (get().navigationMap || {})[id] || null;
   },
 
   setSplitActive: (tableId: string, isSplit: boolean) => {
     const id = cleanId(tableId);
     if (!id) return;
-    if (get().splitStateMap[id] === isSplit) return;
+    const currentSplitStateMap = get().splitStateMap || {};
+    if (currentSplitStateMap[id] === isSplit) return;
     set((state) => ({
       splitStateMap: {
-        ...state.splitStateMap,
+        ...(state.splitStateMap || {}),
         [id]: isSplit,
       },
     }));
@@ -83,16 +91,17 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
   getSplitActive: (tableId: string) => {
     const id = cleanId(tableId);
     if (!id) return false;
-    return get().splitStateMap[id] || false;
+    return (get().splitStateMap || {})[id] || false;
   },
 
   setSplitRows: (tableId: string, rows: any[]) => {
     const id = cleanId(tableId);
     if (!id) return;
-    if (JSON.stringify(get().splitRowsMap[id]) === JSON.stringify(rows)) return;
+    const currentRowsMap = get().splitRowsMap || {};
+    if (JSON.stringify(currentRowsMap[id]) === JSON.stringify(rows)) return;
     set((state) => ({
       splitRowsMap: {
-        ...state.splitRowsMap,
+        ...(state.splitRowsMap || {}),
         [id]: rows,
       },
     }));
@@ -106,16 +115,17 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
   getSelectedMethod: (tableId: string) => {
     const id = cleanId(tableId);
     if (!id) return null;
-    return get().selectedMethodMap[id] || null;
+    return (get().selectedMethodMap || {})[id] || null;
   },
 
   setSelectedMethod: (tableId: string, method: string) => {
     const id = cleanId(tableId);
     if (!id) return;
-    if (get().selectedMethodMap[id] === method) return;
+    const currentMethodMap = get().selectedMethodMap || {};
+    if (currentMethodMap[id] === method) return;
     set((state) => ({
       selectedMethodMap: {
-        ...state.selectedMethodMap,
+        ...(state.selectedMethodMap || {}),
         [id]: method,
       },
     }));
@@ -129,20 +139,20 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
   getSplitRows: (tableId: string) => {
     const id = cleanId(tableId);
     if (!id) return null;
-    return get().splitRowsMap[id] || null;
+    return (get().splitRowsMap || {})[id] || null;
   },
 
   clearLastScreen: (tableId: string) => {
     const id = cleanId(tableId);
     if (!id) return;
     set((state) => {
-      const newMap = { ...state.navigationMap };
+      const newMap = { ...(state.navigationMap || {}) };
       delete newMap[id];
-      const newSplitMap = { ...state.splitStateMap };
+      const newSplitMap = { ...(state.splitStateMap || {}) };
       delete newSplitMap[id];
-      const newRowsMap = { ...state.splitRowsMap };
+      const newRowsMap = { ...(state.splitRowsMap || {}) };
       delete newRowsMap[id];
-      const newMethodMap = { ...state.selectedMethodMap };
+      const newMethodMap = { ...(state.selectedMethodMap || {}) };
       delete newMethodMap[id];
       try {
         socket.emit("table_navigation_update", { tableId: id, clear: true });
@@ -163,13 +173,13 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
     if (!id) return;
     set((state) => {
       if (data.clear) {
-        const newMap = { ...state.navigationMap };
+        const newMap = { ...(state.navigationMap || {}) };
         delete newMap[id];
-        const newSplitMap = { ...state.splitStateMap };
+        const newSplitMap = { ...(state.splitStateMap || {}) };
         delete newSplitMap[id];
-        const newRowsMap = { ...state.splitRowsMap };
+        const newRowsMap = { ...(state.splitRowsMap || {}) };
         delete newRowsMap[id];
-        const newMethodMap = { ...state.selectedMethodMap };
+        const newMethodMap = { ...(state.selectedMethodMap || {}) };
         delete newMethodMap[id];
         return {
           navigationMap: newMap,
@@ -181,7 +191,7 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
 
       const nextState: Partial<TableNavigationState> = {};
       if (data.screen !== undefined) {
-        nextState.navigationMap = { ...state.navigationMap };
+        nextState.navigationMap = { ...(state.navigationMap || {}) };
         if (data.screen === null) {
           delete nextState.navigationMap[id];
         } else {
@@ -189,7 +199,7 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
         }
       }
       if (data.isSplit !== undefined) {
-        nextState.splitStateMap = { ...state.splitStateMap };
+        nextState.splitStateMap = { ...(state.splitStateMap || {}) };
         if (data.isSplit === null) {
           delete nextState.splitStateMap[id];
         } else {
@@ -197,7 +207,7 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
         }
       }
       if (data.rows !== undefined) {
-        nextState.splitRowsMap = { ...state.splitRowsMap };
+        nextState.splitRowsMap = { ...(state.splitRowsMap || {}) };
         if (data.rows === null) {
           delete nextState.splitRowsMap[id];
         } else {
@@ -205,7 +215,7 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
         }
       }
       if (data.selectedMethod !== undefined) {
-        nextState.selectedMethodMap = { ...state.selectedMethodMap };
+        nextState.selectedMethodMap = { ...(state.selectedMethodMap || {}) };
         if (data.selectedMethod === null) {
           delete nextState.selectedMethodMap[id];
         } else {
@@ -215,4 +225,16 @@ export const useTableNavigationStore = create<TableNavigationState>((set, get) =
       return nextState;
     });
   },
-}));
+});
+
+export const useTableNavigationStore = create<TableNavigationState>()(
+  persist(
+    storeCreator,
+    {
+      name: "table-navigation-storage",
+      storage: createJSONStorage(() => 
+        Platform.OS === 'web' ? window.sessionStorage : AsyncStorage
+      ),
+    }
+  )
+);

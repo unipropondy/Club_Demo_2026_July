@@ -127,7 +127,25 @@ export default function SplitPaymentComponent({
   selectedMember = null,
   onSelectMember,
 }: SplitPaymentComponentProps) {
-  const [rows, setRows] = useState<SplitPaymentRow[]>([]);
+  const context = useOrderContextStore((state) => state.currentOrder);
+  const currentTableId = context?.tableId;
+  const cleanTableId = currentTableId
+    ? String(currentTableId).replace(/^\{|\}$/g, "").trim().toLowerCase()
+    : "";
+
+  const rows = useTableNavigationStore(
+    (state) => (cleanTableId ? (state.splitRowsMap || {})[cleanTableId] : null) || [],
+    (a, b) => JSON.stringify(a) === JSON.stringify(b)
+  );
+
+  const setRows = (
+    newRows: SplitPaymentRow[] | ((prev: SplitPaymentRow[]) => SplitPaymentRow[])
+  ) => {
+    if (!cleanTableId) return;
+    const currentRows = (useTableNavigationStore.getState().splitRowsMap || {})[cleanTableId] || [];
+    const resolvedRows = typeof newRows === "function" ? newRows(currentRows) : newRows;
+    useTableNavigationStore.getState().setSplitRows(cleanTableId, resolvedRows);
+  };
   const [activeDropdownRowId, setActiveDropdownRowId] = useState<string | null>(null);
 
   // Digital verification modal states
@@ -197,13 +215,7 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
     }
   }, [rows, selectedMember, targetTotal]);
 
-  // Save rows to store
-  useEffect(() => {
-    const orderContext = useOrderContextStore.getState().currentOrder;
-    if (orderContext?.tableId && rows.length > 0) {
-      useTableNavigationStore.getState().setSplitRows(orderContext.tableId, rows);
-    }
-  }, [rows]);
+
 
   // Initial rows: load from store or default to 2 payment rows
   useEffect(() => {
@@ -244,8 +256,6 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
     }
   }, [availableMethods, targetTotal]);
 
-  const context = useOrderContextStore((state) => state.currentOrder);
-  const currentTableId = context?.tableId;
   const activeSession = useTerminalPaymentStore(
     (state) => {
       if (!currentTableId) return null;
@@ -253,23 +263,6 @@ const [isGeneratingQR, setIsGeneratingQR] = useState(false);
       return state.sessions[cleanKey] || null;
     }
   );
-
-  // ⚡ Reactive subscription to the split rows map across devices
-  const savedSplitRows = useTableNavigationStore(
-    (state) => {
-      if (!currentTableId) return null;
-      const cleanKey = String(currentTableId).replace(/^\{|\}$/g, "").trim().toLowerCase();
-      return state.splitRowsMap[cleanKey] || null;
-    }
-  );
-
-  useEffect(() => {
-    if (savedSplitRows && savedSplitRows.length > 0) {
-      if (JSON.stringify(savedSplitRows) !== JSON.stringify(rows)) {
-        setRows(savedSplitRows);
-      }
-    }
-  }, [savedSplitRows]);
 
   useEffect(() => {
     if (activeSession && activeSession.isSplit && activeSession.splitRowId && rows.length > 0) {
