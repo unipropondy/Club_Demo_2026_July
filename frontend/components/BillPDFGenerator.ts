@@ -476,7 +476,7 @@ private static escapeHtml(str: string): string {
     });
     
     const itemsHTML = (saleData.items || [])
-        .filter((item: any) => item.status !== 'VOIDED')
+        .filter((item: any) => !saleData.isCancelled ? item.status !== 'VOIDED' : true)
         .map((item: any) => {
           const qtyNum = parseFloat(String(item.qty || item.quantity || 1)) || 1;
           const qtyStr = Number.isInteger(qtyNum) ? String(qtyNum) : qtyNum.toFixed(1);
@@ -500,10 +500,16 @@ private static escapeHtml(str: string): string {
           const hasTWCharge = takeawayRate > 0 || (item.TakeawayCharge !== null && item.TakeawayCharge !== undefined && parseFloat(String(item.TakeawayCharge)) > 0);
           const twTag = (isTW && hasTWCharge) ? ' [TW]' : '';
 
+          const isVoided = item.status === 'VOIDED';
+          const nameStyle = isVoided ? 'text-decoration: line-through; color: #888;' : '';
+          const qtyStyle = isVoided ? 'color: #888;' : '';
+          const priceStyle = isVoided ? 'color: #888;' : '';
+          const totalStyle = isVoided ? 'text-decoration: line-through; color: #888;' : '';
+
           return `
             <tr>
-                <td class="item-name">
-                    ${item.name || item.DishName || ''}${twTag}
+                <td class="item-name" style="${nameStyle}">
+                    ${isVoided ? '[VOID] ' : ''}${item.name || item.DishName || ''}${twTag}
                     ${item.songName || item.SongName ? `<div style="font-size: 7.5px; color: #555; font-style: italic; margin-top: 0.3mm;">🎵 ${item.songName || item.SongName}</div>` : ''}
                     ${(Number(item.isServiceCharge) === 1 || item.isServiceCharge === true) && !allItemsHaveSC ? `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">[Service Charge ${company.serviceChargePercentage}%]</div>` : ''}
                     ${modifiersHTML}
@@ -511,7 +517,7 @@ private static escapeHtml(str: string): string {
                     ${(() => {
                       const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
                       let outStr = '';
-                      if (discAmt > 0) {
+                      if (discAmt > 0 && !isVoided) {
                         const discType = item.discountType || 'percentage';
                         const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
                         const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
@@ -520,15 +526,15 @@ private static escapeHtml(str: string): string {
                         outStr += `<div style="font-size: 8.5px; color: #555; font-style: italic; margin-top: 0.5mm;">Discount: ${discStr}</div>`;
                       }
                       const vipDiscAmt = parseFloat(String(item.vipDiscountAmount || 0)) || 0;
-                      if (vipDiscAmt > 0) {
+                      if (vipDiscAmt > 0 && !isVoided) {
                         outStr += `<div style="font-size: 8.5px; color: #A855F7; font-style: italic; margin-top: 0.5mm;">VIP Discount: -${currencySymbol}${vipDiscAmt.toFixed(2)}</div>`;
                       }
                       return outStr;
                     })()}
                 </td>
-                <td class="item-qty">${qtyStr}</td>
-                <td class="item-price">${currencySymbol}${item.price.toFixed(2)}</td>
-                <td class="item-total">${currencySymbol}${(item.price * qtyNum).toFixed(2)}</td>
+                <td class="item-qty" style="${qtyStyle}">${qtyStr}</td>
+                <td class="item-price" style="${priceStyle}">${currencySymbol}${item.price.toFixed(2)}</td>
+                <td class="item-total" style="${totalStyle}">${currencySymbol}${(item.price * qtyNum).toFixed(2)}</td>
             </tr>
           `;
         }).join('');
@@ -774,6 +780,13 @@ private static escapeHtml(str: string): string {
             </div>
           ` : ''}
 
+          ${saleData.isCancelled ? `
+            <div style="text-align: center; border: 2.5px solid #EF4444; color: #EF4444; padding: 1.5mm; margin-bottom: 4mm; font-weight: 900; font-size: 16px; letter-spacing: 1px;">
+              * CANCELLED ORDER *
+              ${saleData.cancellationReason ? `<div style="font-size: 9px; margin-top: 1mm; font-weight: 700; color: #555;">Reason: ${this.escapeHtml(saleData.cancellationReason)}</div>` : ''}
+            </div>
+          ` : ''}
+
           <!-- Logo Header -->
           <div class="logo-header">
             ${showCompanyLogo && companyLogoUrl ? 
@@ -980,7 +993,7 @@ private static escapeHtml(str: string): string {
             ` : `
               <div class="thankyou">THANK YOU! COME AGAIN!</div>
             `}
-            <div class="copyright">SMART-POS BY UNIPROSG</div>
+            <div class="copyright">SMART-CLUB BY UNIPR0SG</div>
           </div>
           </div>
         </div>

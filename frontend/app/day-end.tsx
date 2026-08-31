@@ -45,7 +45,7 @@ function parseLocalDate(dateStr: string): Date {
 export default function DayEndScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const currencySymbol = useCompanySettingsStore(state => state.settings.currencySymbol) || "₹";
+  const currencySymbol = useCompanySettingsStore((state: any) => state.settings.currencySymbol) || "₹";
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -538,22 +538,20 @@ export default function DayEndScreen() {
             <View style={styles.analysisRow}>
               <Text style={styles.analysisLabel}>Regular Discount</Text>
               <Text style={styles.analysisValue}>
-                {parseFloat(analysis?.regularDiscount) > 0 ? `-${currencySymbol}${formatCurrency(analysis.regularDiscount)}` : "0.00"}
+                {parseFloat(analysis?.regularDiscount) > 0 ? `-${formatCurrency(analysis.regularDiscount)}` : "0.00"}
               </Text>
             </View>
             <View style={styles.analysisRow}>
               <Text style={styles.analysisLabel}>VIP Discount</Text>
               <Text style={[styles.analysisValue, { color: "#a855f7" }]}>
-                {parseFloat(analysis?.vipDiscount) > 0 ? `-${currencySymbol}${formatCurrency(analysis.vipDiscount)}` : "0.00"}
+                {parseFloat(analysis?.vipDiscount) > 0 ? `-${formatCurrency(analysis.vipDiscount)}` : "0.00"}
               </Text>
             </View>
 
-            {parseFloat(analysis?.takeawayCharge) > 0 && (
-              <View style={styles.analysisRow}>
-                <Text style={styles.analysisLabel}>Takeaway Charge</Text>
-                <Text style={styles.analysisValue}>{formatCurrency(analysis.takeawayCharge)}</Text>
-              </View>
-            )}
+            <View style={styles.analysisRow}>
+              <Text style={styles.analysisLabel}>Takeaway Charge</Text>
+              <Text style={styles.analysisValue}>{formatCurrency(analysis?.takeawayCharge)}</Text>
+            </View>
             <View style={styles.analysisRow}>
               <Text style={styles.analysisLabel}>Service Charge</Text>
               <Text style={styles.analysisValue}>{formatCurrency(analysis?.totalServiceCharge || 0)}</Text>

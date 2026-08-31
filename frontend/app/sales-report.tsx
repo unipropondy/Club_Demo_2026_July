@@ -212,6 +212,32 @@ export default function SalesReport() {
   );
   const [showCancelledOrders, setShowCancelledOrders] = useState(true);
 
+  // --- POS SETTINGS STATES ---
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showChangePaymentModal, setShowChangePaymentModal] = useState(false);
+  const [selectedPayMode, setSelectedPayMode] = useState<string | null>(null);
+  const [isSplitMode, setIsSplitMode] = useState(false);
+  const [changePaymentSplits, setChangePaymentSplits] = useState<any[]>([]);
+  const [showMemberModal, setShowMemberModal] = useState(false);
+  const [isMemberSearch, setIsMemberSearch] = useState(true);
+  const [memberQuery, setMemberQuery] = useState("");
+  const [membersList, setMembersList] = useState<any[]>([]);
+  const [searchingMembers, setSearchingMembers] = useState(false);
+  const [selectedMemberForPay, setSelectedMemberForPay] = useState<any | null>(null);
+  const [selectedCreditForPay, setSelectedCreditForPay] = useState<any | null>(null);
+  const [activeSplitIndex, setActiveSplitIndex] = useState<number | null>(null);
+
+  const [showVoidItemModal, setShowVoidItemModal] = useState(false);
+  const [selectedVoidItemIds, setSelectedVoidItemIds] = useState<string[]>([]);
+  const [showCancelOrderConfirm, setShowCancelOrderConfirm] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState("");
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordValue, setPasswordValue] = useState("");
+  const [passwordAction, setPasswordAction] = useState<"VOID" | "CANCEL" | null>(null);
+  const [passwordError, setPasswordError] = useState("");
+  const [verifyingPassword, setVerifyingPassword] = useState(false);
+
   // --- DOWNLOAD MODAL STATES ---
   const [showDownloadPanel, setShowDownloadPanel] = useState(false);
   const [downloadFilter, setDownloadFilter] = useState<FilterType>("DAILY");
@@ -359,6 +385,241 @@ export default function SalesReport() {
       }
     } catch (error) {
       console.error("Failed to fetch payment methods in report:", error);
+    }
+  };
+
+  const searchMembersForPayment = async (q: string, isCredit: boolean) => {
+    setSearchingMembers(true);
+    const endpoint = isCredit
+      ? `${API_URL}/api/credit-customers/search?query=${encodeURIComponent(q)}`
+      : `${API_URL}/api/members/search?query=${encodeURIComponent(q)}`;
+    try {
+      const res = await fetch(endpoint, {
+        headers: useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {},
+      });
+      const data = await res.json();
+      setMembersList(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Search members error:", err);
+    } finally {
+      setSearchingMembers(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showMemberModal) {
+      const timer = setTimeout(() => {
+        searchMembersForPayment(memberQuery, !isMemberSearch);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [memberQuery, showMemberModal, isMemberSearch]);
+
+  const handleVerifyPassword = async () => {
+    if (!passwordValue) return;
+    setVerifyingPassword(true);
+    setPasswordError("");
+    try {
+      const res = await fetch(`${API_URL}/api/auth/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {}),
+        },
+        body: JSON.stringify({
+          password: passwordValue,
+          role: ["ADMIN", "MANAGER", "SUPERVISOR"],
+        }),
+      });
+      const data = await res.json();
+      if (data && data.success) {
+        setShowPasswordModal(false);
+        setPasswordValue("");
+        if (passwordAction === "VOID") {
+          executeVoidItems();
+        } else if (passwordAction === "CANCEL") {
+          executeCancelOrder();
+        }
+      } else {
+        setPasswordError("Invalid supervisor password");
+      }
+    } catch (err) {
+      console.error("Verification error:", err);
+      setPasswordError("Network error occurred");
+    } finally {
+      setVerifyingPassword(false);
+    }
+  };
+
+  const executeVoidItems = async () => {
+    if (selectedVoidItemIds.length === 0 || !selectedOrder) return;
+    try {
+      setLoadingDetails(true);
+      const res = await fetch(`${API_URL}/api/sales/settlement/${selectedOrder.SettlementID}/void-item`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {}),
+        },
+        body: JSON.stringify({ orderDetailIds: selectedVoidItemIds }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast({
+          type: "success",
+          message: "Success",
+          subtitle: "Items voided successfully",
+        });
+        setShowVoidItemModal(false);
+        setSelectedOrder(null);
+        fetchData();
+      } else {
+        showToast({
+          type: "error",
+          message: "Failed",
+          subtitle: data.error || "Could not void items",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      showToast({
+        type: "error",
+        message: "Error",
+        subtitle: "Network connection failed",
+      });
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const executeCancelOrder = async () => {
+    if (!selectedOrder) return;
+    try {
+      setLoadingDetails(true);
+      const res = await fetch(`${API_URL}/api/sales/settlement/${selectedOrder.SettlementID}/cancel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {}),
+        },
+        body: JSON.stringify({ reason: cancellationReason || "Manual Cancellation" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast({
+          type: "success",
+          message: "Success",
+          subtitle: "Order cancelled successfully",
+        });
+        setShowCancelOrderConfirm(false);
+        setSelectedOrder(null);
+        fetchData();
+      } else {
+        showToast({
+          type: "error",
+          message: "Failed",
+          subtitle: data.error || "Could not cancel order",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      showToast({
+        type: "error",
+        message: "Error",
+        subtitle: "Network connection failed",
+      });
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const executeChangePayment = async () => {
+    if (!selectedOrder) return;
+    const totalAmount = Number(selectedOrder.SysAmount || selectedOrder.SubTotal || 0);
+
+    let requestBody: any = {};
+    if (isSplitMode) {
+      const sum = changePaymentSplits.reduce((acc, s) => acc + Number(s.amount || 0), 0);
+      if (Math.abs(sum - totalAmount) > 0.02) {
+        showToast({
+          type: "warning",
+          message: "Allocation Mismatch",
+          subtitle: `Splits sum ($${sum.toFixed(2)}) must equal total ($${totalAmount.toFixed(2)})`,
+        });
+        return;
+      }
+      requestBody = {
+        splits: changePaymentSplits.map(s => ({ payMode: s.payMode, amount: Number(s.amount || 0) })),
+        memberId: selectedMemberForPay?.MemberId || selectedCreditForPay?.MemberId || null,
+      };
+    } else {
+      if (!selectedPayMode) {
+        showToast({
+          type: "warning",
+          message: "Select Payment Mode",
+          subtitle: "Please select a payment method",
+        });
+        return;
+      }
+      if (selectedPayMode === "MEMBER" && !selectedMemberForPay) {
+        showToast({
+          type: "warning",
+          message: "Select Member",
+          subtitle: "Please search and select a member first",
+        });
+        return;
+      }
+      if (selectedPayMode === "CREDIT" && !selectedCreditForPay) {
+        showToast({
+          type: "warning",
+          message: "Select Customer",
+          subtitle: "Please search and select a credit customer first",
+        });
+        return;
+      }
+      requestBody = {
+        payMode: selectedPayMode,
+        memberId: selectedMemberForPay?.MemberId || null,
+        creditCustomerId: selectedCreditForPay?.MemberId || null,
+      };
+    }
+
+    try {
+      setLoadingDetails(true);
+      const res = await fetch(`${API_URL}/api/sales/settlement/${selectedOrder.SettlementID}/change-payment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(useAuthStore.getState().token ? { Authorization: `Bearer ${useAuthStore.getState().token}` } : {}),
+        },
+        body: JSON.stringify(requestBody),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast({
+          type: "success",
+          message: "Success",
+          subtitle: "Payment mode changed successfully",
+        });
+        setShowChangePaymentModal(false);
+        setSelectedOrder(null);
+        fetchData();
+      } else {
+        showToast({
+          type: "error",
+          message: "Failed",
+          subtitle: data.error || "Could not change payment mode",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      showToast({
+        type: "error",
+        message: "Error",
+        subtitle: "Network connection failed",
+      });
+    } finally {
+      setLoadingDetails(false);
     }
   };
 
@@ -1638,6 +1899,8 @@ export default function SalesReport() {
         roundOff: Number(selectedOrder.RoundedBy ?? 0),
         date: selectedOrder.SettlementDate || new Date(),
         isReprint: true,
+        isCancelled: selectedOrder.IsCancelled === 1 || selectedOrder.IsCancelled === true || selectedOrder.StatusCode === 4,
+        cancellationReason: selectedOrder.CancellationReason || null,
         vipDiscountAmount: Number(selectedOrder.VIPDiscountAmount ?? 0),
         discountAmount: Number(selectedOrder.DiscountAmount ?? 0),
         discountType: selectedOrder.DiscountType || null,
@@ -3138,16 +3401,21 @@ export default function SalesReport() {
                       )}
                     </View>
                   </View>
-                  <TouchableOpacity
-                    onPress={() => setSelectedOrder(null)}
-                    style={{ marginLeft: 10 }}
-                  >
-                    <Ionicons
-                      name="close"
-                      size={24}
-                      color={Theme.textMuted}
-                    />
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setSelectedOrder(null);
+                        setOrderDetails([]);
+                      }}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={24}
+                        color={Theme.textMuted}
+                      />
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {/* 🚨 CANCELLED BANNER - Compact Version */}
@@ -3617,7 +3885,30 @@ export default function SalesReport() {
                   })()}
                 </View>
 
-                <View style={{ flexDirection: "row", gap: 12 }}>
+                <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+                  {!selectedOrder?.IsCancelled && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setSelectedPayMode(null);
+                        setIsSplitMode(false);
+                        setChangePaymentSplits([]);
+                        setSelectedMemberForPay(null);
+                        setSelectedCreditForPay(null);
+                        setShowSettingsMenu(true);
+                      }}
+                      style={[
+                        styles.premiumSecondaryBtn,
+                        { width: 48, paddingVertical: 12, paddingHorizontal: 0, justifyContent: "center", alignItems: "center" }
+                      ]}
+                    >
+                      <Ionicons
+                        name="settings-outline"
+                        size={20}
+                        color={Theme.primary}
+                      />
+                    </TouchableOpacity>
+                  )}
+
                   <TouchableOpacity
                     onPress={() => {
                       setSelectedOrder(null);
@@ -3653,6 +3944,683 @@ export default function SalesReport() {
                       </Text>
                     </TouchableOpacity>
                   )}
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Settings Menu Modal */}
+          <Modal visible={showSettingsMenu} transparent animationType="fade">
+            <View style={styles.modalOverlay}>
+              <TouchableOpacity
+                activeOpacity={1}
+                style={styles.modalDismiss}
+                onPress={() => setShowSettingsMenu(false)}
+              />
+              <View style={[styles.modalContent, { maxWidth: 360, padding: 20 }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                  <Text style={{ fontFamily: Fonts.black, fontSize: 16, color: Theme.textPrimary }}>Order Settings</Text>
+                  <TouchableOpacity onPress={() => setShowSettingsMenu(false)}>
+                    <Ionicons name="close" size={22} color={Theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
+                <View style={{ gap: 12 }}>
+                  <TouchableOpacity
+                    style={[styles.premiumSecondaryBtn, { justifyContent: "flex-start", paddingVertical: 12, paddingHorizontal: 16 }]}
+                    onPress={() => {
+                      setShowSettingsMenu(false);
+                      setShowChangePaymentModal(true);
+                    }}
+                  >
+                    <Ionicons name="card-outline" size={18} color={Theme.primary} />
+                    <Text style={[styles.premiumSecondaryBtnText, { fontFamily: Fonts.bold, fontSize: 14, marginLeft: 8 }]}>
+                      Change Payment Mode
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.premiumSecondaryBtn, { justifyContent: "flex-start", paddingVertical: 12, paddingHorizontal: 16 }]}
+                    onPress={() => {
+                      setShowSettingsMenu(false);
+                      setSelectedVoidItemIds([]);
+                      setShowVoidItemModal(true);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={Theme.warning} />
+                    <Text style={[styles.premiumSecondaryBtnText, { fontFamily: Fonts.bold, fontSize: 14, marginLeft: 8, color: Theme.warning }]}>
+                      Void Items
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.premiumSecondaryBtn, { justifyContent: "flex-start", paddingVertical: 12, paddingHorizontal: 16, borderColor: Theme.danger + "40" }]}
+                    onPress={() => {
+                      setShowSettingsMenu(false);
+                      setCancellationReason("");
+                      setShowCancelOrderConfirm(true);
+                    }}
+                  >
+                    <Ionicons name="close-circle-outline" size={18} color={Theme.danger} />
+                    <Text style={[styles.premiumSecondaryBtnText, { fontFamily: Fonts.bold, fontSize: 14, marginLeft: 8, color: Theme.danger }]}>
+                      Cancel Order
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Change Payment Modal */}
+          <Modal visible={showChangePaymentModal} transparent animationType="fade">
+            <View style={styles.modalOverlay}>
+              <TouchableOpacity
+                activeOpacity={1}
+                style={styles.modalDismiss}
+                onPress={() => {
+                  setShowChangePaymentModal(false);
+                  setSelectedPayMode(null);
+                  setIsSplitMode(false);
+                  setChangePaymentSplits([]);
+                  setSelectedMemberForPay(null);
+                  setSelectedCreditForPay(null);
+                }}
+              />
+              <View style={[styles.modalContent, { maxHeight: '85%', padding: 20 }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <Text style={{ fontFamily: Fonts.black, fontSize: 16, color: Theme.textPrimary }}>Change Payment Mode</Text>
+                  <TouchableOpacity onPress={() => {
+                    setShowChangePaymentModal(false);
+                    setSelectedPayMode(null);
+                    setIsSplitMode(false);
+                    setChangePaymentSplits([]);
+                    setSelectedMemberForPay(null);
+                    setSelectedCreditForPay(null);
+                  }}>
+                    <Ionicons name="close" size={22} color={Theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+                  {/* Split toggle */}
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: Theme.bgMuted, padding: 12, borderRadius: 10, marginBottom: 16 }}>
+                    <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>Enable Split Payment</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setIsSplitMode(!isSplitMode);
+                        if (!isSplitMode && changePaymentSplits.length === 0) {
+                          setChangePaymentSplits([{ payMode: "CASH", amount: 0 }]);
+                        }
+                      }}
+                      style={{
+                        width: 50,
+                        height: 28,
+                        borderRadius: 14,
+                        backgroundColor: isSplitMode ? Theme.success : "#475569",
+                        padding: 2,
+                        justifyContent: "center",
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          backgroundColor: "#FFFFFF",
+                          alignSelf: isSplitMode ? "flex-end" : "flex-start",
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.25,
+                          shadowRadius: 2,
+                          elevation: 2,
+                        }}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {!isSplitMode ? (
+                    // Single payment mode selectors
+                    <View style={{ gap: 12 }}>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        Select Payment Method
+                      </Text>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                        {["CASH", "CARD", "NETS", "PAYNOW", "MEMBER", "CREDIT"].map((mode) => {
+                          const isSel = selectedPayMode === mode;
+                          return (
+                            <TouchableOpacity
+                              key={mode}
+                              onPress={() => {
+                                setSelectedPayMode(mode);
+                                if (mode === "MEMBER") {
+                                  setIsMemberSearch(true);
+                                  setMembersList([]);
+                                  setShowMemberModal(true);
+                                } else if (mode === "CREDIT") {
+                                  setIsMemberSearch(false);
+                                  setMembersList([]);
+                                  setShowMemberModal(true);
+                                }
+                              }}
+                              style={{
+                                width: "48%",
+                                paddingVertical: 12,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                borderColor: isSel ? Theme.primary : Theme.border,
+                                backgroundColor: isSel ? Theme.primary + "10" : Theme.bgCard,
+                                alignItems: "center",
+                                justifyContent: "center"
+                              }}
+                            >
+                              <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: isSel ? Theme.primary : Theme.textPrimary }}>
+                                {mode}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+
+                      {/* Display selected member/credit customer info */}
+                      {selectedPayMode === "MEMBER" && (
+                        <View style={{ marginTop: 8, padding: 12, borderRadius: 10, backgroundColor: Theme.success + "08", borderStyle: "dashed", borderWidth: 1, borderColor: Theme.success + "50" }}>
+                          {selectedMemberForPay ? (
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                              <View>
+                                <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: Theme.textPrimary }}>Member: {selectedMemberForPay.Name}</Text>
+                                <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textMuted }}>Balance: ${Number(selectedMemberForPay.CurrentBalance || 0).toFixed(2)}</Text>
+                              </View>
+                              <TouchableOpacity onPress={() => setShowMemberModal(true)}>
+                                <Text style={{ color: Theme.primary, fontFamily: Fonts.bold, fontSize: 12 }}>Change</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
+                            <TouchableOpacity onPress={() => setShowMemberModal(true)} style={{ alignItems: "center", paddingVertical: 8 }}>
+                              <Text style={{ color: Theme.primary, fontFamily: Fonts.bold, fontSize: 13 }}>Search & Select Member</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
+
+                      {selectedPayMode === "CREDIT" && (
+                        <View style={{ marginTop: 8, padding: 12, borderRadius: 10, backgroundColor: Theme.warning + "08", borderStyle: "dashed", borderWidth: 1, borderColor: Theme.warning + "50" }}>
+                          {selectedCreditForPay ? (
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                              <View>
+                                <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: Theme.textPrimary }}>Customer: {selectedCreditForPay.Name}</Text>
+                                <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textMuted }}>Credit Limit: ${Number(selectedCreditForPay.CreditLimit || 0).toFixed(2)}</Text>
+                              </View>
+                              <TouchableOpacity onPress={() => setShowMemberModal(true)}>
+                                <Text style={{ color: Theme.primary, fontFamily: Fonts.bold, fontSize: 12 }}>Change</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
+                            <TouchableOpacity onPress={() => setShowMemberModal(true)} style={{ alignItems: "center", paddingVertical: 8 }}>
+                              <Text style={{ color: Theme.primary, fontFamily: Fonts.bold, fontSize: 13 }}>Search & Select Credit Customer</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  ) : (
+                    // Split payment mode UI
+                    <View style={{ gap: 12 }}>
+                      <Text style={{ fontFamily: Fonts.bold, fontSize: 12, color: Theme.textSecondary, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        Split Allocations
+                      </Text>
+                      {changePaymentSplits.map((split, index) => (
+                        <View key={index} style={{ backgroundColor: Theme.bgMuted, padding: 12, borderRadius: 10, gap: 10 }}>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                            <Text style={{ fontFamily: Fonts.black, fontSize: 12, color: Theme.textSecondary }}>Split #{index + 1}</Text>
+                            {changePaymentSplits.length > 1 && (
+                              <TouchableOpacity onPress={() => setChangePaymentSplits(changePaymentSplits.filter((_, idx) => idx !== index))}>
+                                <Ionicons name="trash" size={16} color={Theme.danger} />
+                              </TouchableOpacity>
+                            )}
+                          </View>
+
+                          <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
+                            {["CASH", "CARD", "NETS", "PAYNOW", "MEMBER", "CREDIT"].map((mode) => {
+                              const active = split.payMode === mode;
+                              return (
+                                <TouchableOpacity
+                                  key={mode}
+                                  onPress={() => {
+                                    const updated = [...changePaymentSplits];
+                                    updated[index] = { ...updated[index], payMode: mode };
+                                    setChangePaymentSplits(updated);
+                                    if (mode === "MEMBER") {
+                                      setIsMemberSearch(true);
+                                      setActiveSplitIndex(index);
+                                      setMembersList([]);
+                                      setShowMemberModal(true);
+                                    } else if (mode === "CREDIT") {
+                                      setIsMemberSearch(false);
+                                      setActiveSplitIndex(index);
+                                      setMembersList([]);
+                                      setShowMemberModal(true);
+                                    }
+                                  }}
+                                  style={{
+                                    paddingHorizontal: 8,
+                                    paddingVertical: 6,
+                                    borderRadius: 6,
+                                    borderWidth: 1,
+                                    borderColor: active ? Theme.primary : Theme.border,
+                                    backgroundColor: active ? Theme.primary + "10" : Theme.bgCard
+                                  }}
+                                >
+                                  <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: active ? Theme.primary : Theme.textPrimary }}>
+                                    {mode}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </View>
+
+                          {/* Member/Credit search in splits */}
+                          {(split.payMode === "MEMBER" || split.payMode === "CREDIT") && (
+                            <View style={{ padding: 8, borderRadius: 8, backgroundColor: Theme.bgCard, borderWidth: 1, borderColor: Theme.border }}>
+                              {split.customerName ? (
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                                  <Text style={{ fontSize: 11, fontFamily: Fonts.bold, color: Theme.textPrimary }}>
+                                    {split.payMode}: {split.customerName}
+                                  </Text>
+                                  <TouchableOpacity onPress={() => {
+                                    setIsMemberSearch(split.payMode === "MEMBER");
+                                    setActiveSplitIndex(index);
+                                    setMembersList([]);
+                                    setShowMemberModal(true);
+                                  }}>
+                                    <Text style={{ fontSize: 10, color: Theme.primary, fontFamily: Fonts.bold }}>Change</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              ) : (
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    setIsMemberSearch(split.payMode === "MEMBER");
+                                    setActiveSplitIndex(index);
+                                    setMembersList([]);
+                                    setShowMemberModal(true);
+                                  }}
+                                  style={{ alignItems: "center", paddingVertical: 4 }}
+                                >
+                                  <Text style={{ fontSize: 11, color: Theme.primary, fontFamily: Fonts.bold }}>Search & Select Customer</Text>
+                                </TouchableOpacity>
+                              )}
+                            </View>
+                          )}
+
+                          <TextInput
+                            placeholder="Enter amount"
+                            placeholderTextColor={Theme.textMuted}
+                            keyboardType="numeric"
+                            value={split.amount ? String(split.amount) : ""}
+                            onChangeText={(text) => {
+                              const cleaned = text.replace(/[^0-9.]/g, "");
+                              const updated = [...changePaymentSplits];
+                              updated[index] = { ...updated[index], amount: cleaned };
+                              setChangePaymentSplits(updated);
+                            }}
+                            style={{
+                              backgroundColor: Theme.bgCard,
+                              borderRadius: 8,
+                              paddingHorizontal: 10,
+                              paddingVertical: 8,
+                              fontFamily: Fonts.medium,
+                              fontSize: 13,
+                              color: Theme.textPrimary,
+                              borderWidth: 1,
+                              borderColor: Theme.border
+                            }}
+                          />
+                        </View>
+                      ))}
+
+                      <TouchableOpacity
+                        onPress={() => setChangePaymentSplits([...changePaymentSplits, { payMode: "CASH", amount: 0 }])}
+                        style={{
+                          borderStyle: "dashed",
+                          borderWidth: 1,
+                          borderColor: Theme.primary,
+                          borderRadius: 10,
+                          paddingVertical: 10,
+                          alignItems: "center"
+                        }}
+                      >
+                        <Text style={{ color: Theme.primary, fontFamily: Fonts.bold, fontSize: 13 }}>+ ADD SPLIT ENTRY</Text>
+                      </TouchableOpacity>
+
+                      {/* Display Allocation Mismatch status */}
+                      {(() => {
+                        const total = Number(selectedOrder?.SysAmount || selectedOrder?.SubTotal || 0);
+                        const sum = changePaymentSplits.reduce((acc, s) => acc + Number(s.amount || 0), 0);
+                        const diff = total - sum;
+                        return (
+                          <View style={{ padding: 12, borderRadius: 10, backgroundColor: Theme.bgMuted, alignItems: "center" }}>
+                            <Text style={{ fontFamily: Fonts.bold, fontSize: 13, color: Theme.textPrimary }}>
+                              Total Bill: ${total.toFixed(2)}  |  Allocated: ${sum.toFixed(2)}
+                            </Text>
+                            {Math.abs(diff) > 0.02 ? (
+                              <Text style={{ fontFamily: Fonts.bold, fontSize: 11, color: Theme.danger, marginTop: 4 }}>
+                                Remaining to allocate: ${diff.toFixed(2)}
+                              </Text>
+                            ) : (
+                              <Text style={{ fontFamily: Fonts.bold, fontSize: 11, color: Theme.success, marginTop: 4 }}>
+                                Allocation Balanced!
+                              </Text>
+                            )}
+                          </View>
+                        );
+                      })()}
+                    </View>
+                  )}
+                </ScrollView>
+
+                <TouchableOpacity
+                  style={[styles.premiumPrimaryBtn, { marginTop: 12 }]}
+                  onPress={executeChangePayment}
+                >
+                  <Text style={styles.premiumPrimaryBtnText}>SAVE PAYMENT MODE</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Member Search Modal */}
+          <Modal visible={showMemberModal} transparent animationType="fade">
+            <View style={styles.modalOverlay}>
+              <TouchableOpacity
+                activeOpacity={1}
+                style={styles.modalDismiss}
+                onPress={() => setShowMemberModal(false)}
+              />
+              <View style={[styles.modalContent, { maxHeight: '80%', padding: 20 }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <Text style={{ fontFamily: Fonts.black, fontSize: 16, color: Theme.textPrimary }}>
+                    Search {isMemberSearch ? "Member" : "Credit Customer"}
+                  </Text>
+                  <TouchableOpacity onPress={() => setShowMemberModal(false)}>
+                    <Ionicons name="close" size={22} color={Theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
+                <TextInput
+                  placeholder="Enter name or phone..."
+                  placeholderTextColor={Theme.textMuted}
+                  value={memberQuery}
+                  onChangeText={setMemberQuery}
+                  style={{
+                    backgroundColor: Theme.bgMuted,
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    fontFamily: Fonts.medium,
+                    fontSize: 14,
+                    color: Theme.textPrimary,
+                    marginBottom: 12,
+                  }}
+                />
+                {searchingMembers ? (
+                  <ActivityIndicator color={Theme.primary} style={{ marginVertical: 20 }} />
+                ) : (
+                  <FlatList
+                    data={membersList}
+                    keyExtractor={(item) => item.MemberId || item.CustomerId}
+                    renderItem={({ item }) => (
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (activeSplitIndex !== null) {
+                            const updatedSplits = [...changePaymentSplits];
+                            updatedSplits[activeSplitIndex] = {
+                              ...updatedSplits[activeSplitIndex],
+                              memberId: item.MemberId,
+                              customerName: item.Name,
+                            };
+                            setChangePaymentSplits(updatedSplits);
+                            setActiveSplitIndex(null);
+                          } else {
+                            if (isMemberSearch) {
+                              setSelectedMemberForPay(item);
+                            } else {
+                              setSelectedCreditForPay(item);
+                            }
+                          }
+                          setShowMemberModal(false);
+                          setMemberQuery("");
+                        }}
+                        style={{
+                          paddingVertical: 12,
+                          borderBottomWidth: 1,
+                          borderBottomColor: Theme.border + "30",
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center"
+                        }}
+                      >
+                        <View>
+                          <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: Theme.textPrimary }}>{item.Name}</Text>
+                          <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textMuted }}>{item.Phone || "No Phone"}</Text>
+                        </View>
+                        <Text style={{ fontFamily: Fonts.black, fontSize: 13, color: Theme.success }}>
+                          Bal: ${Number(item.CurrentBalance || 0).toFixed(2)}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    ListEmptyComponent={
+                      <Text style={{ textAlign: "center", color: Theme.textMuted, marginVertical: 20, fontFamily: Fonts.medium }}>
+                        No results found
+                      </Text>
+                    }
+                  />
+                )}
+              </View>
+            </View>
+          </Modal>
+
+          {/* Void Item Modal */}
+          <Modal visible={showVoidItemModal} transparent animationType="fade">
+            <View style={styles.modalOverlay}>
+              <TouchableOpacity
+                activeOpacity={1}
+                style={styles.modalDismiss}
+                onPress={() => setShowVoidItemModal(false)}
+              />
+              <View style={[styles.modalContent, { maxHeight: '80%', padding: 20 }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <Text style={{ fontFamily: Fonts.black, fontSize: 16, color: Theme.textPrimary }}>Void Items</Text>
+                  <TouchableOpacity onPress={() => setShowVoidItemModal(false)}>
+                    <Ionicons name="close" size={22} color={Theme.textMuted} />
+                  </TouchableOpacity>
+                </View>
+                <ScrollView style={{ marginVertical: 12 }}>
+                  {orderDetails.filter(item => item.Status !== "VOIDED").map((item, idx) => {
+                    const isSelected = selectedVoidItemIds.includes(item.OrderDetailId || item.DishId);
+                    return (
+                      <TouchableOpacity
+                        key={idx}
+                        onPress={() => {
+                          const id = item.OrderDetailId || item.DishId;
+                          if (selectedVoidItemIds.includes(id)) {
+                            setSelectedVoidItemIds(selectedVoidItemIds.filter(x => x !== id));
+                          } else {
+                            setSelectedVoidItemIds([...selectedVoidItemIds, id]);
+                          }
+                        }}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingVertical: 12,
+                          borderBottomWidth: 1,
+                          borderBottomColor: Theme.border + "30",
+                          gap: 12
+                        }}
+                      >
+                        <Ionicons
+                          name={isSelected ? "checkbox" : "square-outline"}
+                          size={22}
+                          color={isSelected ? Theme.primary : Theme.textMuted}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontFamily: Fonts.bold, fontSize: 14, color: Theme.textPrimary }}>
+                            {item.Qty}x {item.DishName}
+                          </Text>
+                          <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textMuted }}>
+                            Unit: ${(item.Price || 0).toFixed(2)}
+                          </Text>
+                        </View>
+                        <Text style={{ fontFamily: Fonts.black, fontSize: 14, color: Theme.textPrimary }}>
+                          ${((item.Price || 0) * (item.Qty || 0)).toFixed(2)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {orderDetails.filter(item => item.Status !== "VOIDED").length === 0 && (
+                    <Text style={{ textAlign: "center", color: Theme.textMuted, marginVertical: 20, fontFamily: Fonts.medium }}>
+                      No active items left to void
+                    </Text>
+                  )}
+                </ScrollView>
+                <TouchableOpacity
+                  disabled={selectedVoidItemIds.length === 0}
+                  style={[styles.premiumPrimaryBtn, { backgroundColor: Theme.danger }, selectedVoidItemIds.length === 0 && { opacity: 0.5 }]}
+                  onPress={() => {
+                    setShowVoidItemModal(false);
+                    setPasswordAction("VOID");
+                    setPasswordError("");
+                    setPasswordValue("");
+                    setShowPasswordModal(true);
+                  }}
+                >
+                  <Text style={styles.premiumPrimaryBtnText}>VOID SELECTED ITEMS</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Cancel Order Confirm Modal */}
+          <Modal visible={showCancelOrderConfirm} transparent animationType="fade">
+            <View style={styles.modalOverlay}>
+              <TouchableOpacity
+                activeOpacity={1}
+                style={styles.modalDismiss}
+                onPress={() => setShowCancelOrderConfirm(false)}
+              />
+              <View style={[styles.modalContent, { padding: 20, maxWidth: 360 }]}>
+                <View style={{ alignItems: "center", marginBottom: 16 }}>
+                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: Theme.danger + "15", justifyContent: "center", alignItems: "center", marginBottom: 12 }}>
+                    <Ionicons name="alert-circle" size={26} color={Theme.danger} />
+                  </View>
+                  <Text style={{ fontFamily: Fonts.black, fontSize: 18, color: Theme.textPrimary, textAlign: "center" }}>
+                    Cancel Order
+                  </Text>
+                  <Text style={{ fontFamily: Fonts.medium, fontSize: 13, color: Theme.textSecondary, textAlign: "center", marginTop: 4 }}>
+                    Are you sure you want to cancel this entire order? All items will be voided.
+                  </Text>
+                </View>
+                <TextInput
+                  placeholder="Reason for cancellation..."
+                  placeholderTextColor={Theme.textMuted}
+                  value={cancellationReason}
+                  onChangeText={setCancellationReason}
+                  style={{
+                    backgroundColor: Theme.bgMuted,
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    fontFamily: Fonts.medium,
+                    fontSize: 14,
+                    color: Theme.textPrimary,
+                    marginBottom: 16,
+                    minHeight: 60,
+                    textAlignVertical: "top"
+                  }}
+                  multiline
+                />
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <TouchableOpacity
+                    style={[styles.premiumSecondaryBtn, { flex: 1, paddingVertical: 10 }]}
+                    onPress={() => setShowCancelOrderConfirm(false)}
+                  >
+                    <Text style={styles.premiumSecondaryBtnText}>BACK</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.premiumPrimaryBtn, { flex: 1, backgroundColor: Theme.danger, paddingVertical: 10 }]}
+                    onPress={() => {
+                      setShowCancelOrderConfirm(false);
+                      setPasswordAction("CANCEL");
+                      setPasswordError("");
+                      setPasswordValue("");
+                      setShowPasswordModal(true);
+                    }}
+                  >
+                    <Text style={styles.premiumPrimaryBtnText}>CONFIRM</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Supervisor Password Modal */}
+          <Modal visible={showPasswordModal} transparent animationType="fade">
+            <View style={styles.modalOverlay}>
+              <TouchableOpacity
+                activeOpacity={1}
+                style={styles.modalDismiss}
+                onPress={() => setShowPasswordModal(false)}
+              />
+              <View style={[styles.modalContent, { padding: 20, maxWidth: 360 }]}>
+                <View style={{ alignItems: "center", marginBottom: 16 }}>
+                  <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: Theme.primary + "15", justifyContent: "center", alignItems: "center", marginBottom: 12 }}>
+                    <Ionicons name="lock-closed" size={24} color={Theme.primary} />
+                  </View>
+                  <Text style={{ fontFamily: Fonts.black, fontSize: 16, color: Theme.textPrimary }}>
+                    Supervisor Verification
+                  </Text>
+                  <Text style={{ fontFamily: Fonts.medium, fontSize: 12, color: Theme.textSecondary, textAlign: "center", marginTop: 4 }}>
+                    Please enter supervisor credentials to authorize this action.
+                  </Text>
+                </View>
+                <TextInput
+                  placeholder="Enter supervisor password"
+                  placeholderTextColor={Theme.textMuted}
+                  value={passwordValue}
+                  onChangeText={setPasswordValue}
+                  secureTextEntry
+                  style={{
+                    backgroundColor: Theme.bgMuted,
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 10,
+                    fontFamily: Fonts.medium,
+                    fontSize: 14,
+                    color: Theme.textPrimary,
+                    marginBottom: passwordError ? 4 : 16,
+                    textAlign: "center"
+                  }}
+                />
+                {!!passwordError && (
+                  <Text style={{ color: Theme.danger, fontSize: 12, fontFamily: Fonts.bold, textAlign: "center", marginBottom: 12 }}>
+                    {passwordError}
+                  </Text>
+                )}
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <TouchableOpacity
+                    style={[styles.premiumSecondaryBtn, { flex: 1, paddingVertical: 10 }]}
+                    onPress={() => setShowPasswordModal(false)}
+                  >
+                    <Text style={styles.premiumSecondaryBtnText}>CANCEL</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    disabled={verifyingPassword || !passwordValue}
+                    style={[styles.premiumPrimaryBtn, { flex: 1, paddingVertical: 10 }]}
+                    onPress={handleVerifyPassword}
+                  >
+                    {verifyingPassword ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.premiumPrimaryBtnText}>VERIFY</Text>
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>

@@ -1998,7 +1998,7 @@ class UniversalPrinter {
 
     text += "[C]================================================\n";
     text += "[C]<B>THANK YOU! COME AGAIN!</B>\n";
-    text += "[C]SMART-POS BY UNIPROSG\n\n\n\n";
+    text += "[C]SMART-CLUB BY UNIPR0SG\n\n\n\n";
 
     return text;
   }

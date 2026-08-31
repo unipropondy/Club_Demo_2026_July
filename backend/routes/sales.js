@@ -3709,4 +3709,476 @@ async function logLoyaltyVisitAsync(pool, settlementId, billNo, phone, name, ite
   }
 }
 
+/* ================= ORDER SETTINGS MANAGEMENT ================= */
+
+router.post("/settlement/:id/change-payment", async (req, res) => {
+  const crypto = require("crypto");
+  try {
+    const { payMode, splits, memberId, creditCustomerId } = req.body;
+    const settlementId = req.params.id;
+    const pool = await poolPromise;
+
+    // 1. Fetch SettlementHeader & invoice relations for GUID OrderId
+    const shRes = await pool.request()
+      .input("Sid", sql.UniqueIdentifier, settlementId)
+      .query(`
+        SELECT 
+          sh.SettlementID, 
+          sh.SysAmount, 
+          sh.SubTotal, 
+          sh.CreatedBy, 
+          sh.BusinessUnitId, 
+          sh.MemberId, 
+          sh.BillNo, 
+          COALESCE(ric.OrderId, ri.OrderId) AS OrderId
+        FROM SettlementHeader sh
+        LEFT JOIN RestaurantInvoiceCur ric ON sh.SettlementID = ric.RestaurantBillId
+        LEFT JOIN RestaurantInvoice ri ON sh.SettlementID = ri.RestaurantBillId
+        WHERE sh.SettlementID = @Sid
+      `);
+
+    if (shRes.recordset.length === 0) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+    const shRow = shRes.recordset[0];
+    const totalBillAmount = Number(shRow.SysAmount || shRow.SubTotal || 0);
+    const oldMemberId = shRow.MemberId;
+
+    // Check if previous payment was MEMBER or CREDIT
+    const oldPaymentRes = await pool.request()
+      .input("Sid", sql.UniqueIdentifier, settlementId)
+      .query(`
+        SELECT 
+          ISNULL(SUM(CASE WHEN Paymode = 5 OR Remarks LIKE '%MEMBER%' THEN Amount ELSE 0 END), 0) AS MemberTotal,
+          ISNULL(SUM(CASE WHEN Paymode = 6 OR Remarks LIKE '%CREDIT%' THEN Amount ELSE 0 END), 0) AS CreditTotal
+        FROM PaymentDetailCur 
+        WHERE RestaurantBillId = @Sid
+      `);
+    const oldMemberAmount = Number(oldPaymentRes.recordset[0]?.MemberTotal || 0);
+    const oldCreditAmount = Number(oldPaymentRes.recordset[0]?.CreditTotal || 0);
+
+    // 2. Resolve splits
+    let finalSplits = splits;
+    if (!finalSplits && payMode) {
+      finalSplits = [{ payMode, amount: totalBillAmount }];
+    }
+    if (!finalSplits || finalSplits.length === 0) {
+      return res.status(400).json({ error: "Payment mode or splits details required" });
+    }
+
+    // 3. Validate paymodes from Paymode table
+    const pmResult = await pool.request().query("SELECT Position, PayMode, Description FROM Paymode");
+    const activePaymodes = pmResult.recordset;
+    const validatedSplits = [];
+    for (const split of finalSplits) {
+      const pm = activePaymodes.find(x => 
+        x.PayMode.trim().toUpperCase() === split.payMode.trim().toUpperCase()
+      );
+      if (!pm) {
+        return res.status(400).json({ error: `Invalid payment mode: ${split.payMode}` });
+      }
+      validatedSplits.push({
+        payModeId: pm.Position,
+        payMode: pm.PayMode,
+        amount: Number(split.amount || 0)
+      });
+    }
+
+    // 4. Validate split totals match bill
+    const totalSplitsAmount = validatedSplits.reduce((sum, s) => sum + s.amount, 0);
+    if (Math.abs(totalSplitsAmount - totalBillAmount) > 0.02) {
+      return res.status(400).json({ error: `Split amounts sum ($${totalSplitsAmount.toFixed(2)}) must equal bill total ($${totalBillAmount.toFixed(2)})` });
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    try {
+      // 5. Revert old balances if MEMBER or CREDIT
+      if (oldMemberAmount > 0 && oldMemberId) {
+        await transaction.request()
+          .input("MemberId", sql.UniqueIdentifier, oldMemberId)
+          .input("Amount", sql.Decimal(18, 2), oldMemberAmount)
+          .query("UPDATE MemberMaster SET CurrentBalance = ISNULL(CurrentBalance, 0) + @Amount WHERE MemberId = @MemberId");
+          
+        await transaction.request()
+          .input("MemberId", sql.UniqueIdentifier, oldMemberId)
+          .input("Amount", sql.Decimal(18, 2), oldMemberAmount)
+          .input("Sid", sql.UniqueIdentifier, settlementId)
+          .query(`
+            INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId)
+            VALUES (NEWID(), @MemberId, 'REVERSAL', 0, @Amount, 0, 'MEMBER', 'Payment Reversal (Change Mode)', GETDATE(), @Sid)
+          `);
+      }
+      if (oldCreditAmount > 0 && oldMemberId) {
+        await transaction.request()
+          .input("CustomerId", sql.UniqueIdentifier, oldMemberId)
+          .input("Amount", sql.Decimal(18, 2), oldCreditAmount)
+          .query("UPDATE CreditCustomerMaster SET CurrentBalance = CASE WHEN ISNULL(CurrentBalance, 0) > @Amount THEN CurrentBalance - @Amount ELSE 0 END WHERE CustomerId = @CustomerId");
+          
+        await transaction.request()
+          .input("CustomerId", sql.UniqueIdentifier, oldMemberId)
+          .input("Amount", sql.Decimal(18, 2), oldCreditAmount)
+          .input("Sid", sql.UniqueIdentifier, settlementId)
+          .query(`
+            INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId)
+            VALUES (NEWID(), @CustomerId, 'REVERSAL', @Amount, 0, 0, 'CREDIT', 'Payment Reversal (Change Mode)', GETDATE(), @Sid)
+          `);
+      }
+
+      // 6. Delete old payment records
+      await transaction.request().input("Sid", sql.UniqueIdentifier, settlementId).query(`
+        DELETE FROM PaymentDetailCur WHERE RestaurantBillId = @Sid;
+        DELETE FROM PaymentDetail WHERE RestaurantBillId = @Sid OR SettlementId = @Sid;
+        DELETE FROM PaymentTransactionDetails WHERE ReferenceId = @Sid;
+        DELETE FROM SettlementTotalSales WHERE SettlementID = @Sid;
+        DELETE FROM SettlementDetail WHERE SettlementId = @Sid;
+        DELETE FROM SettlementTranDetail WHERE SettlementID = @Sid;
+        DELETE FROM SettlementCreditSales WHERE SettlementID = @Sid;
+        DELETE FROM CashInEntry WHERE ReferenceNo = CAST(@Sid AS VARCHAR(50)) OR Remarks LIKE '%' + CAST(@Sid AS VARCHAR(50)) + '%';
+      `);
+
+      // 7. Insert new payment records using processSplitPayments service
+      await processSplitPayments({
+        referenceType: "BILL",
+        referenceId: settlementId,
+        payments: validatedSplits,
+        transaction,
+        businessUnitId: shRow.BusinessUnitId,
+        cashierId: shRow.CreatedBy,
+        orderId: shRow.OrderId,
+        receiptCount: 1
+      });
+
+      // 8. Apply new balances if new mode is MEMBER or CREDIT
+      const newMemberId = memberId || creditCustomerId || null;
+      const joinedPayMode = validatedSplits.map(s => s.payMode).join(" + ");
+
+      for (const split of validatedSplits) {
+        if (split.payMode.toUpperCase().trim() === "MEMBER" && newMemberId) {
+          await transaction.request()
+            .input("MemberId", sql.UniqueIdentifier, newMemberId)
+            .input("Amount", sql.Decimal(18, 2), split.amount)
+            .query("UPDATE MemberMaster SET CurrentBalance = CASE WHEN ISNULL(CurrentBalance, 0) > @Amount THEN CurrentBalance - @Amount ELSE 0 END WHERE MemberId = @MemberId");
+          
+          await transaction.request()
+            .input("MemberId", sql.UniqueIdentifier, newMemberId)
+            .input("Amount", sql.Decimal(18, 2), split.amount)
+            .input("Sid", sql.UniqueIdentifier, settlementId)
+            .query(`
+              INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId)
+              VALUES (NEWID(), @MemberId, 'PAYMENT', 0, @Amount, 0, 'MEMBER', 'Payment Change (MEMBER)', GETDATE(), @Sid)
+            `);
+        } else if (split.payMode.toUpperCase().trim() === "CREDIT" && newMemberId) {
+          await transaction.request()
+            .input("CustomerId", sql.UniqueIdentifier, newMemberId)
+            .input("Amount", sql.Decimal(18, 2), split.amount)
+            .query("UPDATE CreditCustomerMaster SET CurrentBalance = ISNULL(CurrentBalance, 0) + @Amount WHERE CustomerId = @CustomerId");
+
+          await transaction.request()
+            .input("CustomerId", sql.UniqueIdentifier, newMemberId)
+            .input("Amount", sql.Decimal(18, 2), split.amount)
+            .input("Sid", sql.UniqueIdentifier, settlementId)
+            .query(`
+              INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId)
+              VALUES (NEWID(), @CustomerId, 'CREDIT_SALE', @Amount, 0, @Amount, 'CREDIT', 'Payment Change (CREDIT)', GETDATE(), @Sid)
+            `);
+        }
+      }
+
+      // 9. Update SettlementHeader MemberId
+      await transaction.request()
+        .input("Sid", sql.UniqueIdentifier, settlementId)
+        .input("MemberId", sql.UniqueIdentifier, newMemberId)
+        .query("UPDATE SettlementHeader SET MemberId = @MemberId WHERE SettlementID = @Sid");
+
+      const primaryPayMode = validatedSplits[0].payMode.trim().toUpperCase();
+      const payModeCode = primaryPayMode === "CASH" ? 1 : primaryPayMode === "CARD" ? 2 : 3;
+
+      await transaction.request()
+        .input("Sid", sql.UniqueIdentifier, settlementId)
+        .input("PayModeCode", sql.Int, payModeCode)
+        .query(`
+          UPDATE RestaurantInvoice SET PaymentTermCode = @PayModeCode WHERE RestaurantBillId = @Sid;
+          UPDATE RestaurantInvoiceCur SET PaymentTermCode = @PayModeCode WHERE RestaurantBillId = @Sid;
+        `);
+
+      // Clear Receipt Print Cache to force dynamic reprint reconstruction
+      if (shRow.BillNo) {
+        await transaction.request()
+          .input("BillNo", sql.NVarChar(100), shRow.BillNo.trim())
+          .query("DELETE FROM ReceiptPrintCache WHERE TRIM(BillNo) = @BillNo");
+      }
+
+      await transaction.commit();
+
+      const io = req.app.get("io");
+      if (io) {
+        io.emit("order_status_update", { orderId: settlementId, status: "PAYMENT_CHANGED" });
+      }
+
+      res.json({ success: true, message: "Payment mode changed successfully" });
+    } catch (txErr) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackErr) {
+        console.error("Transaction rollback error:", rollbackErr.message);
+      }
+      throw txErr;
+    }
+  } catch (err) {
+    console.error("Change payment error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/settlement/:id/void-item", async (req, res) => {
+  try {
+    const settlementId = req.params.id;
+    const { orderDetailIds } = req.body;
+    if (!orderDetailIds || !Array.isArray(orderDetailIds) || orderDetailIds.length === 0) {
+      return res.status(400).json({ error: "orderDetailIds array is required" });
+    }
+
+    const pool = await poolPromise;
+
+    // Fetch BillNo to clear print cache
+    const billNoRes = await pool.request()
+      .input("Sid", sql.UniqueIdentifier, settlementId)
+      .query("SELECT BillNo FROM SettlementHeader WHERE SettlementID = @Sid");
+    const billNo = billNoRes.recordset[0]?.BillNo;
+
+    // Get matching active items
+    const itemQuery = await pool.request()
+      .input("Sid", sql.UniqueIdentifier, settlementId)
+      .query("SELECT OrderDetailId, DishId, Qty, Price, Status FROM SettlementItemDetail WHERE SettlementID = @Sid AND Status <> 'VOIDED'");
+    
+    const matchingItems = itemQuery.recordset.filter(item => 
+      orderDetailIds.includes(item.OrderDetailId) || orderDetailIds.includes(item.DishId)
+    );
+    if (matchingItems.length === 0) {
+      return res.status(404).json({ error: "No active matching items found in order details" });
+    }
+
+    let totalQty = 0;
+    let totalVoidAmount = 0;
+    for (const item of matchingItems) {
+      totalQty += Number(item.Qty || 0);
+      totalVoidAmount += Number(item.Qty || 0) * Number(item.Price || 0);
+    }
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    try {
+      // 1. Mark items as VOIDED in SettlementItemDetail
+      for (const item of matchingItems) {
+        await transaction.request()
+          .input("Sid", sql.UniqueIdentifier, settlementId)
+          .input("Odid", sql.NVarChar(100), item.OrderDetailId || item.DishId)
+          .query("UPDATE SettlementItemDetail SET Status = 'VOIDED' WHERE SettlementID = @Sid AND (OrderDetailId = @Odid OR DishId = @Odid)");
+      }
+
+      // 2. Reduce SettlementHeader amounts
+      await transaction.request()
+        .input("Sid", sql.UniqueIdentifier, settlementId)
+        .input("Qty", sql.Int, totalQty)
+        .input("Amount", sql.Decimal(18, 2), totalVoidAmount)
+        .query(`
+          UPDATE SettlementHeader 
+          SET VoidItemQty = ISNULL(VoidItemQty, 0) + @Qty,
+              VoidItemAmount = ISNULL(VoidItemAmount, 0) + @Amount,
+              SubTotal = CASE WHEN ISNULL(SubTotal, 0) > @Amount THEN SubTotal - @Amount ELSE 0 END,
+              SysAmount = CASE WHEN ISNULL(SysAmount, 0) > @Amount THEN SysAmount - @Amount ELSE 0 END,
+              ManualAmount = CASE WHEN ISNULL(ManualAmount, 0) > @Amount THEN ManualAmount - @Amount ELSE 0 END
+          WHERE SettlementID = @Sid
+        `);
+
+      // 3. Reduce SettlementTotalSales, SettlementDetail, SettlementTranDetail
+      const stsRes = await transaction.request()
+        .input("Sid", sql.UniqueIdentifier, settlementId)
+        .query("SELECT TOP 1 PayMode FROM SettlementTotalSales WHERE SettlementID = @Sid");
+      
+      if (stsRes.recordset.length > 0) {
+        const payMode = stsRes.recordset[0].PayMode;
+        await transaction.request()
+          .input("Sid", sql.UniqueIdentifier, settlementId)
+          .input("Amount", sql.Decimal(18, 2), totalVoidAmount)
+          .input("PayMode", sql.NVarChar(50), payMode)
+          .query(`
+            UPDATE SettlementTotalSales SET 
+              SysAmount = CASE WHEN ISNULL(SysAmount, 0) > @Amount THEN SysAmount - @Amount ELSE 0 END,
+              ManualAmount = CASE WHEN ISNULL(ManualAmount, 0) > @Amount THEN ManualAmount - @Amount ELSE 0 END
+            WHERE SettlementID = @Sid AND PayMode = @PayMode;
+            
+            UPDATE SettlementDetail SET 
+              SysAmount = CASE WHEN ISNULL(SysAmount, 0) > @Amount THEN SysAmount - @Amount ELSE 0 END,
+              ManualAmount = CASE WHEN ISNULL(ManualAmount, 0) > @Amount THEN ManualAmount - @Amount ELSE 0 END
+            WHERE SettlementId = @Sid AND Paymode = @PayMode;
+
+            UPDATE SettlementTranDetail SET 
+              CashIn = CASE WHEN ISNULL(CashIn, 0) > @Amount THEN CashIn - @Amount ELSE 0 END
+            WHERE SettlementID = @Sid AND PayMode = @PayMode;
+          `);
+      }
+
+      // 4. Reduce PaymentDetailCur & PaymentDetail
+      await transaction.request()
+        .input("Sid", sql.UniqueIdentifier, settlementId)
+        .input("Amount", sql.Decimal(18, 2), totalVoidAmount)
+        .query(`
+          UPDATE PaymentDetailCur SET Amount = CASE WHEN ISNULL(Amount, 0) > @Amount THEN Amount - @Amount ELSE 0 END WHERE RestaurantBillId = @Sid;
+          UPDATE PaymentDetail SET Amount = CASE WHEN ISNULL(Amount, 0) > @Amount THEN Amount - @Amount ELSE 0 END WHERE RestaurantBillId = @Sid OR SettlementId = @Sid;
+          UPDATE PaymentTransactionDetails SET Amount = CASE WHEN ISNULL(Amount, 0) > @Amount THEN Amount - @Amount ELSE 0 END WHERE ReferenceId = @Sid;
+        `);
+
+      // Clear Receipt Print Cache to force dynamic reprint reconstruction
+      if (billNo) {
+        await transaction.request()
+          .input("BillNo", sql.NVarChar(100), billNo.trim())
+          .query("DELETE FROM ReceiptPrintCache WHERE TRIM(BillNo) = @BillNo");
+      }
+
+      await transaction.commit();
+
+      const io = req.app.get("io");
+      if (io) {
+        io.emit("order_status_update", { orderId: settlementId, status: "ITEMS_VOIDED" });
+      }
+
+      res.json({ success: true, message: "Items voided successfully" });
+    } catch (txErr) {
+      await transaction.rollback();
+      throw txErr;
+    }
+  } catch (err) {
+    console.error("Void item error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/settlement/:id/cancel", async (req, res) => {
+  try {
+    const settlementId = req.params.id;
+    const { reason } = req.body;
+    const pool = await poolPromise;
+
+    const shQuery = await pool.request()
+      .input("Sid", sql.UniqueIdentifier, settlementId)
+      .query("SELECT SysAmount, IsCancelled, MemberId, BillNo FROM SettlementHeader WHERE SettlementID = @Sid");
+    
+    if (shQuery.recordset.length === 0) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+    const sh = shQuery.recordset[0];
+    if (sh.IsCancelled) {
+      return res.status(400).json({ error: "Order already cancelled" });
+    }
+
+    const itemsQuery = await pool.request()
+      .input("Sid", sql.UniqueIdentifier, settlementId)
+      .query("SELECT SUM(Qty) as TotalQty FROM SettlementItemDetail WHERE SettlementID = @Sid");
+    const totalQty = itemsQuery.recordset[0]?.TotalQty || 0;
+
+    const oldMemberId = sh.MemberId;
+    const refundAmount = Number(sh.SysAmount || 0);
+
+    // Check if MEMBER or CREDIT was paid
+    const oldPaymentRes = await pool.request()
+      .input("Sid", sql.UniqueIdentifier, settlementId)
+      .query(`
+        SELECT 
+          ISNULL(SUM(CASE WHEN Paymode = 5 OR Remarks LIKE '%MEMBER%' THEN Amount ELSE 0 END), 0) AS MemberTotal,
+          ISNULL(SUM(CASE WHEN Paymode = 6 OR Remarks LIKE '%CREDIT%' THEN Amount ELSE 0 END), 0) AS CreditTotal
+        FROM PaymentDetailCur 
+        WHERE RestaurantBillId = @Sid
+      `);
+    const oldMemberAmount = Number(oldPaymentRes.recordset[0]?.MemberTotal || 0);
+    const oldCreditAmount = Number(oldPaymentRes.recordset[0]?.CreditTotal || 0);
+
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+    try {
+      // 1. Mark SettlementHeader as cancelled
+      await transaction.request()
+        .input("Sid", sql.UniqueIdentifier, settlementId)
+        .input("Reason", sql.NVarChar(255), reason || "Manual Cancellation")
+        .input("Qty", sql.Int, totalQty)
+        .input("Amount", sql.Decimal(18, 2), refundAmount)
+        .query(`
+          UPDATE SettlementHeader 
+          SET IsCancelled = 1, CancellationReason = @Reason, VoidItemQty = @Qty, VoidItemAmount = @Amount, CancelledDate = GETDATE()
+          WHERE SettlementID = @Sid
+        `);
+
+      // 2. Update Invoice Status to 4 (cancelled)
+      await transaction.request().input("Sid", sql.UniqueIdentifier, settlementId)
+        .query(`
+          UPDATE RestaurantInvoice SET StatusCode = 4 WHERE RestaurantBillId = @Sid;
+          UPDATE RestaurantInvoiceCur SET StatusCode = 4 WHERE RestaurantBillId = @Sid;
+        `);
+
+      // 3. Mark all items as VOIDED in SettlementItemDetail
+      await transaction.request().input("Sid", sql.UniqueIdentifier, settlementId)
+        .query("UPDATE SettlementItemDetail SET Status = 'VOIDED' WHERE SettlementID = @Sid");
+
+      // 4. Delete from LoyaltyVisit
+      await transaction.request().input("Sid", sql.UniqueIdentifier, settlementId)
+        .query("DELETE FROM LoyaltyVisit WHERE SettlementId = @Sid");
+
+      // 5. Revert Member/Credit outstanding balances if applicable
+      if (oldMemberAmount > 0 && oldMemberId) {
+        await transaction.request()
+          .input("MemberId", sql.UniqueIdentifier, oldMemberId)
+          .input("Amount", sql.Decimal(18, 2), oldMemberAmount)
+          .query("UPDATE MemberMaster SET CurrentBalance = ISNULL(CurrentBalance, 0) + @Amount WHERE MemberId = @MemberId");
+
+        await transaction.request()
+          .input("MemberId", sql.UniqueIdentifier, oldMemberId)
+          .input("Amount", sql.Decimal(18, 2), oldMemberAmount)
+          .input("Sid", sql.UniqueIdentifier, settlementId)
+          .query(`
+            INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId)
+            VALUES (NEWID(), @MemberId, 'REVERSAL', 0, @Amount, 0, 'MEMBER', 'Reversal (Order Cancelled)', GETDATE(), @Sid)
+          `);
+      }
+      if (oldCreditAmount > 0 && oldMemberId) {
+        await transaction.request()
+          .input("CustomerId", sql.UniqueIdentifier, oldMemberId)
+          .input("Amount", sql.Decimal(18, 2), oldCreditAmount)
+          .query("UPDATE CreditCustomerMaster SET CurrentBalance = CASE WHEN ISNULL(CurrentBalance, 0) > @Amount THEN CurrentBalance - @Amount ELSE 0 END WHERE CustomerId = @CustomerId");
+
+        await transaction.request()
+          .input("CustomerId", sql.UniqueIdentifier, oldMemberId)
+          .input("Amount", sql.Decimal(18, 2), oldCreditAmount)
+          .input("Sid", sql.UniqueIdentifier, settlementId)
+          .query(`
+            INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId)
+            VALUES (NEWID(), @CustomerId, 'REVERSAL', @Amount, 0, 0, 'CREDIT', 'Reversal (Order Cancelled)', GETDATE(), @Sid)
+          `);
+      }
+
+      // Clear Receipt Print Cache to force dynamic reprint reconstruction
+      if (sh.BillNo) {
+        await transaction.request()
+          .input("BillNo", sql.NVarChar(100), sh.BillNo.trim())
+          .query("DELETE FROM ReceiptPrintCache WHERE TRIM(BillNo) = @BillNo");
+      }
+
+      await transaction.commit();
+
+      const io = req.app.get("io");
+      if (io) {
+        io.emit("order_status_update", { orderId: settlementId, status: "ORDER_CANCELLED" });
+      }
+
+      res.json({ success: true, message: "Order cancelled successfully" });
+    } catch (txErr) {
+      await transaction.rollback();
+      throw txErr;
+    }
+  } catch (err) {
+    console.error("Cancel order error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

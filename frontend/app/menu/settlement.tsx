@@ -1521,12 +1521,10 @@ const fetchDayHistory = async () => {
                   <td class="right">${parseFloat(totalSales.VIPDiscountAmount) > 0 ? `-${currencySymbol}${formatCurrency(totalSales.VIPDiscountAmount)}` : "0.00"}</td>
                 </tr>
 
-                ${parseFloat(totalSales.TakeawayCharge) > 0 ? `
                 <tr>
                   <td>Takeaway Charge</td>
                   <td class="right">${formatCurrency(totalSales.TakeawayCharge)}</td>
                 </tr>
-                ` : ''}
                 <tr>
                   <td>Service Charge</td>
                   <td class="right">${formatCurrency(totalSales.ServiceCharge)}</td>
@@ -1617,7 +1615,7 @@ const fetchDayHistory = async () => {
               </table>
 
               <div class="divider">========================================</div>
-              <div class="center bold" style="font-size: 11px; margin-top: 10px; text-transform: uppercase;">SMART-POS BY UNIPROSG</div>
+              <div class="center bold" style="font-size: 11px; margin-top: 10px; text-transform: uppercase;">SMART-CLUB BY UNIPR0SG</div>
               <div class="divider">========================================</div>
             </div>
           </body>
@@ -1652,10 +1650,7 @@ const fetchDayHistory = async () => {
       const vipDiscVal = parseFloat(totalSales.VIPDiscountAmount) || 0;
       text += formatTwoCols48("VIP Discount:", vipDiscVal > 0 ? `-${currencySymbol}${formatCurrency(vipDiscVal)}` : "0.00");
 
-      const takeawayVal = parseFloat(totalSales.TakeawayCharge) || 0;
-      if (takeawayVal > 0) {
-        text += formatTwoCols48("Takeaway Charge:", formatCurrency(takeawayVal));
-      }
+      text += formatTwoCols48("Takeaway Charge:", formatCurrency(totalSales.TakeawayCharge));
       text += formatTwoCols48("Service Charge:", formatCurrency(totalSales.ServiceCharge));
       text += formatTwoCols48("GST Collected:", formatCurrency(totalSales.TotalTax));
       text += formatTwoCols48("Tips:", formatCurrency(totalSales.Tips));
@@ -1689,7 +1684,7 @@ const fetchDayHistory = async () => {
         text += formatTwoCols48(`Variance (${varianceStatus}):`, (variance > 0 ? '+' : '') + formatCurrency(variance) + "\n");
       }
       text += "[C]========================================\n";
-      text += "[C]SMART-POS BY UNIPROSG\n";
+      text += "[C]SMART-CLUB BY UNIPR0SG\n";
       text += "[C]========================================\n\n\n\n";
 
       if (Platform.OS === 'web') {
@@ -1795,10 +1790,7 @@ const fetchDayHistory = async () => {
             const vipDiscVal = parseFloat(totalSales.VIPDiscountAmount) || 0;
             await SunmiModule.printText(formatTwoCols32("VIP Discount:", vipDiscVal > 0 ? `-${currencySymbol}${formatCurrency(vipDiscVal)}` : "0.00"));
 
-            const takeawayVal = parseFloat(totalSales.TakeawayCharge) || 0;
-            if (takeawayVal > 0) {
-              await SunmiModule.printText(formatTwoCols32("Takeaway Charge:", formatCurrency(takeawayVal)));
-            }
+            await SunmiModule.printText(formatTwoCols32("Takeaway Charge:", formatCurrency(totalSales.TakeawayCharge)));
             await SunmiModule.printText(formatTwoCols32("Service Charge:", formatCurrency(totalSales.ServiceCharge)));
             await SunmiModule.printText(formatTwoCols32("GST Collected:", formatCurrency(totalSales.TotalTax)));
             await SunmiModule.printText(formatTwoCols32("Tips:", formatCurrency(totalSales.Tips)));
@@ -1829,7 +1821,7 @@ const fetchDayHistory = async () => {
             await SunmiModule.printText(formatTwoCols32("EXPECTED CASH:", formatCurrency(totalCashIn - totalCashOutSum)));
             if (SunmiModule.setFontSize) await SunmiModule.setFontSize(24);
             await SunmiModule.printText("================================\n");
-            await SunmiModule.printText("     SMART-POS BY UNIPROSG\n");
+            await SunmiModule.printText("     SMART-CLUB BY UNIPR0SG\n");
             await SunmiModule.printText("================================\n");
             await SunmiModule.lineWrap(3);
             await SunmiModule.cutPaper();
@@ -2233,12 +2225,10 @@ const fetchDayHistory = async () => {
                     </Text>
                   </View>
 
-                  {parseFloat(totalSales.TakeawayCharge) > 0 && (
-                    <View style={styles.row}>
-                      <Text style={styles.rowLabel}>Takeaway Charge</Text>
-                      <Text style={styles.rowValue}>{formatCurrency(totalSales.TakeawayCharge)}</Text>
-                    </View>
-                  )}
+                  <View style={styles.row}>
+                    <Text style={styles.rowLabel}>Takeaway Charge</Text>
+                    <Text style={styles.rowValue}>{formatCurrency(totalSales.TakeawayCharge)}</Text>
+                  </View>
                   <View style={styles.row}>
                     <Text style={styles.rowLabel}>Service Charge</Text>
                     <Text style={styles.rowValue}>{formatCurrency(totalSales.ServiceCharge)}</Text>
