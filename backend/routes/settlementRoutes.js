@@ -697,12 +697,38 @@ router.get('/cash-in/:terminal', authenticateToken, async (req, res) => {
     }
 
     let query = `
-      SELECT CashInId, CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date, AttachmentUrl 
-      FROM CashInEntry 
-      WHERE ${dateFilter}
+      SELECT 
+        ci.CashInId, 
+        ci.CashInNo, 
+        ci.CashInDate, 
+        ci.Amount, 
+        ci.Reason, 
+        ci.Remarks, 
+        ci.PaymentMode, 
+        ci.ReferenceNo, 
+        ci.TerminalCode, 
+        ci.CreatedBy, 
+        ci.CreatedOn, 
+        ci.start_date, 
+        ci.AttachmentUrl,
+        CASE 
+          WHEN ci.Reason = 'Ledger Payment' THEN 'LEDGER'
+          WHEN ci.Reason = 'Cash Sale' THEN 'SALE'
+          WHEN ci.Remarks LIKE 'Auto Cash In from BILL%' THEN 'SALE'
+          WHEN sh.SettlementID IS NOT NULL THEN 'SALE'
+          WHEN cct.SettlementId IS NOT NULL THEN 'LEDGER'
+          WHEN ptd.PaymentTransactionId IS NOT NULL THEN 'LEDGER'
+          WHEN ci.Reason = 'Cash In' AND (ci.Remarks LIKE '%MEMBER%' OR ci.Remarks LIKE '%CREDIT%') THEN 'LEDGER'
+          ELSE 'MANUAL'
+        END AS CashInType
+      FROM CashInEntry ci
+      LEFT JOIN SettlementHeader sh ON ci.ReferenceNo = CAST(sh.SettlementID AS VARCHAR(50))
+      LEFT JOIN CustomerCreditTransactions cct ON ci.ReferenceNo = CAST(cct.SettlementId AS VARCHAR(50))
+      LEFT JOIN PaymentTransactionDetails ptd ON ci.ReferenceNo = CAST(ptd.PaymentTransactionId AS VARCHAR(50))
+      WHERE ${dateFilter.replace(/start_date/g, 'ci.start_date').replace(/CashInDate/g, 'ci.CashInDate')}
     `;
 
-    query += ` ORDER BY CreatedOn DESC`;
+    query += ` ORDER BY ci.CreatedOn DESC`;
 
     const result = await request.query(query);
     res.json({ success: true, data: result.recordset });

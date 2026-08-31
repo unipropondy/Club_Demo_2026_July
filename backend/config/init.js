@@ -516,7 +516,8 @@ async function initDB(pool) {
               [Remarks] NVARCHAR(500) NULL,
               [CreatedBy] UNIQUEIDENTIFIER NULL,
               [CreatedDate] DATETIME2 NOT NULL DEFAULT GETDATE(),
-              [UpdatedDate] DATETIME2 NULL
+              [UpdatedDate] DATETIME2 NULL,
+              [start_date] DATE NULL
           )
       END
     `);
@@ -525,6 +526,13 @@ async function initDB(pool) {
       IF COL_LENGTH('dbo.CustomerCreditTransactions', 'CustomerType') IS NULL
       BEGIN
           ALTER TABLE [dbo].[CustomerCreditTransactions] ADD [CustomerType] NVARCHAR(20) NULL
+      END
+    `);
+
+    await runQuery("Upgrade CustomerCreditTransactions - Add start_date", `
+      IF COL_LENGTH('dbo.CustomerCreditTransactions', 'start_date') IS NULL
+      BEGIN
+          ALTER TABLE [dbo].[CustomerCreditTransactions] ADD [start_date] DATE NULL
       END
     `);
 

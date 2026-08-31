@@ -314,7 +314,7 @@ router.get("/all", async (req, res) => {
            SELECT 
              cct.TransactionId AS SettlementID,
              cct.CreatedDate AS SettlementDate,
-             CAST(cct.CreatedDate AS DATE) AS BusinessDate,
+             COALESCE(cct.start_date, CAST(cct.CreatedDate AS DATE)) AS BusinessDate,
              CASE WHEN mm.MemberId IS NOT NULL THEN 'Member Payment Collected' ELSE 'Credit Payment Collected' END AS OrderId,
              'LEDGER' AS OrderType,
              'LEDGER' AS TableNo,
@@ -2251,9 +2251,10 @@ router.post("/save", async (req, res) => {
                 .input("BillNo", sql.NVarChar(50), finalBillNo)
                 .input("Amount", sql.Decimal(18, 2), creditAmount)
                 .input("CreatedBy", sql.UniqueIdentifier, toGuidOrNull(cashierId))
+                .input("StartDate", sql.Date, formattedStartDate)
                 .query(`
-                  INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType)
-                  VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Split member credit purchase', @CreatedBy, 'MEMBER')
+                  INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType, start_date)
+                  VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Split member credit purchase', @CreatedBy, 'MEMBER', @StartDate)
                 `);
               console.log(`[SAVE SALE DIAGNOSTIC] Balance update success (MEMBER): memberId=${memberId}, oldBalance=${oldBalance}, newBalance=${newBalance}`);
             } else if (customerType === "CREDIT") {
@@ -2268,9 +2269,10 @@ router.post("/save", async (req, res) => {
                 .input("BillNo", sql.NVarChar(50), finalBillNo)
                 .input("Amount", sql.Decimal(18, 2), creditAmount)
                 .input("CreatedBy", sql.UniqueIdentifier, toGuidOrNull(cashierId))
+                .input("StartDate", sql.Date, formattedStartDate)
                 .query(`
-                  INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType)
-                  VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Split credit purchase', @CreatedBy, 'CREDIT')
+                  INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType, start_date)
+                  VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Split credit purchase', @CreatedBy, 'CREDIT', @StartDate)
                 `);
               console.log(`[SAVE SALE DIAGNOSTIC] Balance update success (CREDIT): memberId=${memberId}, oldBalance=${oldBalance}, newBalance=${newBalance}`);
             }
@@ -2319,8 +2321,25 @@ router.post("/save", async (req, res) => {
                 @PaymentType, @Paymode, @Amount, @ReferenceNumber, @Remarks, @BusinessUnitId, 
                 @CreatedBy, GETDATE(), @ModifiedBy, GETDATE(), 1, @startDate
               );
+
+              -- 3. Auto Cash In Drawer entry if payment mode is CASH
+              IF UPPER(LTRIM(RTRIM(ISNULL(@Remarks, '')))) = 'CASH'
+              BEGIN
+                DECLARE @cashierName NVARCHAR(100) = 'Admin';
+                SELECT TOP 1 @cashierName = UserName FROM UserMaster WHERE UserId = @CreatedBy;
+
+                DECLARE @termCode NVARCHAR(50) = '';
+                SELECT TOP 1 @termCode = TerminalCode FROM SettlementHeader WHERE SettlementID = @PaymentId;
+
+                DECLARE @cDateStr VARCHAR(10) = CONVERT(VARCHAR(10), GETDATE(), 112);
+                DECLARE @randNo INT = CAST(RAND() * 9000 + 1000 AS INT);
+                DECLARE @cNo VARCHAR(50) = 'CI-' + @cDateStr + '-' + CAST(@randNo AS VARCHAR(10));
+
+                INSERT INTO CashInEntry (CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date)
+                VALUES (@cNo, GETDATE(), @Amount, 'Cash In', 'Auto Cash In from BILL: ' + CAST(@PaymentId AS VARCHAR(50)), 'Cash', CAST(@PaymentId AS VARCHAR(50)), @termCode, @cashierName, GETDATE(), @startDate);
+              END
             `);
-          console.log(`[SAVE SALE] PaymentDetail Sync Success. Rows affected: ${payResult.rowsAffected.join(', ')}`);
+          console.log(`[SAVE SALE] PaymentDetail Sync & CashIn Success. Rows affected: ${payResult.rowsAffected.join(', ')}`);
         } catch (payErr) {
           console.error(`[SAVE SALE ERROR] PaymentDetail Insert Failed for Order ${guidOrderId}:`, payErr.message);
           throw payErr; // Throw to trigger transaction rollback
@@ -2346,15 +2365,16 @@ router.post("/save", async (req, res) => {
               .input("Amount", sql.Decimal(18, 2), creditAmount)
               .query(`UPDATE MemberMaster SET CurrentBalance = CurrentBalance + @Amount WHERE MemberId = @MemberId`);
 
-            await transaction.request()
+             await transaction.request()
               .input("MemberId", sql.UniqueIdentifier, toGuidOrNull(memberId))
               .input("SettlementId", sql.UniqueIdentifier, toGuidOrNull(settlementId))
               .input("BillNo", sql.NVarChar(50), finalBillNo)
               .input("Amount", sql.Decimal(18, 2), creditAmount)
               .input("CreatedBy", sql.UniqueIdentifier, toGuidOrNull(cashierId))
+              .input("StartDate", sql.Date, formattedStartDate)
               .query(`
-                INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType)
-                VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Member credit purchase', @CreatedBy, 'MEMBER')
+                INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType, start_date)
+                VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Member credit purchase', @CreatedBy, 'MEMBER', @StartDate)
               `);
             console.log(`[SAVE SALE DIAGNOSTIC] Balance update success (MEMBER): memberId=${memberId}, oldBalance=${oldBalance}, newBalance=${newBalance}`);
           } else if (customerType === "CREDIT") {
@@ -2369,9 +2389,10 @@ router.post("/save", async (req, res) => {
               .input("BillNo", sql.NVarChar(50), finalBillNo)
               .input("Amount", sql.Decimal(18, 2), creditAmount)
               .input("CreatedBy", sql.UniqueIdentifier, toGuidOrNull(cashierId))
+              .input("StartDate", sql.Date, formattedStartDate)
               .query(`
-                INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType)
-                VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Credit purchase', @CreatedBy, 'CREDIT')
+                INSERT INTO CustomerCreditTransactions (MemberId, SettlementId, BillNo, TransactionType, BillAmount, PaidAmount, OutstandingAmount, Status, Remarks, CreatedBy, CustomerType, start_date)
+                VALUES (@MemberId, @SettlementId, @BillNo, 'CREDIT_SALE', @Amount, 0, @Amount, 'OPEN', 'Credit purchase', @CreatedBy, 'CREDIT', @StartDate)
               `);
             console.log(`[SAVE SALE DIAGNOSTIC] Balance update success (CREDIT): memberId=${memberId}, oldBalance=${oldBalance}, newBalance=${newBalance}`);
           }

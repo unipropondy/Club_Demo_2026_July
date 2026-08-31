@@ -68,14 +68,42 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
       dateFilter = `start_date BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
     }
 
-    const result = await request.query(`
+    // Fetch active bill payments — EXCLUDE CREDIT paymode (deferred/unpaid, not cash received)
+    const billsResult = await request.query(`
       SELECT
         LTRIM(RTRIM(ISNULL(Remarks, ''))) AS PaymodeName,
         ISNULL(SUM(Amount), 0) AS Amount,
         COUNT(*) AS PayCount
       FROM PaymentDetailCur
       WHERE ${dateFilter}
+        AND UPPER(LTRIM(RTRIM(ISNULL(Remarks, '')))) NOT IN ('CREDIT', 'MEMBER')
       GROUP BY LTRIM(RTRIM(ISNULL(Remarks, '')))
+    `);
+
+    // Fetch credit outstanding separately (actual remaining outstanding balance from CustomerCreditTransactions)
+    const creditOutstandingResult = await request.query(`
+      SELECT
+        ISNULL(CustomerType, 'CREDIT') AS PaymodeName,
+        ISNULL(SUM(OutstandingAmount), 0) AS Amount,
+        COUNT(*) AS PayCount
+      FROM CustomerCreditTransactions
+      WHERE TransactionType = 'CREDIT_SALE'
+        AND ${dateFilter.replace(/start_date/g, 'start_date')}
+      GROUP BY ISNULL(CustomerType, 'CREDIT')
+    `);
+
+    // Fetch non-cash ledger collections (e.g. PAYNOW, NETS, CARD paid on receivables screen)
+    const ledgerResult = await request.query(`
+      SELECT
+        pm.PayMode AS PaymodeName,
+        ISNULL(SUM(ptd.Amount), 0) AS Amount,
+        COUNT(*) AS PayCount
+      FROM PaymentTransactionDetails ptd
+      INNER JOIN Paymode pm ON ptd.PayModeId = pm.Position
+      WHERE ptd.ReferenceType = 'MEMBER'
+        AND UPPER(pm.PayMode) NOT LIKE '%CASH%'
+        AND ${dateFilter.replace(/start_date/g, 'CAST(ptd.CreatedDate AS DATE)')}
+      GROUP BY pm.PayMode
     `);
 
     const normalizePayMode = (paymentMethod = "CASH") => {
@@ -97,9 +125,11 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
       return raw;
     };
 
+    // Aggregate cash/non-cash movements (excludes CREDIT deferred payments)
     const aggregated = {};
-    const dbRows = result.recordset || [];
-    dbRows.forEach(row => {
+    
+    // 1. Process direct checkout payments
+    (billsResult.recordset || []).forEach(row => {
       const normName = normalizePayMode(row.PaymodeName);
       if (!aggregated[normName]) {
         aggregated[normName] = {
@@ -112,7 +142,36 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
       aggregated[normName].PayCount += parseInt(row.PayCount, 10) || 0;
     });
 
-    res.json(Object.values(aggregated));
+    // 2. Process non-cash ledger payments separately (prefixed so they don't merge)
+    (ledgerResult.recordset || []).forEach(row => {
+      const normName = normalizePayMode(row.PaymodeName);
+      const ledgerName = `Ledger Payment - ${normName}`;
+      if (!aggregated[ledgerName]) {
+        aggregated[ledgerName] = {
+          PaymodeName: ledgerName,
+          Amount: 0,
+          PayCount: 0
+        };
+      }
+      aggregated[ledgerName].Amount += parseFloat(row.Amount) || 0;
+      aggregated[ledgerName].PayCount += parseInt(row.PayCount, 10) || 0;
+    });
+
+    // Aggregate credit outstanding (deferred bills — shown separately on screen, NOT in total movements)
+    const creditAggregated = {};
+    (creditOutstandingResult.recordset || []).forEach(row => {
+      const normName = normalizePayMode(row.PaymodeName);
+      if (!creditAggregated[normName]) {
+        creditAggregated[normName] = { PaymodeName: normName, Amount: 0, PayCount: 0 };
+      }
+      creditAggregated[normName].Amount += parseFloat(row.Amount) || 0;
+      creditAggregated[normName].PayCount += parseInt(row.PayCount, 10) || 0;
+    });
+
+    res.json({
+      payments: Object.values(aggregated),
+      creditOutstanding: Object.values(creditAggregated)
+    });
 
   } catch (err) {
     console.error("❌ PAYMENT ERROR:", err);

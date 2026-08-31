@@ -214,6 +214,15 @@ if (!gatewayResponse.success) {
     // ============================================================
     // 3️⃣ ALWAYS save to PaymentTransactionDetails (REMOVED extra columns)
     // ============================================================
+    let activeCreatedDate = new Date();
+    const activeDayRes = await transaction.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
+    if (activeDayRes.recordset.length > 0) {
+      const activeStartDate = activeDayRes.recordset[0].StartDate;
+      const datePart = activeStartDate instanceof Date ? activeStartDate.toISOString().split("T")[0] : String(activeStartDate).split("T")[0];
+      const nowTime = new Date();
+      activeCreatedDate = new Date(`${datePart}T${nowTime.toTimeString().split(" ")[0]}`);
+    }
+
     const detailReq = new sql.Request(transaction);
     detailReq
       .input("ReferenceType", sql.NVarChar(50), referenceType)
@@ -221,7 +230,8 @@ if (!gatewayResponse.success) {
       .input("PayModeId", sql.Int, payModeId)
       .input("Amount", sql.Decimal(18, 2), amount)
       .input("ReferenceNo", sql.NVarChar(100), gatewayReferenceNo || referenceNo)
-      .input("CreatedBy", sql.UniqueIdentifier, cashierId);
+      .input("CreatedBy", sql.UniqueIdentifier, cashierId)
+      .input("CreatedDate", sql.DateTime, activeCreatedDate);
 
     await detailReq.query(`
       INSERT INTO [dbo].[PaymentTransactionDetails] (
@@ -229,7 +239,7 @@ if (!gatewayResponse.success) {
         ReferenceNo, CreatedDate, CreatedBy
       ) VALUES (
         NEWID(), @ReferenceType, @ReferenceId, @PayModeId, @Amount, 
-        @ReferenceNo, GETDATE(), @CreatedBy
+        @ReferenceNo, @CreatedDate, @CreatedBy
       )
     `);
 
@@ -270,7 +280,7 @@ if (!gatewayResponse.success) {
       await cashInReq
         .input('CashInNo', sql.VarChar, cashInNo)
         .input('Amount', sql.Decimal(18, 2), amount)
-        .input('Reason', sql.VarChar, referenceType === 'BILL' ? 'Cash Sale' : 'Ledger Payment')
+        .input('Reason', sql.VarChar, 'Cash In')
         .input('Remarks', sql.VarChar, `Auto Cash In from ${referenceType}: ${referenceId}`)
         .input('PaymentMode', sql.VarChar, 'Cash')
         .input('ReferenceNo', sql.VarChar, referenceId)

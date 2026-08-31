@@ -308,9 +308,17 @@ router.post("/pay", async (req, res) => {
       .input("Remarks", sql.NVarChar(500), mainRemarks.substring(0, 500))
       .input("CreatedBy", sql.UniqueIdentifier, toGuidOrNull(userId))
       .query(`
-        INSERT INTO CustomerCreditTransactions (MemberId, TransactionType, BillAmount, PaidAmount, OutstandingAmount, PaymentMethod, ReferenceNo, Status, Remarks, CreatedBy)
+        DECLARE @activeDate DATETIME = GETDATE();
+        DECLARE @startDate DATETIME = NULL;
+        SELECT TOP 1 @startDate = StartDate FROM DateEntry ORDER BY CreatedDate DESC;
+        IF @startDate IS NOT NULL
+        BEGIN
+            SET @activeDate = CAST(CAST(@startDate AS DATE) AS DATETIME) + CAST(CAST(GETDATE() AS TIME) AS DATETIME);
+        END
+
+        INSERT INTO CustomerCreditTransactions (MemberId, TransactionType, BillAmount, PaidAmount, OutstandingAmount, PaymentMethod, ReferenceNo, Status, Remarks, CreatedBy, CreatedDate, start_date)
         OUTPUT INSERTED.TransactionId
-        VALUES (@MemberId, 'PAYMENT', 0, @Amount, -@Amount, @PaymentMethod, @ReferenceNo, 'CLOSED', @Remarks, @CreatedBy)
+        VALUES (@MemberId, 'PAYMENT', 0, @Amount, -@Amount, @PaymentMethod, @ReferenceNo, 'CLOSED', @Remarks, @CreatedBy, @activeDate, CAST(ISNULL(@startDate, GETDATE()) AS DATE))
       `);
     
     paymentTransactionId = payTxResult.recordset[0].TransactionId;

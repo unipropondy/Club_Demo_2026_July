@@ -580,6 +580,7 @@ export default function SettlementScreen() {
 
   const [totalSales, setTotalSales] = useState<any>({});
   const [payments, setPayments] = useState<any[]>([]);
+  const [creditOutstanding, setCreditOutstanding] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
 
@@ -833,7 +834,16 @@ const fetchDayHistory = async () => {
       const dayLogRes = await API.get(`/settlement/day-log?date=${dateStr}`).catch(() => ({ data: null }));
 
       setTotalSales(totalRes.data || {});
-      setPayments(payRes.data || []);
+      // payRes now returns { payments: [], creditOutstanding: [] }
+      const payData = payRes.data;
+      if (Array.isArray(payData)) {
+        // backward-compat: old API returned plain array
+        setPayments(payData);
+        setCreditOutstanding([]);
+      } else {
+        setPayments(payData?.payments || []);
+        setCreditOutstanding(payData?.creditOutstanding || []);
+      }
       setTransactions(transRes.data || []);
       setSales(salesRes.data || []);
       setCashOutEntries(cashOutRes.data?.data || []);
@@ -919,22 +929,24 @@ const fetchDayHistory = async () => {
 
   const salesCash = normalCashSales + cashBoxEntrySales;
 
-  const dbHasCashSalesInCashIn = cashInEntries.some(entry => entry.Reason === 'Cash Sale' || entry.Reason === 'Cash Box Entry');
+  const ledgerCashIn = cashInEntries
+    .filter(ci => ci.CashInType === 'LEDGER')
+    .reduce((sum, ci) => sum + (parseFloat(ci.Amount) || 0), 0);
+
+  const manualCashIn = cashInEntries
+    .filter(ci => ci.CashInType === 'MANUAL')
+    .reduce((sum, ci) => sum + (parseFloat(ci.Amount) || 0), 0);
 
   const cashInTransactionsSum = transactions.filter(t => t.TransactionType === "IN").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
   const cashOutTransactionsSum = transactions.filter(t => t.TransactionType === "OUT").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
 
-  const displayManualCashIn = dbHasCashSalesInCashIn
-    ? Math.max(0, totalCashInEntries - salesCash)
-    : totalCashInEntries;
+  const displayManualCashIn = ledgerCashIn + manualCashIn;
 
-  const displayCashInCard = dbHasCashSalesInCashIn
-    ? totalCashInEntries + cashInTransactionsSum
-    : totalCashInEntries + salesCash + cashInTransactionsSum;
+  const displayCashInCard = salesCash + ledgerCashIn + manualCashIn + cashInTransactionsSum;
 
   const displayCashOutCard = totalCashOut + cashOutTransactionsSum;
 
-  const totalCashIn = salesCash + displayOpeningAmount + displayManualCashIn + cashInTransactionsSum;
+  const totalCashIn = salesCash + displayOpeningAmount + ledgerCashIn + manualCashIn + cashInTransactionsSum;
 
   const totalCashOutSum = totalCashOut + cashOutTransactionsSum;
 
@@ -945,9 +957,17 @@ const fetchDayHistory = async () => {
     })
     .reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0);
 
-  const sysCash = dbHasCashSalesInCashIn
-    ? displayOpeningAmount + totalCashInEntries - totalCashOut + baseTransactionsTotal
-    : displayOpeningAmount + totalCashInEntries + salesCash - totalCashOut + baseTransactionsTotal;
+  const sysCash = displayOpeningAmount + salesCash + ledgerCashIn + manualCashIn + baseTransactionsTotal - totalCashOut;
+
+  const getPaymodeTotal = (modeName: string) => {
+    const norm = modeName.toUpperCase();
+    return payments
+      .filter(p => {
+        const pName = p.PaymodeName?.toUpperCase() || "";
+        return pName === norm || pName === `LEDGER PAYMENT - ${norm}`;
+      })
+      .reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0);
+  };
 
   const handleFinalize = async () => {
     try {
@@ -967,10 +987,10 @@ const fetchDayHistory = async () => {
         varianceStatus: totalClosing === sysCash ? "BALANCED" : (totalClosing > sysCash ? "SURPLUS" : "SHORTAGE"),
         openingCash: displayOpeningAmount,
         cashAmount: totalClosing,
-        cardAmount: payments.find(p => p.PaymodeName?.toUpperCase() === 'CARD')?.Amount || 0,
-        upiAmount: payments.find(p => p.PaymodeName?.toUpperCase() === 'UPI')?.Amount || 0,
-        paynowAmount: payments.find(p => p.PaymodeName?.toUpperCase() === 'PAYNOW')?.Amount || 0,
-        valueCardAmount: payments.find(p => p.PaymodeName?.toUpperCase() === 'VALUE CARD')?.Amount || 0,
+        cardAmount: getPaymodeTotal('CARD'),
+        upiAmount: getPaymodeTotal('UPI'),
+        paynowAmount: getPaymodeTotal('PAYNOW'),
+        valueCardAmount: getPaymodeTotal('VALUE CARD'),
       };
 
       const res = await API.post(`/settlement/finalize`, payload, {
@@ -2293,7 +2313,8 @@ const fetchDayHistory = async () => {
                       </Text>
                     </View>
                   )}
-                  {cashInEntries.filter(ci => ci.Reason !== 'Cash Sale' && ci.Reason !== 'Cash Box Entry').map((ci, i) => (
+                  {/* User-created Cash In entries (editable) */}
+                  {cashInEntries.filter(ci => ci.CashInType === 'MANUAL').map((ci, i) => (
                     <TouchableOpacity
                       key={`ci-${i}`}
                       style={[styles.tableRow, { alignItems: 'center' }]}
@@ -2336,6 +2357,43 @@ const fetchDayHistory = async () => {
                         0.00
                       </Text>
                     </TouchableOpacity>
+                  ))}
+                  {/* Auto-generated system rows: Ledger Payment — READ ONLY */}
+                  {cashInEntries.filter(ci => ci.CashInType === 'LEDGER').map((ci, i) => (
+                    <View
+                      key={`ci-sys-${i}`}
+                      style={[styles.tableRow, { alignItems: 'center', opacity: 0.88 }]}
+                    >
+                      <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <Text style={styles.tableCellText}>
+                          {ci.CashInType === 'LEDGER' ? 'Ledger Payment - Cash' : ci.CashInType === 'SALE' ? 'Cash Sale' : (ci.Reason || 'Cash In')}
+                        </Text>
+                        {ci.CashInType !== 'LEDGER' && (
+                          <Ionicons name="lock-closed" size={11} color="#F59E0B" style={{ marginLeft: 4 }} />
+                        )}
+                        {!!ci.AttachmentUrl && (
+                          <TouchableOpacity 
+                            onPress={() => setViewerImageUrl(ci.AttachmentUrl)}
+                            style={{
+                              marginLeft: 4,
+                              padding: 4,
+                              borderRadius: 6,
+                              backgroundColor: "rgba(16, 185, 129, 0.12)",
+                              justifyContent: 'center',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <Ionicons name="image" size={12} color={Theme.success} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      <Text style={[styles.tableCellText, { flex: 1, textAlign: "right", color: Theme.success }]}>
+                        +{formatCurrency(ci.Amount)}
+                      </Text>
+                      <Text style={[styles.tableCellText, { flex: 1, textAlign: "right" }]}>
+                        0.00
+                      </Text>
+                    </View>
                   ))}
                   {cashOutEntries.map((co, i) => (
                     <TouchableOpacity
@@ -2405,7 +2463,26 @@ const fetchDayHistory = async () => {
                       </View>
                     );
                   })}
-                  {payments.length === 0 && displayOpeningAmount === 0 && transactions.length === 0 && cashOutEntries.length === 0 && cashInEntries.length === 0 && <Text style={styles.emptyText}>No sales</Text>}
+                  {/* Credit Outstanding — deferred bills not yet collected as cash */}
+                  {creditOutstanding.length > 0 && (
+                    <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(245,158,11,0.25)', marginTop: 4, paddingTop: 4 }}>
+                      {creditOutstanding.map((c, i) => (
+                        <View key={`cred-out-${i}`} style={[styles.tableRow, { alignItems: 'center' }]}>
+                          <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Ionicons name="time-outline" size={12} color="#F59E0B" />
+                            <Text style={[styles.tableCellText, { color: '#F59E0B' }]}>
+                              Credit (Deferred)
+                            </Text>
+                          </View>
+                          <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: '#F59E0B' }]}>
+                            {formatCurrency(c.Amount)}
+                          </Text>
+                          <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: Theme.textSecondary }]}>—</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {payments.length === 0 && creditOutstanding.length === 0 && displayOpeningAmount === 0 && transactions.length === 0 && cashOutEntries.length === 0 && cashInEntries.length === 0 && <Text style={styles.emptyText}>No sales</Text>}
                 </View>
                 {/* Custom Premium Aggregate Section */}
                 <View style={{ padding: 16, backgroundColor: "#0A091A", borderTopWidth: 1.5, borderTopColor: Theme.border }}>
