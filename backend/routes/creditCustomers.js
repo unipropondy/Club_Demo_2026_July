@@ -223,6 +223,13 @@ router.get("/validate/:memberId", async (req, res) => {
 router.post("/pay", async (req, res) => {
   try {
     const pool = await poolPromise;
+
+    // Day Start / Day End validation check
+    const activeDayRes = await pool.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
+    if (activeDayRes.recordset.length === 0) {
+      return res.status(400).json({ error: "No active business date. Please Start Day first." });
+    }
+
     const { memberId, amount, payments, userId, paymentSessionId } = req.body;
 
     if (paymentSessionId) {
@@ -494,7 +501,8 @@ router.get("/statement/:memberId", async (req, res) => {
     
     let runningBalance = 0;
     const transactions = result.recordset.map(t => {
-      const netEffect = parseFloat(t.BillAmount || 0) - parseFloat(t.PaidAmount || 0);
+      const isDebit = t.TransactionType === 'CREDIT_SALE' || t.TransactionType === 'SALE' || t.TransactionType === 'DEBIT' || (t.TransactionType === 'ADJUSTMENT' && parseFloat(t.BillAmount || 0) > 0);
+      const netEffect = isDebit ? parseFloat(t.BillAmount || 0) : -parseFloat(t.PaidAmount || 0);
       runningBalance += netEffect;
       return {
         ...t,

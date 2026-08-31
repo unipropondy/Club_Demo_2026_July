@@ -349,6 +349,13 @@ router.get("/usage/:memberId", async (req, res) => {
 router.post("/pay", async (req, res) => {
   try {
     const pool = await poolPromise;
+
+    // Day Start / Day End validation check
+    const activeDayRes = await pool.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
+    if (activeDayRes.recordset.length === 0) {
+      return res.status(400).json({ error: "No active business date. Please Start Day first." });
+    }
+
     const { memberId, amount, payments, userId, paymentSessionId } = req.body;
 
     if (paymentSessionId) {
