@@ -58,6 +58,9 @@ export type CartItem = {
   IsDiscountAllowed?: number | boolean;
   IsDeck?: number | boolean;  // 🎭 If 1, item is routed to Deck (Entertainment) view in Order Hub
   TakeawayCharge?: number | null; // 🍱 Per-dish TW charge from DishMaster (null = use CompanySettings global)
+  dishGroupId?: string;
+  dishGroupName?: string;
+  subCategoryName?: string;
 };
 
 export type DiscountInfo = {
@@ -256,6 +259,9 @@ const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartIte
     discountAmount: Number(item.discountAmount ?? item.discount ?? item.DiscountAmount ?? fallback.discountAmount ?? discount),
     discountType: item.discountType || item.DiscountType || fallback.discountType || "percentage",
     TakeawayCharge: normalizedTWCharge,
+    dishGroupId: item.dishGroupId || item.DishGroupId || item.subCategoryId || fallback.dishGroupId,
+    dishGroupName: item.dishGroupName || item.DishGroupName || item.subCategoryName || item.SubCategoryName || fallback.dishGroupName,
+    subCategoryName: item.subCategoryName || item.SubCategoryName || item.dishGroupName || item.DishGroupName || fallback.subCategoryName,
   };
 };
 

@@ -1175,7 +1175,15 @@ router.get("/artist-target", async (req, res) => {
     const groupSalesRes = await pool.request().query(`
       SELECT 
         a.Id AS TargetId,
-        ISNULL(NULLIF(LTRIM(RTRIM(b.SubCategoryName)), ''), ISNULL(dg.DishGroupName, 'Others')) AS GroupName,
+        CASE 
+          WHEN NULLIF(LTRIM(RTRIM(b.SubCategoryName)), '') IS NOT NULL AND LTRIM(RTRIM(b.SubCategoryName)) <> 'Unmapped'
+            THEN LTRIM(RTRIM(b.SubCategoryName))
+          WHEN CHARINDEX(' - ', b.DishName) > 0 
+            THEN LTRIM(RTRIM(LEFT(b.DishName, CHARINDEX(' - ', b.DishName) - 1)))
+          WHEN dg.DishGroupName IS NOT NULL
+            THEN LTRIM(RTRIM(dg.DishGroupName))
+          ELSE 'Others'
+        END AS GroupName,
         SUM(CASE WHEN (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) - (CASE WHEN b.DiscountType = 'percentage' THEN (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) * (ISNULL(b.DiscountAmount, 0) / 100.0) ELSE ISNULL(b.Qty, 0) * (CASE WHEN ISNULL(b.DiscountAmount, 0) > ISNULL(b.Price, 0) THEN ISNULL(b.Price, 0) ELSE ISNULL(b.DiscountAmount, 0) END) END) - ISNULL(b.VIPDiscountAmount, 0) < 0 THEN 0 ELSE (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) - (CASE WHEN b.DiscountType = 'percentage' THEN (ISNULL(b.Qty, 0) * ISNULL(b.Price, 0)) * (ISNULL(b.DiscountAmount, 0) / 100.0) ELSE ISNULL(b.Qty, 0) * (CASE WHEN ISNULL(b.DiscountAmount, 0) > ISNULL(b.Price, 0) THEN ISNULL(b.Price, 0) ELSE ISNULL(b.DiscountAmount, 0) END) END) - ISNULL(b.VIPDiscountAmount, 0) END) AS GroupSales
       FROM dishOrderItemShare a
       INNER JOIN settlementitemdetail b ON (
@@ -1190,7 +1198,16 @@ router.get("/artist-target", async (req, res) => {
         AND ISNULL(b.Status, 'NORMAL') <> 'VOIDED'
         AND b.OrderDateTime >= CAST(a.FromDate AS DATETIME)
         AND b.OrderDateTime < DATEADD(DAY, 1, CAST(a.ToDate AS DATETIME))
-      GROUP BY a.Id, ISNULL(NULLIF(LTRIM(RTRIM(b.SubCategoryName)), ''), ISNULL(dg.DishGroupName, 'Others'))
+      GROUP BY a.Id, 
+        CASE 
+          WHEN NULLIF(LTRIM(RTRIM(b.SubCategoryName)), '') IS NOT NULL AND LTRIM(RTRIM(b.SubCategoryName)) <> 'Unmapped'
+            THEN LTRIM(RTRIM(b.SubCategoryName))
+          WHEN CHARINDEX(' - ', b.DishName) > 0 
+            THEN LTRIM(RTRIM(LEFT(b.DishName, CHARINDEX(' - ', b.DishName) - 1)))
+          WHEN dg.DishGroupName IS NOT NULL
+            THEN LTRIM(RTRIM(dg.DishGroupName))
+          ELSE 'Others'
+        END
     `);
     const groupSales = groupSalesRes.recordset;
 
@@ -2102,6 +2119,13 @@ router.post("/save", async (req, res) => {
             dishNames.forEach((name, i) => {
               req.input(`name_${i}`, sql.NVarChar(255), name);
               whereClauses.push(`LTRIM(RTRIM(LOWER(d.Name))) = LTRIM(RTRIM(LOWER(@name_${i})))`);
+              if (name.includes(" - ")) {
+                const baseName = name.split(" - ").slice(-1)[0].trim();
+                if (baseName) {
+                  req.input(`basename_${i}`, sql.NVarChar(255), baseName);
+                  whereClauses.push(`LTRIM(RTRIM(LOWER(d.Name))) = LTRIM(RTRIM(LOWER(@basename_${i})))`);
+                }
+              }
             });
           }
           const queryStr = `
@@ -2130,16 +2154,33 @@ router.post("/save", async (req, res) => {
         let insertQueries = [];
         items.forEach((item, idx) => {
           const dishId = toGuidOrNull(item.dishId || item.id);
-          const nameKey = (item.dish_name || item.name || "").trim().toLowerCase();
-          const meta = (dishId && metaMap[String(dishId).toLowerCase()]) || metaMap[nameKey] || {};
+          const rawName = item.dish_name || item.name || "";
+          const nameKey = rawName.trim().toLowerCase();
+          const baseNameKey = rawName.includes(" - ") ? rawName.split(" - ").slice(-1)[0].trim().toLowerCase() : nameKey;
+          const meta = (dishId && metaMap[String(dishId).toLowerCase()]) || metaMap[nameKey] || metaMap[baseNameKey] || {};
           
+          let subCatName = item.subCategoryName || item.dishGroupName || item.SubCategoryName || item.DishGroupName;
+          let prefixGroup = null;
+          if (rawName.includes(" - ")) {
+            const parts = rawName.split(" - ");
+            if (parts.length > 1) {
+              const prefix = parts.slice(0, -1).join(" - ").trim();
+              if (prefix) prefixGroup = prefix;
+            }
+          }
+          if (!subCatName || subCatName === "Unmapped") {
+            subCatName = prefixGroup || meta.DishGroupName || "Unmapped";
+          }
+
+          const dishGroupId = toGuidOrNull(item.dishGroupId || item.DishGroupId || item.subCategoryId || meta.DishGroupId);
+
           insertReq.input(`DishId_${idx}`, sql.UniqueIdentifier, toGuidOrNull(meta.DishId || dishId));
-          insertReq.input(`DishGroupId_${idx}`, sql.UniqueIdentifier, toGuidOrNull(meta.DishGroupId));
-          insertReq.input(`CategoryId_${idx}`, sql.UniqueIdentifier, toGuidOrNull(meta.CategoryId));
+          insertReq.input(`DishGroupId_${idx}`, sql.UniqueIdentifier, dishGroupId);
+          insertReq.input(`CategoryId_${idx}`, sql.UniqueIdentifier, toGuidOrNull(meta.CategoryId || item.categoryId || item.CategoryId));
           insertReq.input(`DishName_${idx}`, sql.NVarChar(255), item.dish_name || item.name || "Unknown");
           insertReq.input(`SongName_${idx}`, sql.NVarChar(255), item.songName || item.SongName || "");
           insertReq.input(`CategoryName_${idx}`, sql.NVarChar(255), meta.CategoryName || item.categoryName || "Unmapped");
-          insertReq.input(`SubCategoryName_${idx}`, sql.NVarChar(255), meta.DishGroupName || "Unmapped");
+          insertReq.input(`SubCategoryName_${idx}`, sql.NVarChar(255), subCatName);
           insertReq.input(`Qty_${idx}`, sql.Decimal(18, 3), item.qty || 1);
           insertReq.input(`Price_${idx}`, sql.Decimal(18, 2), item.price || 0);
           insertReq.input(`ItemDiscountAmount_${idx}`, sql.Decimal(18, 2), Number(item.discountAmount) || null);

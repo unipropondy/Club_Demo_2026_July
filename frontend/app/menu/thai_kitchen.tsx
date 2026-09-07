@@ -1109,6 +1109,9 @@ export default function MenuScreen() {
           isServiceCharge: dish.isServiceCharge,
           IsOpenItem: dish.IsOpenItem,
           TakeawayCharge: dish.TakeawayCharge !== undefined ? dish.TakeawayCharge : null,
+          dishGroupId: selectedGroupObj?.DishGroupId || dish.DishGroupId || dish.dishGroupId,
+          dishGroupName: dishGroupName,
+          subCategoryName: dishGroupName,
         } as any);
       };
 
@@ -1405,6 +1408,9 @@ export default function MenuScreen() {
         splitMembers: selectedDish.splitMembers || undefined,
         isServiceCharge: selectedDish.isServiceCharge,
         TakeawayCharge: selectedDish.TakeawayCharge !== undefined ? selectedDish.TakeawayCharge : null,
+        dishGroupId: selectedGroupObj?.DishGroupId || selectedDish.DishGroupId || selectedDish.dishGroupId,
+        dishGroupName: dishGroupName,
+        subCategoryName: dishGroupName,
       } as any);
     }
     setShowModifier(false);
@@ -1450,6 +1456,9 @@ export default function MenuScreen() {
       IsOpenItem: dish.IsOpenItem,
       isServiceCharge: dish.isServiceCharge,
       TakeawayCharge: dish.TakeawayCharge !== undefined ? dish.TakeawayCharge : null,
+      dishGroupId: selectedGroupObj?.DishGroupId || dish.DishGroupId || dish.dishGroupId,
+      dishGroupName: dishGroupName,
+      subCategoryName: dishGroupName,
     } as any);
 
     // Reset
@@ -1802,6 +1811,9 @@ export default function MenuScreen() {
                         name: `${groupPrefix}${selectedSplitDish.Name} - ${member.Name}`,
                         songName: songName,
                         price: shareAmount,
+                        dishGroupId: selectedGroupObj?.DishGroupId || selectedSplitDish?.DishGroupId,
+                        dishGroupName: dishGroupName,
+                        subCategoryName: dishGroupName,
                       } as any);
                     });
 
