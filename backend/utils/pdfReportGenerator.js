@@ -873,6 +873,74 @@ const generateSalesReportPdf = async (reportData) => {
     margin: [0, 0, 0, 14]
   });
 
+  // ── Summary Dashboard Metrics (All 14 Cards) ──────────────────────────────
+  const finalMemberCollections = reportData.memberCollections ?? ((paymentBreakdown.MEMBER || 0) + memberPaymentsCollected);
+  const finalCreditCollections = reportData.creditCollections ?? creditPaymentsCollected;
+  const finalCashBoxEntry = reportData.cashBoxEntry ?? (paymentBreakdown['CASH BOX ENTRY'] || 0);
+  const finalGst = totalTax || reportData?.gst || 0;
+  const finalTakeawayCharge = takeawayCharge || reportData?.takeawayCharge || 0;
+  const finalServiceCharge = serviceCharge || reportData?.serviceCharge || 0;
+  const finalRegularDiscount = regularDiscount || reportData?.regularDiscount || 0;
+
+  const dashboardMetricsList = [
+    ['Total Sales',            fmt(totalSales),                              T.orange],
+    ['Member Collections',     fmt(finalMemberCollections),                  T.purple],
+    ['Credit Collections',     fmt(finalCreditCollections),                  T.red],
+    ['Cash Box Entry',         fmt(finalCashBoxEntry),                       T.blue],
+    ['Total Collections',      fmt(totalCollections),                        T.green],
+    ['Service Charge',         fmt(finalServiceCharge),                      T.slate700],
+    ['GST Tax',                fmt(finalGst),                                T.slate700],
+    ['Takeaway Charge',        fmt(finalTakeawayCharge),                     T.orange],
+    ['Total Orders',           fmt(totalOrders, false),                      T.blue],
+    ['Items Sold',             fmt(totalItems, false),                       T.slate700],
+    ['Total Voids',            `${voidQty} (${fmt(voidAmount)})`,            T.red],
+    ['Cancelled Orders',       `${cancelledCount} (${fmt(cancelledAmount)})`,T.red],
+    ['Regular Discount',       fmt(finalRegularDiscount),                    T.amber],
+    ['VIP Discount Savings',   fmt(totalVIPDiscount),                        T.purple],
+  ];
+
+  content.push(sectionHeader('SUMMARY DASHBOARD METRICS'));
+  content.push({
+    columns: [
+      {
+        width: '48%',
+        table: {
+          widths: ['*', 'auto'],
+          body: dashboardMetricsList.slice(0, 7).map(([label, val, color], i) => [
+            { text: label, fontSize: 7, color: T.slate700, fillColor: i % 2 === 0 ? T.white : T.slate100, margin: [4, 3, 0, 3], border: [false, false, false, false] },
+            { text: val,   fontSize: 7, bold: true, color, alignment: 'right', fillColor: i % 2 === 0 ? T.white : T.slate100, margin: [0, 3, 4, 3], border: [false, false, false, false] }
+          ])
+        },
+        layout: {
+          hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 1 : 0.5,
+          vLineWidth: () => 0,
+          hLineColor: () => T.slate200,
+          paddingLeft: () => 0, paddingRight: () => 0,
+          paddingTop: () => 0,  paddingBottom: () => 0,
+        }
+      },
+      { text: '', width: '4%' },
+      {
+        width: '48%',
+        table: {
+          widths: ['*', 'auto'],
+          body: dashboardMetricsList.slice(7).map(([label, val, color], i) => [
+            { text: label, fontSize: 7, color: T.slate700, fillColor: i % 2 === 0 ? T.white : T.slate100, margin: [4, 3, 0, 3], border: [false, false, false, false] },
+            { text: val,   fontSize: 7, bold: true, color, alignment: 'right', fillColor: i % 2 === 0 ? T.white : T.slate100, margin: [0, 3, 4, 3], border: [false, false, false, false] }
+          ])
+        },
+        layout: {
+          hLineWidth: (i, node) => (i === 0 || i === node.table.body.length) ? 1 : 0.5,
+          vLineWidth: () => 0,
+          hLineColor: () => T.slate200,
+          paddingLeft: () => 0, paddingRight: () => 0,
+          paddingTop: () => 0,  paddingBottom: () => 0,
+        }
+      }
+    ],
+    margin: [0, 0, 0, 14]
+  });
+
   // Target Achievement section removed (dish names were appearing instead of staff names)
 
   // ── Page 2 Footer ─────────────────────────────────────────────────────────

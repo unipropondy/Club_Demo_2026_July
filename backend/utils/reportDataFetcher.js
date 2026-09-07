@@ -60,6 +60,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       sh.DiscountType as DiscountType,
       ISNULL(sh.ServiceCharge, 0) as ServiceCharge,
       ISNULL(sh.TotalTax, 0) as TotalTax,
+      ISNULL(sh.TakeawayCharge, 0) as TakeawayCharge,
       ISNULL(sts.ReceiptCount, 0) as ReceiptCount,
       ISNULL(sh.VoidItemQty, 0) as VoidQty,
       ISNULL(sh.VoidItemAmount, 0) as VoidAmount,
@@ -93,6 +94,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       NULL AS DiscountType,
       0 AS ServiceCharge,
       0 AS TotalTax,
+      0 AS TakeawayCharge,
       1 AS ReceiptCount,
       0 AS VoidQty,
       0 AS VoidAmount,
@@ -126,6 +128,10 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
   let memberPaymentsCollected = 0;
   let creditPaymentsCollected = 0;
   let totalVIPDiscount = 0;
+  let serviceCharge = 0;
+  let totalTax = 0;
+  let takeawayCharge = 0;
+  let regularDiscount = 0;
 
   const breakdown = {};
   const breakdownCounts = {};
@@ -180,6 +186,10 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       totalVoids += s.VoidQty || 0;
       totalVoidAmount += s.VoidAmount || 0;
       totalVIPDiscount += s.VIPDiscountAmount || 0;
+      serviceCharge += s.ServiceCharge || 0;
+      totalTax += s.TotalTax || 0;
+      takeawayCharge += s.TakeawayCharge || 0;
+      regularDiscount += (s.DiscountAmount - (s.VIPDiscountAmount || 0)) > 0 ? (s.DiscountAmount - (s.VIPDiscountAmount || 0)) : (s.DiscountAmount || 0);
     }
 
     const rawMode = String(s.RawPayMode || "").toUpperCase().trim();
@@ -519,6 +529,14 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
     totalCollections,
     creditPaymentsCollected,
     memberPaymentsCollected,
+    cashBoxEntry: breakdown['CASH BOX ENTRY'] || 0,
+    memberCollections: (breakdown['MEMBER'] || 0) + memberPaymentsCollected,
+    creditCollections: creditPaymentsCollected,
+    serviceCharge,
+    totalTax,
+    gst: totalTax,
+    takeawayCharge,
+    regularDiscount,
     totalOrders,
     totalItems,
     voidQty: totalVoids,

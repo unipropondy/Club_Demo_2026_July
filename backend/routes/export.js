@@ -402,16 +402,21 @@ async function generateExcelBuffer(reportData, filter, startDateStr, endDateStr)
 
   const metrics = [
     ['Total Sales', reportData.totalSales || 0],
+    ['Member Collections', reportData.memberCollections ?? ((reportData.paymentBreakdown?.['MEMBER'] || 0) + (reportData.memberPaymentsCollected || 0))],
+    ['Credit Collections', reportData.creditCollections ?? (reportData.creditPaymentsCollected || 0)],
+    ['Cash Box Entry', reportData.cashBoxEntry ?? (reportData.paymentBreakdown?.['CASH BOX ENTRY'] || 0)],
     ['Total Collections', reportData.totalCollections || 0],
-    ['Credit Payments Collected', reportData.creditPaymentsCollected || 0],
-    ['Member Payments Collected', reportData.memberPaymentsCollected || 0],
+    ['Service Charge', reportData.serviceCharge || 0],
+    ['GST Tax', reportData.totalTax ?? (reportData.gst || 0)],
+    ['Takeaway Charge', reportData.takeawayCharge || 0],
     ['Total Orders', reportData.totalOrders || 0],
-    ['Total Items Sold', reportData.totalItems || 0],
+    ['Items Sold', reportData.totalItems || 0],
     ['Void Quantity', reportData.voidQty || 0],
     ['Void Amount', reportData.voidAmount || 0],
     ['Cancelled Orders Count', reportData.cancelledCount || 0],
     ['Cancelled Orders Amount', reportData.cancelledAmount || 0],
-    ['Total VIP Discount', reportData.totalVIPDiscount || 0]
+    ['Regular Discount', reportData.regularDiscount || 0],
+    ['VIP Discount Savings', reportData.totalVIPDiscount || 0]
   ];
 
   metrics.forEach((m, idx) => {
@@ -562,4 +567,5 @@ async function generateExcelBuffer(reportData, filter, startDateStr, endDateStr)
   return await workbook.xlsx.writeBuffer();
 }
 
+router.generateExcelBuffer = generateExcelBuffer;
 module.exports = router;

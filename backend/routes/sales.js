@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
+const { fetchFullReportData } = require("../utils/reportDataFetcher");
+
 router.use((req, res, next) => {
-  // /payment-methods is public — pay mode names/icons are not sensitive
-  if (req.path === "/payment-methods") return next();
+  // /payment-methods and /consolidated-report/csv are public export endpoints
+  if (req.path === "/payment-methods" || req.path === "/consolidated-report/csv") return next();
   return authenticateToken(req, res, next);
 });
 
@@ -1598,6 +1600,59 @@ router.get("/day-end-summary", async (req, res) => {
     });
   } catch (err) {
     console.error("[DAY-END SUMMARY ERROR]", err);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+});
+
+router.get("/consolidated-report/csv", async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const { filter = "daily", date, startDate, endDate } = req.query;
+
+    const baseDate = date || new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    let startDateStr = baseDate;
+    let endDateStr = baseDate;
+
+    const normFilter = String(filter).toLowerCase();
+    if (normFilter === "weekly") {
+      const start = new Date(baseDate);
+      start.setDate(start.getDate() - 6);
+      startDateStr = start.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    } else if (normFilter === "monthly") {
+      const start = new Date(baseDate);
+      start.setDate(1);
+      startDateStr = start.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+      const end = new Date(baseDate);
+      const today = new Date();
+      const endOfMonth = new Date(end.getFullYear(), end.getMonth() + 1, 0);
+      if (endOfMonth > today) {
+        end.setTime(today.getTime());
+      } else {
+        end.setTime(endOfMonth.getTime());
+      }
+      endDateStr = end.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    } else if (normFilter === "yearly") {
+      const start = new Date(baseDate);
+      start.setFullYear(start.getFullYear() - 1);
+      startDateStr = start.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' });
+    } else if (normFilter === "custom" && startDate && endDate) {
+      startDateStr = startDate;
+      endDateStr = endDate;
+    }
+
+    const enrichedData = await fetchFullReportData(startDateStr, endDateStr, pool);
+    const exportModule = require('./export');
+    const generateExcelBuffer = exportModule.generateExcelBuffer;
+    const xlsxBuffer = await generateExcelBuffer(enrichedData, normFilter, startDateStr, endDateStr);
+
+    const filename = `Consolidated_Sales_Report_${normFilter}_${startDateStr}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(xlsxBuffer);
+  } catch (err) {
+    console.error("[CONSOLIDATED REPORT CSV ERROR]", err);
     if (!res.headersSent) {
       res.status(500).json({ success: false, error: err.message });
     }
