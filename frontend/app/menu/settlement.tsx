@@ -964,7 +964,7 @@ const fetchDayHistory = async () => {
     return payments
       .filter(p => {
         const pName = p.PaymodeName?.toUpperCase() || "";
-        return pName === norm || pName === `LEDGER PAYMENT - ${norm}`;
+        return pName === norm || pName === `LEDGER PAYMENT - ${norm}` || pName === `CREDIT SETTLEMENT - ${norm}` || pName === `LEDGER COLLECTION - ${norm}`;
       })
       .reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0);
   };
@@ -2239,8 +2239,8 @@ const fetchDayHistory = async () => {
                     </Text>
                   </View>
                   <View style={styles.row}>
-                    <Text style={[styles.rowLabel, { color: '#a855f7' }]}>VIP Discount</Text>
-                    <Text style={[styles.rowValue, { color: '#a855f7' }]}>
+                    <Text style={styles.rowLabel}>VIP Discount</Text>
+                    <Text style={styles.rowValue}>
                       {parseFloat(totalSales.VIPDiscountAmount) > 0 ? `-${currencySymbol}${formatCurrency(totalSales.VIPDiscountAmount)}` : "0.00"}
                     </Text>
                   </View>
@@ -2297,7 +2297,7 @@ const fetchDayHistory = async () => {
                   )}
                 </View>
                 <View style={styles.tableHeader}>
-                  <Text style={[styles.tableHeaderText, { flex: 2 }]}>Paymode</Text>
+                  <Text style={[styles.tableHeaderText, { flex: 2 }]}>PAYMENT MOVEMENTS</Text>
                   <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Cash In</Text>
                   <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' }]}>Cash Out</Text>
                 </View>
@@ -2358,7 +2358,7 @@ const fetchDayHistory = async () => {
                       </Text>
                     </TouchableOpacity>
                   ))}
-                  {/* Auto-generated system rows: Ledger Payment — READ ONLY */}
+                  {/* Auto-generated system rows: Credit Settlement — READ ONLY */}
                   {cashInEntries.filter(ci => ci.CashInType === 'LEDGER').map((ci, i) => (
                     <View
                       key={`ci-sys-${i}`}
@@ -2366,7 +2366,7 @@ const fetchDayHistory = async () => {
                     >
                       <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                         <Text style={styles.tableCellText}>
-                          {ci.CashInType === 'LEDGER' ? 'Ledger Payment - Cash' : ci.CashInType === 'SALE' ? 'Cash Sale' : (ci.Reason || 'Cash In')}
+                          {ci.CashInType === 'LEDGER' ? 'Credit Settlement - Cash' : ci.CashInType === 'SALE' ? 'Cash Sale' : (ci.Reason || 'Cash In')}
                         </Text>
                         {ci.CashInType !== 'LEDGER' && (
                           <Ionicons name="lock-closed" size={11} color="#F59E0B" style={{ marginLeft: 4 }} />
@@ -2463,25 +2463,49 @@ const fetchDayHistory = async () => {
                       </View>
                     );
                   })}
-                  {/* Credit Outstanding — deferred bills not yet collected as cash */}
-                  {creditOutstanding.length > 0 && (
-                    <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(245,158,11,0.25)', marginTop: 4, paddingTop: 4 }}>
-                      {creditOutstanding.map((c, i) => (
-                        <View key={`cred-out-${i}`} style={[styles.tableRow, { alignItems: 'center' }]}>
-                          <View style={{ flex: 2, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <Ionicons name="time-outline" size={12} color="#F59E0B" />
-                            <Text style={[styles.tableCellText, { color: '#F59E0B' }]}>
-                              Credit (Deferred)
-                            </Text>
-                          </View>
-                          <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: '#F59E0B' }]}>
-                            {formatCurrency(c.Amount)}
+                  {/* CREDIT ACTIVITY SUBSECTION */}
+                  {(() => {
+                    const creditIssuedToday = creditOutstanding.reduce((sum, c) => sum + (parseFloat(c.BilledAmount || c.Amount || 0) || 0), 0);
+                    const creditSettledToday = payments
+                      .filter(p => {
+                        const name = p.PaymodeName?.toUpperCase() || "";
+                        return name.includes("LEDGER") || name.includes("CREDIT SETTLEMENT") || name.includes("CREDIT COLLECTED");
+                      })
+                      .reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0) + ledgerCashIn;
+                    const creditUnpaidToday = creditOutstanding.reduce((sum, c) => sum + (parseFloat(c.Amount || 0) || 0), 0);
+
+                    return (
+                      <View style={{ borderTopWidth: 1, borderTopColor: 'rgba(245,158,11,0.25)', marginTop: 8, paddingTop: 8, paddingBottom: 4 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                          <Ionicons name="card-outline" size={13} color="#F59E0B" />
+                          <Text style={{ fontFamily: Fonts.bold, fontSize: 11, color: '#F59E0B', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                            CREDIT ACTIVITY
                           </Text>
-                          <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: Theme.textSecondary }]}>—</Text>
                         </View>
-                      ))}
-                    </View>
-                  )}
+                        <View style={[styles.tableRow, { paddingVertical: 4 }]}>
+                          <Text style={[styles.tableCellText, { flex: 2, color: Theme.textSecondary }]}>Issued Today</Text>
+                          <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: Theme.textPrimary, fontFamily: Fonts.bold }]}>
+                            {formatCurrency(creditIssuedToday)}
+                          </Text>
+                          <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: Theme.textMuted }]}>—</Text>
+                        </View>
+                        <View style={[styles.tableRow, { paddingVertical: 4 }]}>
+                          <Text style={[styles.tableCellText, { flex: 2, color: Theme.textSecondary }]}>Settled Today</Text>
+                          <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: Theme.success, fontFamily: Fonts.bold }]}>
+                            -{formatCurrency(creditSettledToday)}
+                          </Text>
+                          <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: Theme.textMuted }]}>—</Text>
+                        </View>
+                        <View style={[styles.tableRow, { paddingVertical: 4, borderBottomWidth: 0 }]}>
+                          <Text style={[styles.tableCellText, { flex: 2, color: '#F59E0B', fontFamily: Fonts.bold }]}>Unpaid Today</Text>
+                          <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: '#F59E0B', fontFamily: Fonts.black }]}>
+                            {formatCurrency(creditUnpaidToday)}
+                          </Text>
+                          <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: Theme.textMuted }]}>—</Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
                   {payments.length === 0 && creditOutstanding.length === 0 && displayOpeningAmount === 0 && transactions.length === 0 && cashOutEntries.length === 0 && cashInEntries.length === 0 && <Text style={styles.emptyText}>No sales</Text>}
                 </View>
                 {/* Custom Premium Aggregate Section */}

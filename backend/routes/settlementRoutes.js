@@ -712,7 +712,7 @@ router.get('/cash-in/:terminal', authenticateToken, async (req, res) => {
         ci.start_date, 
         ci.AttachmentUrl,
         CASE 
-          WHEN ci.Reason = 'Ledger Payment' THEN 'LEDGER'
+          WHEN ci.Reason = 'Ledger Payment' OR ci.Reason = 'Credit Settlement' THEN 'LEDGER'
           WHEN ci.Reason = 'Cash Sale' THEN 'SALE'
           WHEN ci.Remarks LIKE 'Auto Cash In from BILL%' THEN 'SALE'
           WHEN sh.SettlementID IS NOT NULL THEN 'SALE'

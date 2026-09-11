@@ -3256,8 +3256,8 @@ export default function Category() {
                             { backgroundColor: Theme.primary + "10" },
                           ]}
                         >
-                          <MaterialCommunityIcons
-                            name="card-outline"
+                          <Ionicons
+                            name="ribbon-outline"
                             size={18}
                             color={Theme.primary}
                           />

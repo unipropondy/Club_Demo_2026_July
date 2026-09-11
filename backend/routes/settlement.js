@@ -80,15 +80,17 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
       GROUP BY LTRIM(RTRIM(ISNULL(Remarks, '')))
     `);
 
-    // Fetch credit outstanding separately (actual remaining outstanding balance from CustomerCreditTransactions)
+    // Fetch credit outstanding & issued amounts separately for Credit Activity tracking
     const creditOutstandingResult = await request.query(`
       SELECT
         ISNULL(CustomerType, 'CREDIT') AS PaymodeName,
         ISNULL(SUM(OutstandingAmount), 0) AS Amount,
+        ISNULL(SUM(BillAmount), 0) AS BilledAmount,
+        ISNULL(SUM(PaidAmount), 0) AS PaidAmount,
         COUNT(*) AS PayCount
       FROM CustomerCreditTransactions
       WHERE TransactionType = 'CREDIT_SALE'
-        AND ${dateFilter.replace(/start_date/g, 'start_date')}
+        AND ${dateFilter.replace(/start_date/g, 'COALESCE(start_date, CAST(CreatedDate AS DATE))')}
       GROUP BY ISNULL(CustomerType, 'CREDIT')
     `);
 
@@ -145,7 +147,7 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
     // 2. Process non-cash ledger payments separately (prefixed so they don't merge)
     (ledgerResult.recordset || []).forEach(row => {
       const normName = normalizePayMode(row.PaymodeName);
-      const ledgerName = `Ledger Payment - ${normName}`;
+      const ledgerName = `Credit Settlement - ${normName}`;
       if (!aggregated[ledgerName]) {
         aggregated[ledgerName] = {
           PaymodeName: ledgerName,
@@ -162,9 +164,17 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
     (creditOutstandingResult.recordset || []).forEach(row => {
       const normName = normalizePayMode(row.PaymodeName);
       if (!creditAggregated[normName]) {
-        creditAggregated[normName] = { PaymodeName: normName, Amount: 0, PayCount: 0 };
+        creditAggregated[normName] = { 
+          PaymodeName: normName, 
+          Amount: 0, 
+          BilledAmount: 0,
+          PaidAmount: 0,
+          PayCount: 0 
+        };
       }
       creditAggregated[normName].Amount += parseFloat(row.Amount) || 0;
+      creditAggregated[normName].BilledAmount += parseFloat(row.BilledAmount) || 0;
+      creditAggregated[normName].PaidAmount += parseFloat(row.PaidAmount) || 0;
       creditAggregated[normName].PayCount += parseInt(row.PayCount, 10) || 0;
     });
 
