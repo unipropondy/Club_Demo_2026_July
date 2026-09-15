@@ -13,7 +13,15 @@ import {
   Inter_900Black,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  Ionicons,
+  MaterialCommunityIcons,
+  FontAwesome5,
+  FontAwesome,
+  Feather,
+  Entypo,
+  MaterialIcons,
+} from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -511,6 +519,12 @@ export default function RootLayout() {
 
   const [fontsLoaded, fontError] = useFonts({
     ...Ionicons.font,
+    ...MaterialCommunityIcons.font,
+    ...FontAwesome5.font,
+    ...FontAwesome.font,
+    ...Feather.font,
+    ...Entypo.font,
+    ...MaterialIcons.font,
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
