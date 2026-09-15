@@ -4,7 +4,7 @@ import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import { useCompanySettingsStore } from "@/stores/companySettingsStore";
 import { Ionicons } from "@expo/vector-icons";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "../constants/navigationTheme";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {

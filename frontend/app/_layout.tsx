@@ -2,7 +2,7 @@ import "../shims/displayMock";
 import "react-native-get-random-values";
 import "react-native-reanimated";
 
-import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import { DarkTheme, DefaultTheme, ThemeProvider } from "../constants/navigationTheme";
 
 import {
   Inter_400Regular,
