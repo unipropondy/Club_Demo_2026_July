@@ -1459,6 +1459,25 @@ const fetchDayHistory = async () => {
         : selectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
       const cashInTotalSum = totalCashInEntries + transactions.filter(t => t.TransactionType === "IN").reduce((sum, t) => sum + (parseFloat(t.Amount) || 0), 0);
 
+      const creditIssuedToday = creditOutstanding.reduce((sum, c) => sum + (parseFloat(c.BilledAmount || c.Amount || 0) || 0), 0);
+      const creditSettledToday = payments
+        .filter(p => {
+          const name = p.PaymodeName?.toUpperCase() || "";
+          return name.includes("LEDGER") || name.includes("CREDIT SETTLEMENT") || name.includes("CREDIT COLLECTED");
+        })
+        .reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0) + ledgerCashIn;
+      const creditUnpaidToday = creditOutstanding.reduce((sum, c) => sum + (parseFloat(c.Amount || 0) || 0), 0);
+
+      // Combine direct payment movements and cash-in credit settlements so report matches UI
+      const printPayments = [
+        ...cashInEntries.filter(ci => ci.CashInType === 'LEDGER').map(ci => ({
+          PaymodeName: 'Credit Settlement - Cash',
+          Amount: parseFloat(ci.Amount) || 0
+        })),
+        ...payments
+      ];
+      const printPaymentsTotal = printPayments.reduce((sum, p) => sum + (parseFloat(p.Amount) || 0), 0);
+
       // 2. Format HTML aligned to 80mm width with centered print-out look
       const html = `
         <html>
@@ -1571,10 +1590,10 @@ const fetchDayHistory = async () => {
               </table>
 
               <div class="divider">========================================</div>
-              <div class="section-title">PAYMENT COLLECTION</div>
+              <div class="section-title">PAYMENT MOVEMENTS</div>
               <div class="divider">========================================</div>
               <table>
-                ${payments.map(p => `
+                ${printPayments.map(p => `
                   <tr>
                     <td>${p.PaymodeName}</td>
                     <td class="right">${formatCurrency(p.Amount)}</td>
@@ -1584,8 +1603,26 @@ const fetchDayHistory = async () => {
                   <td colspan="2"><div class="line-divider"></div></td>
                 </tr>
                 <tr class="bold">
-                  <td>TOTAL COLLECTION</td>
-                  <td class="right">${formatCurrency(paymentsTotal)}</td>
+                  <td colspan="2" style="padding-top: 4px;">CREDIT ACTIVITY</td>
+                </tr>
+                <tr>
+                  <td style="padding-left: 10px;">Issued Today</td>
+                  <td class="right">${formatCurrency(creditIssuedToday)}</td>
+                </tr>
+                <tr>
+                  <td style="padding-left: 10px;">Settled Today</td>
+                  <td class="right">${formatCurrency(creditSettledToday)}</td>
+                </tr>
+                <tr class="bold">
+                  <td style="padding-left: 10px;">Unpaid Today</td>
+                  <td class="right bold">${formatCurrency(creditUnpaidToday)}</td>
+                </tr>
+                <tr>
+                  <td colspan="2"><div class="line-divider"></div></td>
+                </tr>
+                <tr class="bold">
+                  <td>TOTAL MOVEMENTS</td>
+                  <td class="right">${formatCurrency(printPaymentsTotal)}</td>
                 </tr>
               </table>
 
@@ -1679,13 +1716,18 @@ const fetchDayHistory = async () => {
       text += formatTwoCols48("<B>NET SALES:</B>", "<B>" + formatCurrency(netSales) + "</B>\n");
 
       text += "[C]========================================\n";
-      text += "[C]<B>PAYMENT COLLECTION</B>\n";
+      text += "[C]<B>PAYMENT MOVEMENTS</B>\n";
       text += "[C]========================================\n";
-      payments.forEach(p => {
+      printPayments.forEach(p => {
         text += formatTwoCols48(p.PaymodeName + ":", formatCurrency(p.Amount));
       });
       text += "[L]----------------------------------------\n";
-      text += formatTwoCols48("<B>TOTAL COLLECTION:</B>", "<B>" + formatCurrency(paymentsTotal) + "</B>\n");
+      text += "[L]<B>CREDIT ACTIVITY</B>\n";
+      text += formatTwoCols48("  Issued Today:", formatCurrency(creditIssuedToday));
+      text += formatTwoCols48("  Settled Today:", formatCurrency(creditSettledToday));
+      text += formatTwoCols48("  <B>Unpaid Today:</B>", "<B>" + formatCurrency(creditUnpaidToday) + "</B>\n");
+      text += "[L]----------------------------------------\n";
+      text += formatTwoCols48("<B>TOTAL MOVEMENTS:</B>", "<B>" + formatCurrency(printPaymentsTotal) + "</B>\n");
 
       text += "[C]========================================\n";
       text += "[C]<B>CASH DRAWER SUMMARY</B>\n";
@@ -1819,13 +1861,18 @@ const fetchDayHistory = async () => {
             await SunmiModule.printText("\n");
 
             await SunmiModule.printText("================================\n");
-            await SunmiModule.printText("       PAYMENT COLLECTION\n");
+            await SunmiModule.printText("       PAYMENT MOVEMENTS\n");
             await SunmiModule.printText("================================\n");
-            for (const p of payments) {
+            for (const p of printPayments) {
               await SunmiModule.printText(formatTwoCols32(p.PaymodeName + ":", formatCurrency(p.Amount)));
             }
             await SunmiModule.printText("--------------------------------\n");
-            await SunmiModule.printText(formatTwoCols32("TOTAL COLLECTION:", formatCurrency(paymentsTotal)));
+            await SunmiModule.printText("CREDIT ACTIVITY\n");
+            await SunmiModule.printText(formatTwoCols32("  Issued Today:", formatCurrency(creditIssuedToday)));
+            await SunmiModule.printText(formatTwoCols32("  Settled Today:", formatCurrency(creditSettledToday)));
+            await SunmiModule.printText(formatTwoCols32("  Unpaid Today:", formatCurrency(creditUnpaidToday)));
+            await SunmiModule.printText("--------------------------------\n");
+            await SunmiModule.printText(formatTwoCols32("TOTAL MOVEMENTS:", formatCurrency(printPaymentsTotal)));
             await SunmiModule.printText("\n");
 
             await SunmiModule.printText("================================\n");
@@ -2492,7 +2539,7 @@ const fetchDayHistory = async () => {
                         <View style={[styles.tableRow, { paddingVertical: 4 }]}>
                           <Text style={[styles.tableCellText, { flex: 2, color: Theme.textSecondary }]}>Settled Today</Text>
                           <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: Theme.success, fontFamily: Fonts.bold }]}>
-                            -{formatCurrency(creditSettledToday)}
+                            {formatCurrency(creditSettledToday)}
                           </Text>
                           <Text style={[styles.tableCellText, { flex: 1, textAlign: 'right', color: Theme.textMuted }]}>—</Text>
                         </View>
