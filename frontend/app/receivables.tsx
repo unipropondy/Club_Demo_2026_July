@@ -4,8 +4,7 @@ import { Theme } from "@/constants/theme";
 import { useAuthStore } from "@/stores/authStore";
 import { useCompanySettingsStore } from "@/stores/companySettingsStore";
 import { Ionicons } from "@expo/vector-icons";
-import { useIsFocused } from "../constants/navigationTheme";
-import { useRouter } from "expo-router";
+import { useRouter, usePathname } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -100,8 +99,9 @@ type BillSettlementType = {
 
 export default function ReceivablesScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, token } = useAuthStore();
-  const isFocused = useIsFocused();
+  const isFocused = pathname.includes('/receivables');
   const settingsStore = useCompanySettingsStore((state: any) => state.settings);
   const currencySymbol = settingsStore?.currencySymbol || "$";
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();

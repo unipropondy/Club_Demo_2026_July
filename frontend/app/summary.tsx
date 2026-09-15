@@ -1,6 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useIsFocused } from "../constants/navigationTheme";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -92,9 +91,10 @@ const getInitials = (name?: string) => {
 
 export default function SummaryScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useLocalSearchParams();
   const { showToast } = useToast();
-  const isFocused = useIsFocused();
+  const isFocused = pathname.includes('/summary') || pathname === '/';
 
   const context = useOrderContextStore((state) => state.currentOrder);
   const activeOrder = context ? findActiveOrder(context) : undefined;

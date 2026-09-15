@@ -1,6 +1,5 @@
 import { API_URL } from "@/constants/Config";
 import { FontAwesome5, Ionicons } from "@expo/vector-icons";
-import { useIsFocused } from "../constants/navigationTheme";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -160,7 +159,7 @@ export default function PaymentScreen() {
   const remarksParam =
     (params.remarks as string) || "Credit payment collection via POS checkout";
 
-  const isFocused = useIsFocused() && pathname.includes("/payment");
+  const isFocused = pathname.includes("/payment");
   const pathnameRef = React.useRef(pathname);
   pathnameRef.current = pathname;
   const closeActiveOrder = useActiveOrdersStore((s) => s.closeActiveOrder);

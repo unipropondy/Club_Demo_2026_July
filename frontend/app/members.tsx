@@ -18,8 +18,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useIsFocused } from "../constants/navigationTheme";
+import { useRouter, usePathname } from "expo-router";
 import { API_URL } from "@/constants/Config";
 import { Fonts } from "../constants/Fonts";
 import { Theme } from "../constants/theme";
@@ -99,8 +98,9 @@ function parsePhoneNumber(rawPhone: string) {
 
 export default function MembersScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, token } = useAuthStore();
-  const isFocused = useIsFocused();
+  const isFocused = pathname.includes('/members');
   const { width: screenWidth } = useWindowDimensions();
   const isMobile = screenWidth < 768;
   const [members, setMembers] = useState<MemberType[]>([]);
