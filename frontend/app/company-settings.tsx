@@ -765,9 +765,19 @@ export default function CompanySettingsScreen() {
                   marginBottom: 8,
                 }}
               >
-                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
-                  Cashier / Receipt Printer IP
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
+                    Cashier / Receipt Printer IP
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.smallBtBtn, !cashierActive && { opacity: 0.4 }]}
+                    disabled={!cashierActive}
+                    onPress={() => scanBluetoothDevices("cashier")}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="bluetooth" size={14} color="#fff" />
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity
                   onPress={() => setCashierActive(!cashierActive)}
                   style={[
@@ -784,38 +794,24 @@ export default function CompanySettingsScreen() {
                   />
                 </TouchableOpacity>
               </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    { flex: 1 },
-                    !cashierActive && {
-                      opacity: 0.5,
-                      backgroundColor: Theme.bgMuted,
-                    },
-                  ]}
-                  value={cashierIp}
-                  editable={cashierActive}
-                  onChangeText={(val) => {
-                    setCashierIp(val);
-                    updateSettings({ printerIp: val });
-                  }}
-                  placeholder="e.g. 192.168.1.100 or Bluetooth MAC (06:02:DF:32:CC:1C)"
-                  placeholderTextColor={Theme.textMuted}
-                  autoCapitalize="characters"
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.btScanBtn,
-                    !cashierActive && { opacity: 0.5 },
-                  ]}
-                  disabled={!cashierActive}
-                  onPress={() => scanBluetoothDevices("cashier")}
-                  activeOpacity={0.75}
-                >
-                  <Ionicons name="bluetooth" size={20} color="#fff" />
-                </TouchableOpacity>
-              </View>
+              <TextInput
+                style={[
+                  styles.input,
+                  !cashierActive && {
+                    opacity: 0.5,
+                    backgroundColor: Theme.bgMuted,
+                  },
+                ]}
+                value={cashierIp}
+                editable={cashierActive}
+                onChangeText={(val) => {
+                  setCashierIp(val);
+                  updateSettings({ printerIp: val });
+                }}
+                placeholder="e.g. 192.168.1.100 or Bluetooth MAC (06:02:DF:32:CC:1C)"
+                placeholderTextColor={Theme.textMuted}
+                autoCapitalize="characters"
+              />
               <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
                 Used for printing Payment Receipts and Checkout Bills at the
                 cashier counter.
@@ -831,9 +827,19 @@ export default function CompanySettingsScreen() {
                   marginBottom: 8,
                 }}
               >
-                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
-                  TakeAway Printer IP
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
+                    TakeAway Printer IP
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.smallBtBtn, !takeawayActive && { opacity: 0.4 }]}
+                    disabled={!takeawayActive}
+                    onPress={() => scanBluetoothDevices("takeaway")}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="bluetooth" size={14} color="#fff" />
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity
                   onPress={() => setTakeawayActive(!takeawayActive)}
                   style={[
@@ -850,35 +856,21 @@ export default function CompanySettingsScreen() {
                   />
                 </TouchableOpacity>
               </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    { flex: 1 },
-                    !takeawayActive && {
-                      opacity: 0.5,
-                      backgroundColor: Theme.bgMuted,
-                    },
-                  ]}
-                  value={takeawayIp}
-                  editable={takeawayActive}
-                  onChangeText={setTakeawayIp}
-                  placeholder="e.g. 192.168.1.102 or Bluetooth MAC"
-                  placeholderTextColor={Theme.textMuted}
-                  autoCapitalize="characters"
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.btScanBtn,
-                    !takeawayActive && { opacity: 0.5 },
-                  ]}
-                  disabled={!takeawayActive}
-                  onPress={() => scanBluetoothDevices("takeaway")}
-                  activeOpacity={0.75}
-                >
-                  <Ionicons name="bluetooth" size={20} color="#fff" />
-                </TouchableOpacity>
-              </View>
+              <TextInput
+                style={[
+                  styles.input,
+                  !takeawayActive && {
+                    opacity: 0.5,
+                    backgroundColor: Theme.bgMuted,
+                  },
+                ]}
+                value={takeawayIp}
+                editable={takeawayActive}
+                onChangeText={setTakeawayIp}
+                placeholder="e.g. 192.168.1.102 or Bluetooth MAC"
+                placeholderTextColor={Theme.textMuted}
+                autoCapitalize="characters"
+              />
               <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
                 Used for printing Takeaway receipts and dockets.
               </Text>
@@ -893,9 +885,19 @@ export default function CompanySettingsScreen() {
                   marginBottom: 8,
                 }}
               >
-                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
-                  KDS Printer IP / BT Address
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
+                    KDS Printer IP / BT Address
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.smallBtBtn, !kdsActive && { opacity: 0.4 }]}
+                    disabled={!kdsActive}
+                    onPress={() => scanBluetoothDevices("kds")}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="bluetooth" size={14} color="#fff" />
+                  </TouchableOpacity>
+                </View>
                 <TouchableOpacity
                   onPress={() => setKdsActive(!kdsActive)}
                   style={[
@@ -912,35 +914,21 @@ export default function CompanySettingsScreen() {
                   />
                 </TouchableOpacity>
               </View>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    { flex: 1 },
-                    !kdsActive && {
-                      opacity: 0.5,
-                      backgroundColor: Theme.bgMuted,
-                    },
-                  ]}
-                  value={kdsIp}
-                  editable={kdsActive}
-                  onChangeText={setKdsIp}
-                  placeholder="e.g. 192.168.1.105 or Bluetooth MAC"
-                  placeholderTextColor={Theme.textMuted}
-                  autoCapitalize="characters"
-                />
-                <TouchableOpacity
-                  style={[
-                    styles.btScanBtn,
-                    !kdsActive && { opacity: 0.5 },
-                  ]}
-                  disabled={!kdsActive}
-                  onPress={() => scanBluetoothDevices("kds")}
-                  activeOpacity={0.75}
-                >
-                  <Ionicons name="bluetooth" size={20} color="#fff" />
-                </TouchableOpacity>
-              </View>
+              <TextInput
+                style={[
+                  styles.input,
+                  !kdsActive && {
+                    opacity: 0.5,
+                    backgroundColor: Theme.bgMuted,
+                  },
+                ]}
+                value={kdsIp}
+                editable={kdsActive}
+                onChangeText={setKdsIp}
+                placeholder="e.g. 192.168.1.105 or Bluetooth MAC"
+                placeholderTextColor={Theme.textMuted}
+                autoCapitalize="characters"
+              />
               <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
                 Used exclusively for printing KDS orders.
               </Text>
@@ -1076,9 +1064,19 @@ export default function CompanySettingsScreen() {
                       marginBottom: 8,
                     }}
                   >
-                    <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
-                      {printer.KitchenTypeName} Printer IP
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                      <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
+                        {printer.KitchenTypeName} Printer IP
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.smallBtBtn, !printer.IsActive && { opacity: 0.4 }]}
+                        disabled={!printer.IsActive}
+                        onPress={() => scanBluetoothDevices(index)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="bluetooth" size={14} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
                     <TouchableOpacity
                       onPress={() => {
                         const updated = [...kitchenPrinters];
@@ -1099,39 +1097,25 @@ export default function CompanySettingsScreen() {
                       />
                     </TouchableOpacity>
                   </View>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        { flex: 1 },
-                        !printer.IsActive && {
-                          opacity: 0.5,
-                          backgroundColor: Theme.bgMuted,
-                        },
-                      ]}
-                      value={printer.PrinterPath || ""}
-                      editable={printer.IsActive}
-                      onChangeText={(val) => {
-                        const updated = [...kitchenPrinters];
-                        updated[index].PrinterPath = val;
-                        setKitchenPrinters(updated);
-                      }}
-                      placeholder="e.g. 192.168.1.101 or Bluetooth MAC"
-                      placeholderTextColor={Theme.textMuted}
-                      autoCapitalize="characters"
-                    />
-                    <TouchableOpacity
-                      style={[
-                        styles.btScanBtn,
-                        !printer.IsActive && { opacity: 0.5 },
-                      ]}
-                      disabled={!printer.IsActive}
-                      onPress={() => scanBluetoothDevices(index)}
-                      activeOpacity={0.75}
-                    >
-                      <Ionicons name="bluetooth" size={20} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      !printer.IsActive && {
+                        opacity: 0.5,
+                        backgroundColor: Theme.bgMuted,
+                      },
+                    ]}
+                    value={printer.PrinterPath || ""}
+                    editable={printer.IsActive}
+                    onChangeText={(val) => {
+                      const updated = [...kitchenPrinters];
+                      updated[index].PrinterPath = val;
+                      setKitchenPrinters(updated);
+                    }}
+                    placeholder="e.g. 192.168.1.101 or Bluetooth MAC"
+                    placeholderTextColor={Theme.textMuted}
+                    autoCapitalize="characters"
+                  />
                 </View>
               ))
             ) : (
@@ -1167,24 +1151,24 @@ export default function CompanySettingsScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Printer IP / BT Address</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <TextInput
-                  style={[styles.input, { flex: 1 }]}
-                  value={newPrinterIP}
-                  onChangeText={setNewPrinterIP}
-                  placeholder="e.g. 192.168.1.101 or Bluetooth MAC"
-                  placeholderTextColor={Theme.textMuted}
-                  autoCapitalize="characters"
-                />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <Text style={[styles.inputLabel, { marginBottom: 0 }]}>Printer IP / BT Address</Text>
                 <TouchableOpacity
-                  style={styles.btScanBtn}
+                  style={styles.smallBtBtn}
                   onPress={() => scanBluetoothDevices("newPrinter")}
-                  activeOpacity={0.75}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons name="bluetooth" size={20} color="#fff" />
+                  <Ionicons name="bluetooth" size={14} color="#fff" />
                 </TouchableOpacity>
               </View>
+              <TextInput
+                style={styles.input}
+                value={newPrinterIP}
+                onChangeText={setNewPrinterIP}
+                placeholder="e.g. 192.168.1.101 or Bluetooth MAC"
+                placeholderTextColor={Theme.textMuted}
+                autoCapitalize="characters"
+              />
             </View>
 
             <View style={styles.modalActions}>
@@ -1254,7 +1238,8 @@ export default function CompanySettingsScreen() {
       {/* ── Bluetooth Device Selector Modal ── */}
       <Modal visible={btModalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxWidth: 450 }]}>
+          <View style={[styles.modalContent, { maxWidth: 460 }]}>
+            {/* Modal Header */}
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                 <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: Theme.primary + "20", alignItems: "center", justifyContent: "center" }}>
@@ -1267,6 +1252,7 @@ export default function CompanySettingsScreen() {
               </TouchableOpacity>
             </View>
 
+            {/* Modal Body */}
             {scanningBt ? (
               <View style={{ padding: 32, alignItems: "center", gap: 12 }}>
                 <ActivityIndicator size="large" color={Theme.primary} />
@@ -1274,24 +1260,8 @@ export default function CompanySettingsScreen() {
                   Scanning paired Bluetooth devices...
                 </Text>
               </View>
-            ) : btDevices.length === 0 ? (
-              <View style={{ padding: 20, alignItems: "center" }}>
-                <Ionicons name="alert-circle-outline" size={40} color={Theme.warning} />
-                <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, marginTop: 10, fontSize: 15 }}>
-                  No Paired Bluetooth Printers
-                </Text>
-                <Text style={{ fontFamily: Fonts.medium, color: Theme.textSecondary, fontSize: 12, marginTop: 6, textAlign: "center", lineHeight: 18 }}>
-                  Ensure your printer is turned ON and paired in your Android tablet's Bluetooth settings (PIN: 0000 or 1234).
-                </Text>
-                <TouchableOpacity
-                  style={[styles.modalBtn, styles.confirmBtn, { marginTop: 18, width: "100%" }]}
-                  onPress={() => activeBtTarget !== null && scanBluetoothDevices(activeBtTarget)}
-                >
-                  <Text style={styles.confirmBtnText}>Rescan Paired Devices</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <ScrollView style={{ maxHeight: 280, marginVertical: 4 }}>
+            ) : btDevices.length > 0 ? (
+              <ScrollView style={{ maxHeight: 280, marginVertical: 4 }} showsVerticalScrollIndicator={false}>
                 {btDevices.map((dev, idx) => (
                   <TouchableOpacity
                     key={idx}
@@ -1312,14 +1282,33 @@ export default function CompanySettingsScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+            ) : (
+              <View style={{ paddingVertical: 18, alignItems: "center" }}>
+                <Ionicons name="alert-circle-outline" size={40} color={Theme.warning} />
+                <Text style={{ fontFamily: Fonts.bold, color: Theme.textPrimary, marginTop: 10, fontSize: 15 }}>
+                  No Paired Bluetooth Printers Found
+                </Text>
+                <Text style={{ fontFamily: Fonts.medium, color: Theme.textSecondary, fontSize: 12, marginTop: 6, textAlign: "center", lineHeight: 18, paddingHorizontal: 10 }}>
+                  Ensure your thermal printer is turned ON and paired in your Android tablet's Bluetooth settings (PIN: 0000 or 1234).
+                </Text>
+              </View>
             )}
 
-            <TouchableOpacity
-              style={[styles.modalBtn, styles.cancelBtn, { marginTop: 14 }]}
-              onPress={() => setBtModalVisible(false)}
-            >
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
+            {/* Modal Actions (Aligned Side-by-Side) */}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.cancelBtn]}
+                onPress={() => setBtModalVisible(false)}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.confirmBtn]}
+                onPress={() => activeBtTarget !== null && scanBluetoothDevices(activeBtTarget)}
+              >
+                <Text style={styles.confirmBtnText}>Rescan</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1647,6 +1636,19 @@ const styles = StyleSheet.create({
   confirmBtnText: {
     color: "#fff",
     fontFamily: Fonts.bold,
+  },
+  smallBtBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Theme.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: Theme.primary,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   btScanBtn: {
     width: 48,

@@ -22,7 +22,7 @@ const localIP = getLocalBackendIP();
 
 const getApiUrl = (): string => {
   if (__DEV__) {
-    return `http://${localIP}:3000`;
+    return `http://${localIP}:5000`;
   }
   
   let envUrl = process.env.EXPO_PUBLIC_API_URL;
