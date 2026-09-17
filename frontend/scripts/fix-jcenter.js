@@ -39,6 +39,67 @@ function scanDir(dir) {
   }
 }
 
+function fixThermalPrinterModule(filePath) {
+  if (fs.existsSync(filePath)) {
+    let content = fs.readFileSync(filePath, 'utf8');
+    const oldMethod = `private BluetoothConnection getBluetoothConnectionWithMacAddress(String macAddress) {
+    for (BluetoothConnection device : btDevicesList) {
+      if (device.getDevice().getAddress().contentEquals(macAddress))
+        return device;
+    }
+    return null;
+  }`;
+
+    const newMethod = `private BluetoothConnection getBluetoothConnectionWithMacAddress(String macAddress) {
+    if (btDevicesList.isEmpty()) {
+      try {
+        Set<BluetoothDevice> pairedDevices = BluetoothAdapter.getDefaultAdapter().getBondedDevices();
+        if (pairedDevices != null) {
+          for (BluetoothDevice device : pairedDevices) {
+            btDevicesList.add(new BluetoothConnection(device));
+          }
+        }
+      } catch (Exception e) {}
+    }
+    for (BluetoothConnection device : btDevicesList) {
+      if (device.getDevice().getAddress().equalsIgnoreCase(macAddress))
+        return device;
+    }
+    try {
+      BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+      if (adapter != null) {
+        BluetoothDevice device = adapter.getRemoteDevice(macAddress);
+        if (device != null) {
+          return new BluetoothConnection(device);
+        }
+      }
+    } catch (Exception e) {}
+    return null;
+  }`;
+
+    if (content.includes('contentEquals(macAddress)')) {
+      content = content.replace(oldMethod, newMethod);
+      fs.writeFileSync(filePath, content, 'utf8');
+      console.log(`✅ Patched getBluetoothConnectionWithMacAddress in ${filePath}`);
+    }
+  }
+}
+
+const thermalPrinterJava = path.join(
+  __dirname,
+  '..',
+  'node_modules',
+  'react-native-thermal-printer',
+  'android',
+  'src',
+  'main',
+  'java',
+  'com',
+  'reactnativethermalprinter',
+  'ThermalPrinterModule.java'
+);
+fixThermalPrinterModule(thermalPrinterJava);
+
 try {
   const nodeModulesDir = path.join(__dirname, '..', 'node_modules');
   scanDir(nodeModulesDir);

@@ -710,6 +710,7 @@ class UniversalPrinter {
               await Promise.race([printPromise, timeoutPromise]);
             } else {
               console.log(`🔵 KOT Bluetooth print to: ${targetIp}`);
+              await ThermalPrinter.getBluetoothDeviceList().catch(() => {});
               const printPromise = ThermalPrinter.printBluetooth({
                 macAddress: targetIp,
                 payload: text,
@@ -1569,6 +1570,7 @@ class UniversalPrinter {
           mmFeedPaper: 60,
         });
       } else {
+        await ThermalPrinter.getBluetoothDeviceList().catch(() => {});
         await ThermalPrinter.printBluetooth({
           macAddress: targetAddress,
           payload: text,

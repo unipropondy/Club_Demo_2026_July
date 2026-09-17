@@ -40,7 +40,7 @@ export const downloadSalesReportPdf = async (filter = "daily", date = null) => {
 
     // Save to file system
     const fileName = `Sales_Report_${filter}_${new Date().toISOString().split("T")[0]}.pdf`;
-    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    const fileUri = `${(FileSystem as any).documentDirectory}${fileName}`;
 
     console.log("[PDF Download] Saving to:", fileUri);
 
@@ -215,7 +215,7 @@ export const previewSalesReportPdf = async (filter = "daily", date = null) => {
     });
 
     const fileName = `Sales_Report_${filter}_${new Date().toISOString().split("T")[0]}.pdf`;
-    const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+    const fileUri = `${(FileSystem as any).documentDirectory}${fileName}`;
 
     await FileSystem.writeAsStringAsync(
       fileUri,

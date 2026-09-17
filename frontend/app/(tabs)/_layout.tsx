@@ -27,10 +27,12 @@ export default function TabLayout() {
   const isKDS = user?.userName?.toUpperCase() === "KDS";
   const showTabs = pathname.startsWith("/(tabs)") && !isKDS && user !== null;
 
+  const activeScheme = colorScheme === "dark" ? "dark" : "light";
+
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+        tabBarActiveTintColor: Colors[activeScheme].tint,
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: showTabs ? undefined : { display: "none" },
