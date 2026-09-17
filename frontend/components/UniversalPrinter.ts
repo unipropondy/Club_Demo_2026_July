@@ -716,7 +716,7 @@ class UniversalPrinter {
                 mmFeedPaper: 60,
               });
               const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("BT Timeout")), 3000),
+                setTimeout(() => reject(new Error("BT Timeout")), 12000),
               );
               await Promise.race([printPromise, timeoutPromise]);
             }
@@ -1319,11 +1319,12 @@ class UniversalPrinter {
         if (hasConfiguredIp) {
           console.log(`🌐 Trying configured printer: ${targetIp}`);
           const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(targetIp.trim());
+          const isMac = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(targetIp.trim()) || targetIp.trim().length === 17;
           let isReachable = false;
           if (isIp) {
             isReachable = await this.isIpReachable(targetIp);
           } else {
-            isReachable = true; // For Bluetooth MAC addresses etc.
+            isReachable = true; // For Bluetooth MAC addresses
           }
 
           if (isReachable) {
@@ -1338,19 +1339,21 @@ class UniversalPrinter {
                 discountInfo,
               );
 
+              const timeoutMs = isMac ? 12000 : 5000;
               const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("WiFi Timeout")), 3000),
+                setTimeout(() => reject(new Error(isMac ? "BT Timeout" : "WiFi Timeout")), timeoutMs),
               );
               const printed = await Promise.race([printPromise, timeoutPromise]);
 
               if (printed) return;
             } catch (err) {
-              console.log("WiFi failed/timeout:", err);
+              console.log("Printer failed/timeout:", err);
             }
           }
+          const printerLabel = isMac ? "Bluetooth printer" : "LAN/Wi-Fi printer";
           Alert.alert(
             "Printer Connection Error",
-            `Could not connect to the configured LAN/Wi-Fi printer at ${targetIp}. Opening print preview...`,
+            `Could not connect to the configured ${printerLabel} at ${targetIp}. Opening print preview...`,
           );
           await this.offerPDFFallback(saleData, outletId, t, discountInfo);
           return;
