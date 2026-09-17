@@ -6,6 +6,9 @@ ios/
 .git/
 .gradle/
 build/
+admin-panel/
+customer-display-web/
+*.apk
 
 # Ignore local android build caches but upload custom native source files
 android/app/build/
