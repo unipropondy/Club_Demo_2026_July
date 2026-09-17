@@ -3,7 +3,7 @@ const { poolPromise } = require("./config/db");
 async function updateBtPrinter() {
   try {
     const pool = await poolPromise;
-    const btAddress = "C8:47:8C:32:CC:1C";
+    const btAddress = "06:02:DF:32:CC:1C";
     
     // Update PrintMaster for Cashier Printer (PrinterType = 1)
     await pool.request()
