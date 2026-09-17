@@ -12,6 +12,9 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://clubdemo2026july-production.up.railway.app"
+      },
+      "android": {
+        "buildType": "apk"
       }
     },
     "production": {
