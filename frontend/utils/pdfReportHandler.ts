@@ -1,10 +1,10 @@
-﻿/**
+/**
  * Professional PDF Report Handler
  * Handles downloading and emailing consolidated sales reports
  */
 
 import API from '../api';
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as Sharing from "expo-sharing";
 import { Alert, Platform } from "react-native";
