@@ -23,16 +23,18 @@ if (reactNative && reactNative.NativeModules) {
       printUsb: async () => {},
     };
 
-    // Create a proxy to intercept RNExternalDisplayEvent dynamically without writing to the read-only NativeModules proxy directly
+    // Create a proxy to intercept RNExternalDisplayEvent dynamically without overwriting existing native modules
     const nativeModulesProxy = new Proxy(originalNativeModules, {
       get(target, prop, receiver) {
+        const realModule = Reflect.get(target, prop, receiver);
+        if (realModule) return realModule;
         if (prop === "RNExternalDisplayEvent") {
           return mockDisplayModule;
         }
         if (prop === "ThermalPrinter") {
           return mockThermalPrinter;
         }
-        return Reflect.get(target, prop, receiver);
+        return undefined;
       }
     });
 
@@ -44,11 +46,13 @@ if (reactNative && reactNative.NativeModules) {
         writable: true,
       });
     } else {
-      // If non-configurable, we can directly mutate the properties of the proxy target (originalNativeModules)
-      // or assign properties if writable
       try {
-        originalNativeModules.RNExternalDisplayEvent = mockDisplayModule;
-        originalNativeModules.ThermalPrinter = mockThermalPrinter;
+        if (!originalNativeModules.RNExternalDisplayEvent) {
+          originalNativeModules.RNExternalDisplayEvent = mockDisplayModule;
+        }
+        if (!originalNativeModules.ThermalPrinter) {
+          originalNativeModules.ThermalPrinter = mockThermalPrinter;
+        }
       } catch (mutateErr) {
         // Fallback silently if sealed
       }
@@ -62,17 +66,15 @@ if (reactNative && reactNative.TurboModuleRegistry && typeof reactNative.TurboMo
   try {
     const originalGet = reactNative.TurboModuleRegistry.get;
     reactNative.TurboModuleRegistry.get = (name) => {
+      const realModule = originalGet(name);
+      if (realModule) return realModule;
       if (name === "RNExternalDisplayEvent") {
         return mockDisplayModule;
       }
       if (name === "ThermalPrinter") {
-        return {
-          printTcp: async () => {},
-          printBluetooth: async () => {},
-          printUsb: async () => {},
-        };
+        return mockThermalPrinter;
       }
-      return originalGet(name);
+      return realModule;
     };
   } catch (e) {
     console.warn("⚠️ [DisplayMock] Failed to patch TurboModuleRegistry:", e.message);
