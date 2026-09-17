@@ -4,7 +4,7 @@ const path = require('path');
 const config = getDefaultConfig(__dirname);
 
 // Watch the shared customer-display package for live reload during development
-config.watchFolders = [path.resolve(__dirname, '../packages/customer-display')];
+config.watchFolders = [path.resolve(__dirname, 'packages/customer-display')];
 
 // mssql / express / etc. are Node.js-only packages that use `import.meta`.
 // They cannot be bundled by Metro for web/RN → stub them out.
@@ -19,7 +19,7 @@ config.resolver.extraNodeModules = {
   cors: STUB,
   dotenv: STUB,
   tedious: STUB,
-  '@unipro/customer-display': path.resolve(__dirname, '../packages/customer-display'),
+  '@unipro/customer-display': path.resolve(__dirname, 'packages/customer-display'),
   // Monorepo peer dependency mappings
   react: path.resolve(__dirname, 'node_modules/react'),
   'react-native': path.resolve(__dirname, 'node_modules/react-native'),
