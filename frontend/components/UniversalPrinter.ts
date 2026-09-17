@@ -1519,6 +1519,11 @@ class UniversalPrinter {
     return null;
   }
 
+  private static async isIpReachable(ip: string): Promise<boolean> {
+    if (!ip || !ip.trim()) return false;
+    return true;
+  }
+
   // ==================== NETWORK PRINTING ====================
   private static async printNetwork(
     saleData: any,
