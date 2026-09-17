@@ -160,6 +160,24 @@ const updateCartItemInArray = (items: CartItem[], lineItemId: string, updates: P
   return items.map(item => item.lineItemId === lineItemId ? { ...item, ...updates } : item);
 };
 
+const extractDiscountValue = (item: any, fallbackVal: number = 0): number => {
+  if (!item) return fallbackVal;
+  const candidates = [
+    item.discountAmount,
+    item.discount,
+    item.DiscountAmount,
+    item.Discount,
+    fallbackVal
+  ];
+  for (const c of candidates) {
+    if (c !== undefined && c !== null) {
+      const num = Number(c);
+      if (!isNaN(num) && num > 0) return num;
+    }
+  }
+  return 0;
+};
+
 const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartItem => {
   // Parse ComboDetailsJSON once — handles both old array format and new { basePrice, groups } format
   let _parsedCombo: { basePrice?: number; groups?: any[] } | any[] | null = null;
@@ -188,7 +206,7 @@ const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartIte
   const price = Number(item.price ?? item.Cost ?? item.Price ?? fallback.price ?? 0);
   const note = getNormalizedText(item.note, item.Note, item.notes, item.Notes, item.Remarks, item.remarks, fallback.note);
   const isTakeaway = getNormalizedBoolean(item.isTakeaway, item.IsTakeaway, item.isTakeAway, item.IsTakeAway, fallback.isTakeaway);
-  const discount = Number(item.discount ?? item.DiscountAmount ?? item.Discount ?? fallback.discount ?? 0);
+  const discount = extractDiscountValue(item, Number(fallback.discount ?? fallback.discountAmount ?? 0));
   let modifiers = getNormalizedModifiers(item).length ? getNormalizedModifiers(item) : (fallback.modifiers || []);
   
   let splitMembers = item.splitMembers || [];
@@ -256,7 +274,7 @@ const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartIte
     isCombo: getNormalizedBoolean(item.isCombo, item.IsCombo, item.ComboDetailsJSON, fallback.isCombo),
     comboSelections: incomingComboSelections || _comboGroups || fallback.comboSelections || undefined,
     IsDiscountAllowed: item.IsDiscountAllowed !== undefined ? item.IsDiscountAllowed : (fallback.IsDiscountAllowed !== undefined ? fallback.IsDiscountAllowed : 1),
-    discountAmount: Number(item.discountAmount ?? item.discount ?? item.DiscountAmount ?? fallback.discountAmount ?? discount),
+    discountAmount: discount,
     discountType: item.discountType || item.DiscountType || fallback.discountType || "percentage",
     TakeawayCharge: normalizedTWCharge,
     dishGroupId: item.dishGroupId || item.DishGroupId || item.subCategoryId || fallback.dishGroupId,
@@ -275,6 +293,17 @@ const canMergeCartItems = (left: CartItem, right: CartItem) => {
     if (left.isCombo !== right.isCombo) return false;
     if (JSON.stringify(left.comboSelections) !== JSON.stringify(right.comboSelections)) return false;
   }
+
+  // 🏷️ DISCOUNT MATCHING: Do not merge items with different discount values or types
+  const leftDisc = extractDiscountValue(left);
+  const rightDisc = extractDiscountValue(right);
+  if (leftDisc !== rightDisc) return false;
+  if (leftDisc > 0 || rightDisc > 0) {
+    const leftType = left.discountType || "percentage";
+    const rightType = right.discountType || "percentage";
+    if (leftType !== rightType) return false;
+  }
+
   return (
     (left.status || "NEW") === "NEW" &&
     (right.status || "NEW") === "NEW" &&
@@ -507,6 +536,16 @@ export const useCartStore = create<CartState>()(
                 (p.oil || "") !== (normalizedIncoming.oil || "") ||
                 (p.sugar || "") !== (normalizedIncoming.sugar || "")) return false;
             
+            // 🏷️ DISCOUNT MATCHING: Discounted items and normal items must remain separate!
+            const pDisc = extractDiscountValue(p);
+            const incDisc = extractDiscountValue(normalizedIncoming);
+            if (pDisc !== incDisc) return false;
+            if (pDisc > 0 || incDisc > 0) {
+              const pType = p.discountType || "percentage";
+              const incType = normalizedIncoming.discountType || "percentage";
+              if (pType !== incType) return false;
+            }
+
             const pSplitStr = JSON.stringify(p.splitMembers || []);
             const newSplitStr = JSON.stringify(normalizedIncoming.splitMembers || []);
             if (pSplitStr !== newSplitStr) return false;
@@ -1035,13 +1074,28 @@ export const useCartStore = create<CartState>()(
         const { currentContextId } = get();
         if (!currentContextId) return;
 
-        set((state) => ({
-          carts: {
-            ...state.carts,
-            [currentContextId]: updateCartItemInArray(state.carts[currentContextId] || [], lineItemId, { isTakeaway }),
-          },
-          lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
-        }));
+        set((state) => {
+          const currentItems = state.carts[currentContextId] || [];
+          const updatedCart = currentItems.map(item => {
+            if (item.lineItemId !== lineItemId) return item;
+            const discVal = extractDiscountValue(item);
+            return {
+              ...item,
+              isTakeaway,
+              discount: discVal,
+              discountAmount: discVal,
+              discountType: item.discountType || "percentage",
+            };
+          });
+
+          return {
+            carts: {
+              ...state.carts,
+              [currentContextId]: updatedCart,
+            },
+            lastLocalUpdate: { ...state.lastLocalUpdate, [currentContextId]: Date.now() }
+          };
+        });
 
         const tableId = useOrderContextStore.getState().currentOrder?.tableId;
         if (tableId) {
@@ -1403,6 +1457,11 @@ export const useCartStore = create<CartState>()(
                   : (isSent ? 'SENT' : (localMatch.status || dbItem.status));
                 const finalSent = (finalStatus === 'SENT' || finalStatus === 'READY' || finalStatus === 'SERVED' || finalStatus === 'HOLD') ? 1 : 0;
 
+                const finalDisc = isRecentlyEdited 
+                  ? (extractDiscountValue(localMatch) || extractDiscountValue(dbItem)) 
+                  : (extractDiscountValue(dbItem) || extractDiscountValue(localMatch));
+                const finalDiscType = localMatch.discountType || dbItem.discountType || "percentage";
+
                 return {
                   ...dbItem,
                   qty: localMatch.qty,
@@ -1412,9 +1471,9 @@ export const useCartStore = create<CartState>()(
                   isTakeaway: isRecentlyEdited 
                     ? (localMatch.isTakeaway ?? dbItem.isTakeaway) 
                     : (dbItem.isTakeaway ?? localMatch.isTakeaway ?? false),
-                  discount: isRecentlyEdited 
-                    ? (localMatch.discount ?? dbItem.discount) 
-                    : (dbItem.discount ?? localMatch.discount ?? 0),
+                  discount: finalDisc,
+                  discountAmount: finalDisc,
+                  discountType: finalDiscType,
                   modifiers: localMatch.modifiers,
                   status: finalStatus,
                   sent: finalSent

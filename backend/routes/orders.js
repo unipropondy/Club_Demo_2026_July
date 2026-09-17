@@ -493,13 +493,18 @@ async function syncToProfessionalTables(
     itemRequest.input(p_mods, sql.NVarChar(sql.MAX), modsJSON);
     itemRequest.input(p_tw, sql.Bit, takeawayInfo.value ? 1 : 0);
     itemRequest.input(p_combo, sql.NVarChar(sql.MAX), comboDetailsJSON);
-    itemRequest.input(p_disc, sql.Decimal(18, 2), item.discount || 0);
+    const resolvedDiscount =
+      item.discountAmount !== undefined && item.discountAmount !== null && Number(item.discountAmount) > 0
+        ? Number(item.discountAmount)
+        : Number(item.discount || item.DiscountAmount || 0);
+    itemRequest.input(p_disc, sql.Decimal(18, 2), resolvedDiscount);
+    
     // Use actual discountType from cart item; fall back to 'percentage' if there's a discount but no type,
     // or 'fixed' (i.e. no discount) when discount is 0/null.
     const resolvedDiscountType =
       item.discountType || item.DiscountType
         ? item.discountType || item.DiscountType
-        : (item.discount || 0) > 0
+        : resolvedDiscount > 0
           ? "percentage"
           : "fixed";
     itemRequest.input(p_disctype, sql.NVarChar(50), resolvedDiscountType);

@@ -500,9 +500,6 @@ class SunmiPrinterService {
       if (orderDiscount === 0 && saleData.discount) {
         orderDiscount = parseFloat(String(saleData.discount.amount || 0)) || 0;
       }
-      if (orderDiscount > 0 && totalItemDiscount > 0) {
-        orderDiscount = Math.max(0, orderDiscount - totalItemDiscount);
-      }
       if (orderDiscount === 0 && saleData.discount?.applied && saleData.discount.value > 0) {
         const subtotalPostItemDisc = grossTotal - totalItemDiscount;
         if (saleData.discount.type === "percentage") {

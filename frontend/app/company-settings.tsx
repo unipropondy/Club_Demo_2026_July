@@ -744,9 +744,9 @@ export default function CompanySettingsScreen() {
                   setCashierIp(val);
                   updateSettings({ printerIp: val });
                 }}
-                placeholder="e.g. 192.168.1.100"
+                placeholder="e.g. 192.168.1.100 or Bluetooth MAC (00:11:22:33:44:55)"
                 placeholderTextColor={Theme.textMuted}
-                keyboardType="numeric"
+                autoCapitalize="characters"
               />
               <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
                 Used for printing Payment Receipts and Checkout Bills at the
@@ -793,9 +793,9 @@ export default function CompanySettingsScreen() {
                 value={takeawayIp}
                 editable={takeawayActive}
                 onChangeText={setTakeawayIp}
-                placeholder="e.g. 192.168.1.102"
+                placeholder="e.g. 192.168.1.102 or Bluetooth MAC"
                 placeholderTextColor={Theme.textMuted}
-                keyboardType="numeric"
+                autoCapitalize="characters"
               />
               <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
                 Used for printing Takeaway receipts and dockets.
@@ -812,7 +812,7 @@ export default function CompanySettingsScreen() {
                 }}
               >
                 <Text style={[styles.inputLabel, { marginBottom: 0 }]}>
-                  KDS Printer IP
+                  KDS Printer IP / BT Address
                 </Text>
                 <TouchableOpacity
                   onPress={() => setKdsActive(!kdsActive)}
@@ -841,9 +841,9 @@ export default function CompanySettingsScreen() {
                 value={kdsIp}
                 editable={kdsActive}
                 onChangeText={setKdsIp}
-                placeholder="e.g. 192.168.1.105"
+                placeholder="e.g. 192.168.1.105 or Bluetooth MAC"
                 placeholderTextColor={Theme.textMuted}
-                keyboardType="numeric"
+                autoCapitalize="characters"
               />
               <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
                 Used exclusively for printing KDS orders.
@@ -1018,9 +1018,9 @@ export default function CompanySettingsScreen() {
                       updated[index].PrinterPath = val;
                       setKitchenPrinters(updated);
                     }}
-                    placeholder="e.g. 192.168.1.101"
+                    placeholder="e.g. 192.168.1.101 or Bluetooth MAC"
                     placeholderTextColor={Theme.textMuted}
-                    keyboardType="numeric"
+                    autoCapitalize="characters"
                   />
                 </View>
               ))
@@ -1030,7 +1030,7 @@ export default function CompanySettingsScreen() {
               </Text>
             )}
             <Text style={[styles.note, { textAlign: "left", marginTop: 5 }]}>
-              These IPs are used to automatically route items to specific
+              These IPs / BT addresses are used to automatically route items to specific
               kitchens.
             </Text>
           </View>
@@ -1057,14 +1057,14 @@ export default function CompanySettingsScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Printer IP Address</Text>
+              <Text style={styles.inputLabel}>Printer IP / BT Address</Text>
               <TextInput
                 style={styles.input}
                 value={newPrinterIP}
                 onChangeText={setNewPrinterIP}
-                placeholder="e.g. 192.168.1.101"
+                placeholder="e.g. 192.168.1.101 or Bluetooth MAC"
                 placeholderTextColor={Theme.textMuted}
-                keyboardType="numeric"
+                autoCapitalize="characters"
               />
             </View>
 

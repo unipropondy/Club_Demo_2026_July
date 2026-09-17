@@ -703,6 +703,7 @@ export default function SalesReport() {
                   row.categoryName || row.CategoryName || "Unmapped",
                 Sold: row.totalQty ?? row.totalQuantitySold ?? 0,
                 Voided: row.voidQty ?? 0,
+                Discount: row.totalDiscount ?? row.Discount ?? row.discountAmount ?? 0,
                 SalesAmount: row.totalAmount ?? row.totalSalesAmount ?? 0,
               }))
               : [],
@@ -721,6 +722,7 @@ export default function SalesReport() {
                   row.subCategoryName || row.SubCategoryName || "Unmapped",
                 Sold: row.totalQty ?? row.quantitySold ?? 0,
                 Voided: row.voidQty ?? 0,
+                Discount: row.totalDiscount ?? row.Discount ?? row.discountAmount ?? 0,
                 SalesAmount: row.totalAmount ?? row.totalSalesAmount ?? 0,
               }))
               : [],
@@ -1520,23 +1522,50 @@ export default function SalesReport() {
     return filteredMetrics.TotalSales / filteredMetrics.TotalTransactions;
   }, [filteredMetrics]);
 
-  const PAYMODE_COLORS: Record<string, string> = {
-    CASH: "#22c55e",
-    CARD: "#818cf8",
-    NETS: "#3b82f6",
-    PAYNOW: "#f59e0b",
-    UPI: "#f59e0b",
-    MEMBER: "#ec4899",
-    CREDIT: "#e11d48",
-    "CASH BOX ENTRY": "#0ea5e9",
-    CASHBOX: "#0ea5e9",
-    QR: "#38bdf8",
-    "Q-R": "#38bdf8",
+  const PAYMODE_CONFIGS: Record<string, { icon: string; color: string }> = {
+    CASH: { icon: "cash-outline", color: "#10b981" },
+    NETS: { icon: "layers-outline", color: "#3b82f6" },
+    PAYNOW: { icon: "qr-code-outline", color: "#f59e0b" },
+    "PAY NOW": { icon: "qr-code-outline", color: "#f59e0b" },
+    CARD: { icon: "card-outline", color: "#8b5cf6" },
+    CREDIT: { icon: "pricetag-outline", color: "#e11d48" },
+    MEMBER: { icon: "person-outline", color: "#ec4899" },
+    FOC: { icon: "gift-outline", color: "#6366f1" },
+    COMPLIMENTARY: { icon: "gift-outline", color: "#6366f1" },
+    ONLINE: { icon: "globe-outline", color: "#10b981" },
+    "CASH BOX ENTRY": { icon: "archive-outline", color: "#0ea5e9" },
+    CASHBOX: { icon: "archive-outline", color: "#0ea5e9" },
+    QR: { icon: "qr-code-outline", color: "#38bdf8" },
+    "Q-R": { icon: "qr-code-outline", color: "#38bdf8" },
+    UPI: { icon: "qr-code-outline", color: "#f59e0b" },
+    "FOOD PANDA": { icon: "fast-food-outline", color: "#d70f64" },
+    FOODPANDA: { icon: "fast-food-outline", color: "#d70f64" },
+    PANDA: { icon: "fast-food-outline", color: "#d70f64" },
+    GRAB: { icon: "car-outline", color: "#00b14f" },
+    GRABPAY: { icon: "car-outline", color: "#00b14f" },
+    GRABFOOD: { icon: "car-outline", color: "#00b14f" },
+    DELIVEROO: { icon: "bicycle-outline", color: "#00cdbc" },
+    "YEAHPAY PAYNOW": { icon: "qr-code-outline", color: "#10b981" },
+    "YEAHPAY CARD": { icon: "scan-outline", color: "#d946ef" },
+  };
+
+  const getPayModeIconInfo = (mode: string) => {
+    const m = mode.toUpperCase().trim();
+    if (PAYMODE_CONFIGS[m]) return PAYMODE_CONFIGS[m];
+    if (m.includes("PANDA")) return { icon: "fast-food-outline", color: "#d70f64" };
+    if (m.includes("GRAB")) return { icon: "car-outline", color: "#00b14f" };
+    if (m.includes("DELIVEROO")) return { icon: "bicycle-outline", color: "#00cdbc" };
+    if (m.includes("PAYNOW")) return { icon: "qr-code-outline", color: "#f59e0b" };
+    if (m.includes("CARD")) return { icon: "card-outline", color: "#8b5cf6" };
+    if (m.includes("CASH")) return { icon: "cash-outline", color: "#10b981" };
+    if (m.includes("CREDIT")) return { icon: "pricetag-outline", color: "#e11d48" };
+    if (m.includes("MEMBER")) return { icon: "person-outline", color: "#ec4899" };
+    return { icon: "wallet-outline", color: getPayModeColor(mode) };
   };
 
   const getPayModeColor = (mode: string) => {
     const m = mode.toUpperCase().trim();
-    if (PAYMODE_COLORS[m]) return PAYMODE_COLORS[m];
+    if (PAYMODE_CONFIGS[m]) return PAYMODE_CONFIGS[m].color;
     let hash = 0;
     for (let i = 0; i < m.length; i++) {
       hash = m.charCodeAt(i) + ((hash << 5) - hash);
@@ -1545,23 +1574,9 @@ export default function SalesReport() {
     return "#" + "00000".substring(0, 6 - c.length) + c;
   };
 
-  const PAYMODE_ICONS: Record<string, string> = {
-    CASH: "💵",
-    CARD: "💳",
-    NETS: "🔳",
-    PAYNOW: "📱",
-    UPI: "📱",
-    MEMBER: "👤",
-    CREDIT: "🏷️",
-    "CASH BOX ENTRY": "🗃️",
-    CASHBOX: "🗃️",
-    QR: "📱",
-    "Q-R": "📱",
-  };
-
   const getPayModeIconChar = (mode: string) => {
     const m = mode.toUpperCase().trim();
-    return PAYMODE_ICONS[m] || "💳";
+    return PAYMODE_CONFIGS[m]?.icon || "wallet-outline";
   };
 
   const paymentBreakdownMetrics = useMemo<Record<string, number>>(() => {
@@ -1932,15 +1947,57 @@ export default function SalesReport() {
     icon: any,
     color: string,
     fullWidth?: boolean,
-  ) => (
-    <View style={[styles.metricTile, { borderLeftColor: color }, fullWidth && { width: '100%' }]}>
-      <View style={styles.tileHeader}>
-        <Ionicons name={icon} size={14} color={Theme.textMuted} />
-        <Text style={styles.tileLabel}>{label}</Text>
+  ) => {
+    const tileWidthStyle = fullWidth
+      ? { width: "100%" }
+      : SCREEN_W > 1200
+        ? { width: "23.8%" }
+        : SCREEN_W > 768
+          ? { width: "31.8%" }
+          : { width: "48.2%" };
+
+    return (
+      <View
+        style={[
+          styles.metricTile,
+          tileWidthStyle as any,
+          { borderLeftColor: color, borderLeftWidth: 4 },
+        ]}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 10,
+          }}
+        >
+          <Text style={styles.tileLabel} numberOfLines={1}>
+            {label}
+          </Text>
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: hexToRgba(color, 0.12),
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Ionicons name={icon} size={16} color={color} />
+          </View>
+        </View>
+        <Text
+          style={[styles.tileValue, { color }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {value}
+        </Text>
       </View>
-      <Text style={[styles.tileValue, { color }]}>{value}</Text>
-    </View>
-  );
+    );
+  };
 
   const renderDetailReport = () => {
     if (!detailReportType) {
@@ -2114,6 +2171,15 @@ export default function SalesReport() {
                     >
                       VOID
                     </Text>
+                    <Text
+                      style={[
+                        styles.reportCell,
+                        styles.amountCell,
+                        { textAlign: "right", color: "#d97706" },
+                      ]}
+                    >
+                      DISCOUNT
+                    </Text>
                     <Text style={[styles.reportCell, styles.amountCell]}>
                       Sales
                     </Text>
@@ -2272,6 +2338,16 @@ export default function SalesReport() {
                           styles.reportCell,
                           styles.reportCellText,
                           styles.amountCell,
+                          { color: "#d97706", fontWeight: "bold" },
+                        ]}
+                      >
+                        {formatCurrency(Number(row.Discount || 0))}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.reportCell,
+                          styles.reportCellText,
+                          styles.amountCell,
                           { color: Theme.success, fontWeight: "bold" },
                         ]}
                       >
@@ -2301,6 +2377,7 @@ export default function SalesReport() {
                   const groupRows = groups[category]!;
                   const catQty = groupRows.reduce((sum, r) => sum + Number(r.Sold || 0), 0);
                   const catVoid = groupRows.reduce((sum, r) => sum + Number(r.Voided || 0), 0);
+                  const catDiscount = groupRows.reduce((sum, r) => sum + Number(r.Discount || 0), 0);
                   const catSales = groupRows.reduce((sum, r) => sum + Number(r.SalesAmount || 0), 0);
 
                   return (
@@ -2364,6 +2441,16 @@ export default function SalesReport() {
                           ]}
                         >
                           {catVoid}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.reportCell,
+                            styles.reportCellText,
+                            styles.amountCell,
+                            { fontFamily: Fonts.black, fontSize: 13, color: "#d97706" },
+                          ]}
+                        >
+                          {formatCurrency(catDiscount)}
                         </Text>
                         <Text
                           style={[
@@ -2436,6 +2523,16 @@ export default function SalesReport() {
                               ]}
                             >
                               {Number(row.Voided || 0).toFixed(0)}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.reportCell,
+                                styles.reportCellText,
+                                styles.amountCell,
+                                { color: "#d97706", fontWeight: "bold" },
+                              ]}
+                            >
+                              {formatCurrency(Number(row.Discount || 0))}
                             </Text>
                             <Text
                               style={[
@@ -3020,8 +3117,9 @@ export default function SalesReport() {
         <View style={[
           styles.breakdownRow,
           {
+            flexDirection: "row",
             flexWrap: "wrap",
-            justifyContent: "space-between",
+            justifyContent: "flex-start",
             width: "100%",
             rowGap: SCREEN_W < 480 ? 8 : 10,
             columnGap: SCREEN_W < 480 ? 8 : 10
@@ -3032,18 +3130,27 @@ export default function SalesReport() {
             const label = item.description || item.payMode;
             const val = paymentBreakdownMetrics[key] || 0;
             const outstanding = key === "CREDIT" ? paymentBreakdownMetrics["CREDIT_OUTSTANDING"] : undefined;
-            const icon = getPayModeIconChar(key);
-            const color = getPayModeColor(key);
+            const iconInfo = getPayModeIconInfo(key);
+            const color = iconInfo.color;
 
-            const numColumns = SCREEN_W > 768 ? Math.max(6, displayedBreakdownModes.length) : (SCREEN_W > 480 ? 3 : 2);
-            const layoutStyle = (SCREEN_W > 768
-              ? { flex: 1, minWidth: 0 }
-              : {
-                  width: SCREEN_W > 480 ? "31.5%" : "48%",
-                  minWidth: 0,
-                  paddingHorizontal: 4,
-                  paddingVertical: SCREEN_W < 480 ? 8 : 12
-                }) as any;
+            const cardWidth = (SCREEN_W > 1200
+              ? "13.3%"
+              : SCREEN_W > 900
+                ? "18.3%"
+                : SCREEN_W > 768
+                  ? "23.3%"
+                  : SCREEN_W > 480
+                    ? "31.5%"
+                    : "48%") as any;
+
+            const layoutStyle: any = {
+              width: cardWidth,
+              flexGrow: 0,
+              flexShrink: 0,
+              minWidth: 0,
+              paddingHorizontal: 6,
+              paddingVertical: SCREEN_W < 480 ? 10 : 14
+            };
 
             const isSomeFilterApplied = activePaymentModes.length < (displayedBreakdownModes.length + 1);
             const isThisActive = activePaymentModes.includes(key);
@@ -3062,11 +3169,14 @@ export default function SalesReport() {
                     borderColor: hexToRgba(color, 0.25),
                     borderWidth: 1,
                     backgroundColor: Theme.bgCard,
+                    borderRadius: 16,
+                    alignItems: "center",
+                    justifyContent: "center",
                   },
                   isActive && {
                     borderColor: color,
                     borderWidth: 2,
-                    backgroundColor: hexToRgba(color, 0.04),
+                    backgroundColor: hexToRgba(color, 0.08),
                     ...Theme.shadowSm,
                   },
                   isInactive && {
@@ -3075,10 +3185,40 @@ export default function SalesReport() {
                   }
                 ]}
               >
-                <Text style={[styles.breakdownIcon, SCREEN_W < 480 && { fontSize: 20 }]}>{icon}</Text>
-                <Text style={[styles.breakdownLabel, SCREEN_W < 480 && { fontSize: 8 }]}>{label}</Text>
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: hexToRgba(color, 0.15),
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginBottom: 8,
+                  }}
+                >
+                  <Ionicons name={iconInfo.icon as any} size={20} color={color} />
+                </View>
                 <Text
-                  style={[styles.breakdownValue, { color: color }, SCREEN_W < 480 && { fontSize: 10.5 }]}
+                  style={{
+                    color: Theme.textSecondary,
+                    fontFamily: Fonts.bold,
+                    fontSize: SCREEN_W < 480 ? 9.5 : 10.5,
+                    textAlign: "center",
+                    marginBottom: 4,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                  }}
+                  numberOfLines={1}
+                >
+                  {label}
+                </Text>
+                <Text
+                  style={{
+                    color: color,
+                    fontFamily: Fonts.black,
+                    fontSize: SCREEN_W < 480 ? 12 : 14,
+                    textAlign: "center",
+                  }}
                   numberOfLines={1}
                   adjustsFontSizeToFit
                 >
@@ -3086,7 +3226,13 @@ export default function SalesReport() {
                 </Text>
                 {outstanding !== undefined && (
                   <Text
-                    style={{ fontSize: SCREEN_W < 480 ? 8 : 9, fontFamily: Fonts.bold, color: Theme.textMuted, marginTop: 1 }}
+                    style={{
+                      fontSize: SCREEN_W < 480 ? 8.5 : 9.5,
+                      fontFamily: Fonts.medium,
+                      color: Theme.textMuted,
+                      marginTop: 2,
+                      textAlign: "center",
+                    }}
                     numberOfLines={1}
                     adjustsFontSizeToFit
                   >
@@ -5436,21 +5582,21 @@ const styles = StyleSheet.create({
   metricsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     marginBottom: 24,
     gap: 12,
   },
   metricTile: {
-    width: "48%",
-    padding: 16,
-    borderRadius: 20,
-    borderLeftWidth: 4,
+    padding: 14,
+    borderRadius: 16,
     backgroundColor: Theme.bgCard,
+    borderWidth: 1,
+    borderColor: Theme.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   tileHeader: {
     flexDirection: "row",
@@ -5460,13 +5606,13 @@ const styles = StyleSheet.create({
   },
   tileLabel: {
     color: Theme.textSecondary,
-    fontFamily: Fonts.black,
-    fontSize: 13,
+    fontFamily: Fonts.bold,
+    fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: 0.6,
     flex: 1,
   },
-  tileValue: { fontFamily: Fonts.black, fontSize: 20 },
+  tileValue: { fontFamily: Fonts.black, fontSize: 18 },
   reportSwitchRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -5868,7 +6014,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.4)",
   },
-  modalDismiss: { ...StyleSheet.absoluteFillObject },
+  modalDismiss: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
   modalContent: {
     width: "92%",
     maxWidth: 400,
