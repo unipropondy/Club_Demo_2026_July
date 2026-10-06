@@ -181,7 +181,7 @@ router.post('/:jobId/failed', authenticateBridge, async (req, res) => {
 // 5. POST /api/print-jobs - Queue a new print job from the frontend Web version
 router.post('/', authenticateBridge, async (req, res) => {
   try {
-    const { printerType, kitchenTypeValue, content } = req.body;
+    const { printerType, kitchenTypeValue, content, targetIp } = req.body;
     const storeId = req.storeId;
 
     if (printerType === undefined || !content) {
@@ -191,11 +191,11 @@ router.post('/', authenticateBridge, async (req, res) => {
     const pool = getPool();
 
     // Resolve Printer IP and Name from PrintMaster
-    let printerIp = '';
+    let printerIp = targetIp ? String(targetIp).trim() : '';
     let printerName = '';
     const pType = parseInt(printerType);
 
-    if (pType === 2) {
+    if (pType === 2 && !printerIp) {
       // Kitchen Printer
       const kitchenRes = await pool.request()
         .input('KitchenTypeValue', sql.NVarChar(50), kitchenTypeValue ? String(kitchenTypeValue) : '0')
@@ -210,7 +210,7 @@ router.post('/', authenticateBridge, async (req, res) => {
       }
     }
 
-    // Fallback or Direct check for Cashier (1) or TakeAway (3) or if Kitchen Printer not found/not configured with IP
+    // Direct check by PrinterType (1: Cashier, 3: Takeaway, 4: KDS)
     if (!printerIp || printerIp.trim() === '') {
       const printerRes = await pool.request()
         .input('PrinterType', sql.Int, pType)

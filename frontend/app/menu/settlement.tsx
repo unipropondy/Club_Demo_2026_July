@@ -1679,75 +1679,84 @@ const fetchDayHistory = async () => {
         </html>
       `;
 
-      // 3. Attempt silent IP printing first if IP is reachable (or via Print Bridge on Web)
+      // 3. Attempt silent IP/Bluetooth printing first (or via Print Bridge on Web)
       let printedToHardware = false;
-      const isIp = cashierIp && /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(cashierIp.trim());
+      const cleanPrinterPath = (cashierIp || "").trim();
+      const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(cleanPrinterPath);
+      const colWidth = isIp ? 48 : 32;
+      const lineEq = "[C]" + "=".repeat(colWidth) + "\n";
+      const lineDash = "[L]" + "-".repeat(colWidth) + "\n";
 
-      // Generate ESC/POS payload formatters
-      const formatTwoCols48 = (left: string, right: string) => {
-        const cleanLeft = left.replace(/<[^>]*>/g, "");
-        const cleanRight = right.replace(/<[^>]*>/g, "");
-        const spaceCount = 48 - cleanLeft.length - cleanRight.length;
-        return spaceCount > 0 ? `${left}${" ".repeat(spaceCount)}${right}\n` : `${left}\n${right.padStart(48, " ")}\n`;
+      // Generate ESC/POS payload formatters with tag stripping
+      const formatTwoCols = (left: string, right: string) => {
+        const rawLeft = left.startsWith("[") || left.startsWith("<") ? left : `[L]${left}`;
+        const cleanLeft = left.replace(/\[[CLRCB]\]|<[^>]*>/g, "");
+        const cleanRight = right.replace(/\[[CLRCB]\]|<[^>]*>/g, "");
+        const spaceCount = colWidth - cleanLeft.length - cleanRight.length;
+        if (spaceCount > 0) {
+          return `${rawLeft}${" ".repeat(spaceCount)}${right}\n`;
+        } else {
+          return `${rawLeft}\n[L]${right.padStart(colWidth, " ")}\n`;
+        }
       };
 
-      let text = "[C]========================================\n";
-      text += "[C]<font size='big'><B>SETTLEMENT REPORT</B></font>\n";
-      text += "[C]========================================\n\n";
+      let text = lineEq;
+      text += "[C]<B>SETTLEMENT REPORT</B>\n";
+      text += lineEq + "\n";
       text += `[L]<B>Business Date:</B> ${businessDateStr}\n\n`;
       text += "[L]<B>Generated:</B>\n";
       text += `[L]${formatDateTime(new Date())}\n\n`;
 
-      text += "[C]========================================\n";
+      text += lineEq;
       text += "[C]<B>SALES SUMMARY</B>\n";
-      text += "[C]========================================\n";
-      text += formatTwoCols48("Gross Sales:", formatCurrency(totalSales.SubTotal));
+      text += lineEq;
+      text += formatTwoCols("Gross Sales:", formatCurrency(totalSales.SubTotal));
       const regularDiscVal = parseFloat(totalSales.RegularDiscount) || 0;
-      text += formatTwoCols48("Regular Discount:", regularDiscVal > 0 ? `-${currencySymbol}${formatCurrency(regularDiscVal)}` : "0.00");
+      text += formatTwoCols("Regular Discount:", regularDiscVal > 0 ? `-${currencySymbol}${formatCurrency(regularDiscVal)}` : "0.00");
       const vipDiscVal = parseFloat(totalSales.VIPDiscountAmount) || 0;
-      text += formatTwoCols48("VIP Discount:", vipDiscVal > 0 ? `-${currencySymbol}${formatCurrency(vipDiscVal)}` : "0.00");
+      text += formatTwoCols("VIP Discount:", vipDiscVal > 0 ? `-${currencySymbol}${formatCurrency(vipDiscVal)}` : "0.00");
 
-      text += formatTwoCols48("Takeaway Charge:", formatCurrency(totalSales.TakeawayCharge));
-      text += formatTwoCols48("Service Charge:", formatCurrency(totalSales.ServiceCharge));
-      text += formatTwoCols48("GST Collected:", formatCurrency(totalSales.TotalTax));
-      text += formatTwoCols48("Tips:", formatCurrency(totalSales.Tips));
-      text += formatTwoCols48("Round Off:", formatCurrency(totalSales.RoundedBy));
-      text += "[L]----------------------------------------\n";
-      text += formatTwoCols48("<B>NET SALES:</B>", "<B>" + formatCurrency(netSales) + "</B>\n");
+      text += formatTwoCols("Takeaway Charge:", formatCurrency(totalSales.TakeawayCharge));
+      text += formatTwoCols("Service Charge:", formatCurrency(totalSales.ServiceCharge));
+      text += formatTwoCols("GST Collected:", formatCurrency(totalSales.TotalTax));
+      text += formatTwoCols("Tips:", formatCurrency(totalSales.Tips));
+      text += formatTwoCols("Round Off:", formatCurrency(totalSales.RoundedBy));
+      text += lineDash;
+      text += formatTwoCols("<B>NET SALES:</B>", "<B>" + formatCurrency(netSales) + "</B>");
 
-      text += "[C]========================================\n";
+      text += lineEq;
       text += "[C]<B>PAYMENT MOVEMENTS</B>\n";
-      text += "[C]========================================\n";
+      text += lineEq;
       printPayments.forEach(p => {
-        text += formatTwoCols48(p.PaymodeName + ":", formatCurrency(p.Amount));
+        text += formatTwoCols(p.PaymodeName + ":", formatCurrency(p.Amount));
       });
-      text += "[L]----------------------------------------\n";
+      text += lineDash;
       text += "[L]<B>CREDIT ACTIVITY</B>\n";
-      text += formatTwoCols48("  Issued Today:", formatCurrency(creditIssuedToday));
-      text += formatTwoCols48("  Settled Today:", formatCurrency(creditSettledToday));
-      text += formatTwoCols48("  <B>Unpaid Today:</B>", "<B>" + formatCurrency(creditUnpaidToday) + "</B>\n");
-      text += "[L]----------------------------------------\n";
-      text += formatTwoCols48("<B>TOTAL MOVEMENTS:</B>", "<B>" + formatCurrency(printPaymentsTotal) + "</B>\n");
+      text += formatTwoCols("  Issued Today:", formatCurrency(creditIssuedToday));
+      text += formatTwoCols("  Settled Today:", formatCurrency(creditSettledToday));
+      text += formatTwoCols("  <B>Unpaid Today:</B>", "<B>" + formatCurrency(creditUnpaidToday) + "</B>");
+      text += lineDash;
+      text += formatTwoCols("<B>TOTAL MOVEMENTS:</B>", "<B>" + formatCurrency(printPaymentsTotal) + "</B>");
 
-      text += "[C]========================================\n";
+      text += lineEq;
       text += "[C]<B>CASH DRAWER SUMMARY</B>\n";
-      text += "[C]========================================\n";
-      text += formatTwoCols48("Opening Float:", formatCurrency(displayOpeningAmount));
-      text += formatTwoCols48("Cash Sales:", formatCurrency(normalCashSales));
-      text += formatTwoCols48("Cash Box Entry:", formatCurrency(cashBoxEntrySales));
-      text += formatTwoCols48("Cash In:", formatCurrency(cashInTotalSum));
-      text += formatTwoCols48("Cash Out:", formatCurrency(totalCashOutSum));
-      text += "[L]----------------------------------------\n";
-      text += formatTwoCols48("<font size='big'><B>EXPECTED CASH:</B></font>", "<font size='big'><B>" + formatCurrency(totalCashIn - totalCashOutSum) + "</B></font>\n");
+      text += lineEq;
+      text += formatTwoCols("Opening Float:", formatCurrency(displayOpeningAmount));
+      text += formatTwoCols("Cash Sales:", formatCurrency(normalCashSales));
+      text += formatTwoCols("Cash Box Entry:", formatCurrency(cashBoxEntrySales));
+      text += formatTwoCols("Cash In:", formatCurrency(cashInTotalSum));
+      text += formatTwoCols("Cash Out:", formatCurrency(totalCashOutSum));
+      text += lineDash;
+      text += formatTwoCols("<B>EXPECTED CASH:</B>", "<B>" + formatCurrency(totalCashIn - totalCashOutSum) + "</B>");
       if (totalClosing > 0) {
-        text += formatTwoCols48("<B>CLOSING AMOUNT:</B>", "<B>" + formatCurrency(totalClosing) + "</B>\n");
+        text += formatTwoCols("<B>CLOSING AMOUNT:</B>", "<B>" + formatCurrency(totalClosing) + "</B>");
         const variance = totalClosing - (totalCashIn - totalCashOutSum);
         const varianceStatus = variance === 0 ? "BALANCED" : (variance > 0 ? "SURPLUS" : "SHORTAGE");
-        text += formatTwoCols48(`Variance (${varianceStatus}):`, (variance > 0 ? '+' : '') + formatCurrency(variance) + "\n");
+        text += formatTwoCols(`Variance (${varianceStatus}):`, (variance > 0 ? '+' : '') + formatCurrency(variance));
       }
-      text += "[C]========================================\n";
+      text += lineEq;
       text += "[C]SMART-CLUB BY UNIPR0SG\n";
-      text += "[C]========================================\n\n\n\n";
+      text += lineEq + "\n\n\n\n";
 
       if (Platform.OS === 'web') {
         try {
@@ -1798,23 +1807,40 @@ const fetchDayHistory = async () => {
         } catch (e) {
           console.error("❌ [Web Settlement] Bridge print failed:", e);
         }
-      } else if (isIp) {
-        try {
-          // Check if IP reachable
-          const ipReachable = await checkIpReachable(cashierIp.trim());
+      } else if (cleanPrinterPath.length > 0) {
+        if (isIp) {
+          try {
+            // Check if IP reachable
+            const ipReachable = await checkIpReachable(cleanPrinterPath);
 
-          if (ipReachable) {
+            if (ipReachable) {
+              const ThermalPrinter = require("react-native-thermal-printer").default;
+              await ThermalPrinter.printTcp({
+                ip: cleanPrinterPath,
+                port: 9100,
+                payload: text,
+                mmFeedPaper: 60,
+              });
+              printedToHardware = true;
+            }
+          } catch (printErr) {
+            console.warn("Direct IP print failed, fallback to system printing:", printErr);
+          }
+        } else {
+          // Direct Bluetooth MAC printing without RawBT popup
+          try {
             const ThermalPrinter = require("react-native-thermal-printer").default;
-            await ThermalPrinter.printTcp({
-              ip: cashierIp.trim(),
-              port: 9100,
+            await ThermalPrinter.getBluetoothDeviceList().catch(() => {});
+            await ThermalPrinter.printBluetooth({
+              macAddress: cleanPrinterPath,
               payload: text,
               mmFeedPaper: 60,
             });
             printedToHardware = true;
+            console.log(`✅ [Settlement] Silent Bluetooth print sent to MAC: ${cleanPrinterPath}`);
+          } catch (btErr) {
+            console.warn("Direct Bluetooth print failed, fallback to system printing:", btErr);
           }
-        } catch (printErr) {
-          console.warn("Direct IP print failed, fallback to system printing:", printErr);
         }
       }
 
@@ -4116,7 +4142,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
   },
   modalDismiss: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   modalContent: {
     width: "90%",

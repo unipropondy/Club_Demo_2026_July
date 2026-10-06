@@ -407,7 +407,8 @@ class UniversalPrinter {
   private static async queuePrintJob(
     printerType: number,
     kitchenTypeValue: string | number | undefined,
-    content: string
+    content: string,
+    targetIp?: string
   ): Promise<boolean> {
     try {
       const storeId = "STORE_001";
@@ -421,7 +422,8 @@ class UniversalPrinter {
         body: JSON.stringify({
           printerType,
           kitchenTypeValue: kitchenTypeValue !== undefined ? String(kitchenTypeValue) : undefined,
-          content
+          content,
+          targetIp: targetIp || undefined
         })
       });
       const data = await response.json();
@@ -501,7 +503,7 @@ class UniversalPrinter {
         // Try bridge directly — skip pre-flight isBridgeOnline() check which can falsely report offline
         const text = this.formatKOTThermalText(orderData, "KDS_PRINT");
         console.log(`📡 [Web Print Bridge] Queueing KDS print`);
-        const success = await this.queuePrintJob(4, undefined, text);
+        const success = await this.queuePrintJob(4, undefined, text, kdsPrinterIp);
         if (success) {
           await this.logPrintJob(orderData.orderId, orderData.orderNo, "REPRINT");
           return true;
@@ -671,7 +673,7 @@ class UniversalPrinter {
             const res = await fetch(`${API_URL}/api/settings/kitchen-printers`);
             const printers = await res.json();
             const kdsPrinter = printers.find((p: any) => p.PrinterType === 4);
-            targetIp = kdsPrinter?.PrinterIP || "";
+            targetIp = kdsPrinter?.PrinterPath || kdsPrinter?.PrinterIP || "";
           } catch (err) {
             console.warn("Failed to fetch KDS printer IP:", err);
           }
@@ -1101,8 +1103,8 @@ class UniversalPrinter {
   }
 
   private static formatKOTThermalText(data: any, type: string): string {
-    const BIG_NAME = 40; // max chars per line for big font item name
-    const MOD_WRAP = 44; // max chars per line for modifier text
+    const BIG_NAME = 14; // max chars per line for big font item name on 58mm (14 double-width chars = 28 cols <= 32 cols)
+    const MOD_WRAP = 30; // max chars per line for modifier text on 58mm
 
     const title =
       type === "KDS_PRINT"
@@ -1126,8 +1128,8 @@ class UniversalPrinter {
     text += `[C]${kotDateStr}${kotTimeStr}\n`;
     text += "[L]--------------------------------\n";
 
-    // 🏠 Big centered table number
-    text += `[C]<font size='big'>TABLE: ${tableNo}</font>\n`;
+    // 🏠 Centered table number
+    text += `[C]<B>TABLE: ${tableNo}</B>\n`;
     text += "[L]--------------------------------\n";
 
     text += "[L]QTY  ITEM\n";
@@ -1139,10 +1141,10 @@ class UniversalPrinter {
       const qtyNum = item.quantity || item.qty || 1;
       const itemName = (item.name || item.DishName || "").replace(/\n/g, " ");
 
-      // Item name: big + bold, wrap if needed
-      this.wrapTextKOT(itemName, BIG_NAME).forEach((chunk: string, idx: number) => {
-        if (idx === 0) t += `[L]<font size="big"><B>[${qtyNum}] ${chunk}</B></font>\n`;
-        else           t += `[L]<font size="big"><B>    ${chunk}</B></font>\n`;
+      // Item name: bold, wrap at 30 chars
+      this.wrapTextKOT(itemName, 30).forEach((chunk: string, idx: number) => {
+        if (idx === 0) t += `[L]<B>[${qtyNum}] ${chunk}</B>\n`;
+        else           t += `[L]<B>    ${chunk}</B>\n`;
       });
 
       // Song name
@@ -1224,7 +1226,7 @@ class UniversalPrinter {
 
     if (kitchenName && kitchenName !== "KDS") {
       text += "[L]--------------------------------\n";
-      text += `[C]<font size='big'><B>${kitchenName.toUpperCase()}</B></font>\n`;
+      text += `[C]<B>${kitchenName.toUpperCase()}</B>\n`;
     }
 
     text += "\n\n";
@@ -1321,6 +1323,21 @@ class UniversalPrinter {
           console.log(`🌐 Trying configured printer: ${targetIp}`);
           const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(targetIp.trim());
           const isMac = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/.test(targetIp.trim()) || targetIp.trim().length === 17;
+
+          // 📲 Try Print Bridge if active on network (supports USB / Shared printers like TD80)
+          const isBridge = await this.isBridgeOnline();
+          if (isBridge) {
+            try {
+              console.log(`📡 [Print Bridge] Queueing receipt to Print Bridge for: ${targetIp}`);
+              const text = this.formatThermalTextWithDiscount(saleData, company, discountInfo);
+              const pType = isTakeaway ? 3 : 1;
+              const success = await this.queuePrintJob(pType, undefined, text, targetIp);
+              if (success) return;
+            } catch (bridgeErr) {
+              console.warn("Print Bridge queue failed, trying direct connection:", bridgeErr);
+            }
+          }
+
           let isReachable = false;
           if (isIp) {
             isReachable = await this.isIpReachable(targetIp);
@@ -1520,10 +1537,6 @@ class UniversalPrinter {
     return null;
   }
 
-  private static async isIpReachable(ip: string): Promise<boolean> {
-    if (!ip || !ip.trim()) return false;
-    return true;
-  }
 
   // ==================== NETWORK PRINTING ====================
   private static async printNetwork(
@@ -1534,10 +1547,17 @@ class UniversalPrinter {
   ): Promise<boolean> {
     try {
       const company = await BillPDFGenerator.loadSettings(userId);
+      const targetAddress = printer?.address || company.printerIp || "";
+      if (!targetAddress) return false;
+
+      const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(targetAddress);
+      const colWidth = isIp || printer?.paperSize === "80mm" ? 48 : 32;
+
       let text = this.formatThermalTextWithDiscount(
         saleData,
         company,
         discountInfo,
+        colWidth,
       );
 
       // Prepend company logo if configured and visible
@@ -1555,12 +1575,6 @@ class UniversalPrinter {
           text = text + `\n\n[C]<img>${base64Halal}</img>\n`;
         }
       }
-
-      const targetAddress = printer?.address || company.printerIp || "";
-
-      if (!targetAddress) return false;
-
-      const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(targetAddress);
 
       if (isIp) {
         await ThermalPrinter.printTcp({
@@ -1584,15 +1598,21 @@ class UniversalPrinter {
     }
   }
 
-  private static formatTwoCols48(left: any, right: any): string {
-    const cleanLeft = String(left || "");
-    const cleanRight = String(right || "");
-    const totalWidth = 48;
+  private static formatTwoCols(left: any, right: any, totalWidth: number = 32): string {
+    const rawLeft = String(left || "");
+    const rawRight = String(right || "");
+
+    // Strip ESC/POS formatting tags for accurate line length calculation
+    const cleanLeft = rawLeft.replace(/\[[CLRCB]\]|<[^>]*>/g, "");
+    const cleanRight = rawRight.replace(/\[[CLRCB]\]|<[^>]*>/g, "");
+
     const spaceCount = totalWidth - cleanLeft.length - cleanRight.length;
     if (spaceCount > 0) {
-      return `[L]${cleanLeft}${" ".repeat(spaceCount)}${cleanRight}\n`;
+      const leftPart = rawLeft.startsWith("[") || rawLeft.startsWith("<") ? rawLeft : `[L]${rawLeft}`;
+      return `${leftPart}${" ".repeat(spaceCount)}${rawRight}\n`;
     } else {
-      return `[L]${cleanLeft}\n[L]${cleanRight.padStart(totalWidth, " ")}\n`;
+      const leftPart = rawLeft.startsWith("[") || rawLeft.startsWith("<") ? rawLeft : `[L]${rawLeft}`;
+      return `${leftPart}\n[L]${rawRight.padStart(totalWidth, " ")}\n`;
     }
   }
 
@@ -1600,34 +1620,35 @@ class UniversalPrinter {
     saleData: any,
     company: any,
     discountInfo?: DiscountInfo,
+    colWidth: number = 32,
   ): string {
     const symbol = company.currencySymbol || "$";
     const isCheckout = !!saleData.isCheckout;
     const companySettings = useCompanySettingsStore.getState().settings;
     const takeawayRate = companySettings?.takeawayCharges || 0;
 
-    // 📏 80mm standard is ~48 characters
-    let text = "[C]================================================\n";
+    const lineEq = "[C]" + "=".repeat(colWidth) + "\n";
+    const lineDash = "[L]" + "-".repeat(colWidth) + "\n";
+
+    let text = lineEq;
     if (isCheckout) {
-      text += "[C]<font size='big'><B>CHECKOUT BILL</B></font>\n";
+      text += "[C]<B>CHECKOUT BILL</B>\n";
       text += "[C]<B>PAYMENT PENDING</B>\n";
     } else {
-      text += "[C]<font size='big'><B>PAYMENT RECEIPT</B></font>\n";
+      text += "[C]<B>PAYMENT RECEIPT</B>\n";
     }
-    text += "[C]================================================\n";
+    text += lineEq;
 
     // Header Info
-    text += `[C]<font size='big'><B>${(company.name || "YOUR STORE").toUpperCase()}</B></font>\n`;
+    text += `[C]<B>${(company.name || "YOUR STORE").toUpperCase()}</B>\n`;
     if (company.address) text += `[C]${company.address}\n`;
     if (company.phone) text += `[C]Tel: ${company.phone}\n`;
     if (company.email) text += `[C]Email: ${company.email}\n`;
-    text += "[C]------------------------------------------------\n";
+    text += lineDash;
 
     const parseLocalDate = (d: any) => {
       if (!d) return new Date();
       if (d instanceof Date) return d;
-      // Use parseDatabaseDate from timezoneHelper which correctly handles
-      // MSSQL Z-suffixed datetimes by treating them as SGT (replaces Z with +08:00)
       const { parseDatabaseDate } = require('../utils/timezoneHelper');
       return parseDatabaseDate(d);
     };
@@ -1638,7 +1659,7 @@ class UniversalPrinter {
 
     text += `[L]Bill No: ${saleData.invoiceNumber || saleData.id || saleData.orderId || ""}\n`;
     if (saleData.tableNo) {
-      text += `[L]<font size=\'big\'><B>TABLE: ${saleData.tableNo}</B></font>\n`;
+      text += `[L]<B>TABLE: ${saleData.tableNo}</B>\n`;
     }
     const dateFormatted = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: 'numeric' }).format(saleDate);
     const { showBillTime } = useGeneralSettingsStore.getState().settings;
@@ -1648,11 +1669,16 @@ class UniversalPrinter {
     if (saleData.waiterName && saleData.waiterName !== "Staff") {
       text += `[L]Waiter: ${saleData.waiterName}\n`;
     }
-    text += "[L]------------------------------------------------\n";
+    text += lineDash;
 
-    // Items Header
-    text += "[L]ITEM                        QTY   PRICE    TOTAL\n";
-    text += "[L]------------------------------------------------\n";
+    // Items Header - Adopt Sunmi 58mm column layout (12 ITEM, 3 QTY, 7 PRICE, 10 TOTAL = 32 cols)
+    if (colWidth === 32) {
+      const itemH = "ITEM".padEnd(12, " ") + "QTY".padStart(3, " ") + "PRICE".padStart(7, " ") + "TOTAL".padStart(10, " ");
+      text += `[L]${itemH}\n`;
+    } else {
+      text += "[L]ITEM                        QTY   PRICE    TOTAL\n";
+    }
+    text += lineDash;
 
     const printItems = (saleData.items || []).filter(
       (i: any) => i.status !== "VOIDED",
@@ -1664,49 +1690,66 @@ class UniversalPrinter {
     });
 
     printItems.forEach((item: any) => {
-      // 🛡️ Robust field mapping
       const isTW = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
       const hasTWCharge = takeawayRate > 0 || (item.TakeawayCharge !== null && item.TakeawayCharge !== undefined && parseFloat(String(item.TakeawayCharge)) > 0);
       const rawName = item.name || item.DishName || item.ProductName || "";
       const fullName = isTW && hasTWCharge ? `${rawName} [TW]` : rawName;
-      const name = fullName.substring(0, 26).padEnd(26);
       const qtyNum =
         parseFloat(String(item.qty || item.quantity || item.Quantity || 1)) || 1;
       const qtyStr = Number.isInteger(qtyNum) ? String(qtyNum) : qtyNum.toFixed(1);
-      const qty = `[${qtyStr}]`.padStart(5);
+      const qty = qtyStr;
 
       const priceNum =
         parseFloat(String(item.price || item.Price || item.Cost || 0)) || 0;
-      const price = `${symbol}${priceNum.toFixed(2)}`.padStart(8);
-
+      const price = `${symbol}${priceNum.toFixed(2)}`;
       const totalNum = priceNum * qtyNum;
-      const total = `${symbol}${totalNum.toFixed(2)}`.padStart(9);
+      const total = `${symbol}${totalNum.toFixed(2)}`;
 
-      text += `[L]${name}${qty}${price}${total}\n`;
+      if (colWidth === 32) {
+        // Sunmi 58mm PrintFormatter Column Math (32 cols max)
+        const nameWidth = 12;
+        const qtyWidth = 3;
+        const priceWidth = 7;
+        const totalWidth = 10;
+
+        if (fullName.length > nameWidth) {
+          text += `[L]${fullName}\n`;
+          let line = "".padEnd(nameWidth, " ");
+          line += qty.padStart(qtyWidth, " ");
+          line += price.padStart(priceWidth, " ");
+          line += total.padStart(totalWidth, " ");
+          text += `[L]${line}\n`;
+        } else {
+          let line = fullName.padEnd(nameWidth, " ");
+          line += qty.padStart(qtyWidth, " ");
+          line += price.padStart(priceWidth, " ");
+          line += total.padStart(totalWidth, " ");
+          text += `[L]${line}\n`;
+        }
+      } else {
+        // 48-column layout (80mm)
+        const name48 = fullName.substring(0, 26).padEnd(26);
+        const qty48 = qty.padStart(5);
+        const price48 = price.padStart(8);
+        const total48 = total.padStart(9);
+        text += `[L]${name48}${qty48}${price48}${total48}\n`;
+        if (fullName.length > 26) {
+          text += `[L]   ${fullName.substring(26)}\n`;
+        }
+      }
 
       const songName = item.songName || item.SongName || "";
       if (songName) {
         text += `[L]   🎵 ${songName}\n`;
       }
 
-      // If name was truncated, print full name on next line
-      if ((item.name || "").length > 26) {
-        text += `[L]   ${item.name}\n`;
-      }
-
-      const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
-      // Note: isServiceCharge flag is used only for SC totals calculation (shown in bill summary).
-      // We do NOT print a [Service Charge X%] tag under each individual item — that is not standard
-      // for professional restaurant POS receipts.
-
-      // Modifiers: bold, no price, all modifiers shown
-      // Skip system-generated annotations: INSTR: instructions and [Service Charge ...] tags
+      // Modifiers
       if (item.modifiers && Array.isArray(item.modifiers)) {
         item.modifiers.forEach((m: any) => {
           const mName = (m.ModifierName || m.modifierName || m.name || m.ModifierNameEn || "").trim();
           if (!mName) return;
           if (mName.toUpperCase().startsWith('INSTR:')) return;
-          if (/service\s*charge/i.test(mName)) return; // SC is shown in totals, not per-item
+          if (/service\s*charge/i.test(mName)) return;
           text += `[L]        <B>+ ${mName}</B>\n`;
         });
       }
@@ -1732,10 +1775,9 @@ class UniversalPrinter {
       }
     });
 
-    text += "[L]------------------------------------------------\n";
+    text += lineDash;
 
-    // Totals
-    // Calculate item-level discounts, VIP discounts and gross total
+    // Totals Calculation
     let grossTotal = 0;
     let totalItemDiscount = 0;
     let totalVipDiscount = parseFloat(String(saleData.vipDiscountAmount || 0)) || 0;
@@ -1744,7 +1786,6 @@ class UniversalPrinter {
       const qtyNum = parseFloat(String(item.qty || item.quantity || 1)) || 1;
       const isCombo = item.isCombo === true || String(item.isCombo) === "1" || item.isCombo === 1;
       const discountBasis = isCombo ? (item.basePrice ?? item.price ?? 0) : (item.price ?? 0);
-      // Round baseTotal to 2 decimals to match the printed item totals
       const baseTotal = Math.round((item.price || 0) * qtyNum * 100) / 100;
       let itemDiscount = 0;
       const discAmt = Number(item.discountAmount ?? item.discount ?? 0);
@@ -1756,7 +1797,6 @@ class UniversalPrinter {
           itemDiscount = Math.min(discAmt, discountBasis) * qtyNum;
         }
       }
-      // Round itemDiscount to 2 decimals to match printed discounts
       itemDiscount = Math.round(itemDiscount * 100) / 100;
       grossTotal += baseTotal;
       totalItemDiscount += itemDiscount;
@@ -1796,7 +1836,6 @@ class UniversalPrinter {
       }
     }
     
-    // Pro-rate order discount if it is a split bill chit
     if (saleData.isSplitChit && orderDiscount > 0) {
       const originalCart = useCartStore.getState().carts[useCartStore.getState().currentContextId!] || [];
       const originalSubtotal = originalCart.reduce((sum: number, item: any) => {
@@ -1809,17 +1848,15 @@ class UniversalPrinter {
         orderDiscount = orderDiscount * ratio;
       }
     }
-    // ── Round orderDiscount to 2dp before any further calculations ──────────────
-    // Prevents floating-point drift flowing into currentSubtotal → GST
     orderDiscount = Math.round(orderDiscount * 100) / 100;
 
     const hasAnyDiscount = totalItemDiscount > 0 || orderDiscount > 0 || totalVipDiscount > 0;
     let currentSubtotal = grossTotal;
 
-    text += this.formatTwoCols48("Sub Total:", `${symbol}${grossTotal.toFixed(2)}`);
+    text += this.formatTwoCols("Sub Total:", `${symbol}${grossTotal.toFixed(2)}`, colWidth);
 
     if (totalItemDiscount > 0) {
-      text += this.formatTwoCols48("Item Discounts:", `-${symbol}${totalItemDiscount.toFixed(2)}`);
+      text += this.formatTwoCols("Item Discounts:", `-${symbol}${totalItemDiscount.toFixed(2)}`, colWidth);
       currentSubtotal -= totalItemDiscount;
     }
 
@@ -1828,29 +1865,26 @@ class UniversalPrinter {
         finalDiscountInfo?.type === "percentage"
           ? `Discount (${finalDiscountInfo.value}%):`
           : "Discount:";
-      text += this.formatTwoCols48(discLabel, `-${symbol}${orderDiscount.toFixed(2)}`);
+      text += this.formatTwoCols(discLabel, `-${symbol}${orderDiscount.toFixed(2)}`, colWidth);
       currentSubtotal -= orderDiscount;
     }
 
     if (totalVipDiscount > 0) {
-      text += this.formatTwoCols48("VIP Discount Savings:", `-${symbol}${totalVipDiscount.toFixed(2)}`);
+      text += this.formatTwoCols("VIP Discount Savings:", `-${symbol}${totalVipDiscount.toFixed(2)}`, colWidth);
       currentSubtotal -= totalVipDiscount;
     }
 
-    // Round currentSubtotal to 2dp for consistent downstream calculations
     currentSubtotal = Math.round(currentSubtotal * 100) / 100;
 
     if (hasAnyDiscount) {
-      text += "[L]------------------------------------------------\n";
-      const netLabel = "Net Amount:";
-      text += this.formatTwoCols48(netLabel, `${symbol}${currentSubtotal.toFixed(2)}`);
+      text += lineDash;
+      text += this.formatTwoCols("Net Amount:", `${symbol}${currentSubtotal.toFixed(2)}`, colWidth);
     }
 
     let finalTotal = saleData.total || saleData.totalAmount || currentSubtotal;
     const hasGST = (company.gstPercentage || 0) > 0;
     const gstRate = company.gstPercentage || 0;
     const scPercentage = company.serviceChargePercentage || 0;
-    // For reprints, use stored SC amount; otherwise calculate fresh
     const savedSC = saleData.serviceCharge != null ? parseFloat(String(saleData.serviceCharge)) : null;
     
     let serviceChargeAmount = 0;
@@ -1876,7 +1910,6 @@ class UniversalPrinter {
         }
         const itemSubtotal = baseTotal - itemDiscount;
         const isTakeawayItem = item.isTakeaway || item.IsTakeaway || item.isTakeAway || item.IsTakeAway;
-        // TW items do NOT attract service charge
         const isSC = !isTakeawayItem && (Number(item.isServiceCharge) === 1 || item.isServiceCharge === true);
         if (isSC) {
           scEligibleSubtotal += itemSubtotal;
@@ -1894,15 +1927,6 @@ class UniversalPrinter {
     }
 
     const hasSC = serviceChargeAmount > 0;
-    const effectiveSCPercentage = serviceChargeAmount > 0 && currentSubtotal > 0
-      ? Math.round((serviceChargeAmount / currentSubtotal) * 100)
-      : scPercentage;
-
-    // ── Takeaway charges ─────────────────────────────────────────────────────────
-    // savedTakeawayCharge: the exact TW total stored at payment time (may include
-    // bill-discount proportional reduction as computed by payment.tsx).
-    // We use this value as the GST base to match the settlement calculation.
-    // For the display lines, we show the raw per-item TW so customers can verify.
     const savedTakeawayCharge = saleData.takeawayCharge != null && saleData.takeawayCharge !== "" 
       ? parseFloat(String(saleData.takeawayCharge)) 
       : null;
@@ -1927,14 +1951,11 @@ class UniversalPrinter {
       }
     });
 
-    // For GST base: use the stored takeaway total (matches the settlement calculation).
-    // If not stored (live checkout), derive from items.
     const itemDerivedTW = globalTakeawayCharge + specificTakeawayCharge;
     const takeawayChargeForGST = (savedTakeawayCharge !== null && !isNaN(savedTakeawayCharge))
       ? savedTakeawayCharge
       : itemDerivedTW;
 
-    // ── GST calculation ──────────────────────────────────────────────────────────
     const taxableAmount = currentSubtotal + serviceChargeAmount + takeawayChargeForGST;
     const gstAmountRaw = hasGST ? taxableAmount * (gstRate / 100) : 0;
     const gstAmount = Math.round(gstAmountRaw * 100) / 100;
@@ -1943,9 +1964,6 @@ class UniversalPrinter {
       finalTotal = taxableAmount + gstAmount;
     }
 
-    // ── Round-off ────────────────────────────────────────────────────────────────
-    // Use the stored round-off from the settlement when available (most accurate).
-    // Fall back to the computed difference only as a last resort.
     const storedRoundOff = saleData.roundOff !== undefined && saleData.roundOff !== null
       ? parseFloat(String(saleData.roundOff))
       : null;
@@ -1955,25 +1973,25 @@ class UniversalPrinter {
       : (Math.abs(computedDifference) >= 0.01 ? computedDifference : 0);
 
     if (hasSC) {
-      text += this.formatTwoCols48(allItemsHaveSC ? "Service Charge:" : "Item Service Charge:", `${symbol}${serviceChargeAmount.toFixed(2)}`);
+      text += this.formatTwoCols(allItemsHaveSC ? "Service Charge:" : "Item Service Charge:", `${symbol}${serviceChargeAmount.toFixed(2)}`, colWidth);
     }
 
     if (globalTakeawayCharge > 0) {
-      text += this.formatTwoCols48(`Takeaway Charges (${symbol}${takeawayRate.toFixed(2)}*${globalTakeawayQty}):`, `${symbol}${globalTakeawayCharge.toFixed(2)}`);
+      text += this.formatTwoCols(`Takeaway Charges (${symbol}${takeawayRate.toFixed(2)}*${globalTakeawayQty}):`, `${symbol}${globalTakeawayCharge.toFixed(2)}`, colWidth);
     }
     if (specificTakeawayCharge > 0) {
-      text += this.formatTwoCols48(`Takeaway Charges (Item-wise):`, `${symbol}${specificTakeawayCharge.toFixed(2)}`);
+      text += this.formatTwoCols(`Takeaway Charges (Item-wise):`, `${symbol}${specificTakeawayCharge.toFixed(2)}`, colWidth);
     }
 
     if (hasGST && gstAmount > 0) {
-      text += this.formatTwoCols48(`GST (${gstRate}%):`, `${symbol}${gstAmount.toFixed(2)}`);
-      text += "[L]------------------------------------------------\n";
+      text += this.formatTwoCols(`GST (${gstRate}%):`, `${symbol}${gstAmount.toFixed(2)}`, colWidth);
+      text += lineDash;
     }
 
     if (printedRoundOff && printedRoundOff !== 0) {
       const roSign = printedRoundOff > 0 ? "+" : (printedRoundOff < 0 ? "-" : "");
-      text += this.formatTwoCols48("Round Off:", `${roSign}${symbol}${Math.abs(printedRoundOff).toFixed(2)}`);
-      text += "[L]------------------------------------------------\n";
+      text += this.formatTwoCols("Round Off:", `${roSign}${symbol}${Math.abs(printedRoundOff).toFixed(2)}`, colWidth);
+      text += lineDash;
     }
 
     // Payment Details
@@ -1982,28 +2000,28 @@ class UniversalPrinter {
       saleData.payments.forEach((p: any) => {
         const modeLabel = `  ${String(p.payMode || p.payModeName || p.Remarks || "Payment")}`;
         const amountVal = `${symbol}${parseFloat(p.amount).toFixed(2)}`;
-        text += this.formatTwoCols48(modeLabel, amountVal);
+        text += this.formatTwoCols(modeLabel, amountVal, colWidth);
       });
-      text += "[L]------------------------------------------------\n";
+      text += lineDash;
     } else {
       const methodLabel = `  ${String(saleData.paymentMethod || "Payment")}`;
       const amountVal = `${symbol}${parseFloat(finalTotal).toFixed(2)}`;
-      text += this.formatTwoCols48(methodLabel, amountVal);
-      text += "[L]------------------------------------------------\n";
+      text += this.formatTwoCols(methodLabel, amountVal, colWidth);
+      text += lineDash;
     }
 
-    text += `[R]<font size=\'big\'><B>TOTAL: ${symbol}${finalTotal.toFixed(2)}</B></font>\n`;
+    text += this.formatTwoCols("TOTAL:", `${symbol}${finalTotal.toFixed(2)}`, colWidth);
 
-    // 🏆 Reward points summary lines
+    // Reward points summary
     if (saleData.rewardPointsEarned && parseFloat(String(saleData.rewardPointsEarned)) > 0) {
-      text += "[L]------------------------------------------------\n";
-      text += this.formatTwoCols48("Reward Points Earned:", `+${symbol}${parseFloat(String(saleData.rewardPointsEarned)).toFixed(2)}`);
+      text += lineDash;
+      text += this.formatTwoCols("Reward Points Earned:", `+${symbol}${parseFloat(String(saleData.rewardPointsEarned)).toFixed(2)}`, colWidth);
       if (saleData.memberRewardBalance && parseFloat(String(saleData.memberRewardBalance)) > 0) {
-        text += this.formatTwoCols48("Available Member Credit:", `${symbol}${parseFloat(String(saleData.memberRewardBalance)).toFixed(2)}`);
+        text += this.formatTwoCols("Available Member Credit:", `${symbol}${parseFloat(String(saleData.memberRewardBalance)).toFixed(2)}`, colWidth);
       }
     }
 
-    text += "[C]================================================\n";
+    text += lineEq;
     text += "[C]<B>THANK YOU! COME AGAIN!</B>\n";
     text += "[C]SMART-CLUB BY UNIPR0SG\n\n\n\n";
 

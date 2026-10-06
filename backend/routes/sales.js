@@ -3853,6 +3853,9 @@ router.post("/settlement/:id/change-payment", async (req, res) => {
           sh.BusinessUnitId, 
           sh.MemberId, 
           sh.BillNo, 
+          sh.start_date,
+          sh.LastSettlementDate,
+          sh.CreatedOn,
           COALESCE(ric.OrderId, ri.OrderId) AS OrderId
         FROM SettlementHeader sh
         LEFT JOIN RestaurantInvoiceCur ric ON sh.SettlementID = ric.RestaurantBillId
@@ -3866,6 +3869,8 @@ router.post("/settlement/:id/change-payment", async (req, res) => {
     const shRow = shRes.recordset[0];
     const totalBillAmount = Number(shRow.SysAmount || shRow.SubTotal || 0);
     const oldMemberId = shRow.MemberId;
+    const originalStartDate = shRow.start_date;
+    const originalCreatedDate = shRow.LastSettlementDate || shRow.CreatedOn || shRow.start_date;
 
     // Check if previous payment was MEMBER or CREDIT
     const oldPaymentRes = await pool.request()
@@ -3927,9 +3932,11 @@ router.post("/settlement/:id/change-payment", async (req, res) => {
           .input("MemberId", sql.UniqueIdentifier, oldMemberId)
           .input("Amount", sql.Decimal(18, 2), oldMemberAmount)
           .input("Sid", sql.UniqueIdentifier, settlementId)
+          .input("CreatedDate", sql.DateTime, originalCreatedDate)
+          .input("StartDate", sql.Date, originalStartDate)
           .query(`
-            INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId)
-            VALUES (NEWID(), @MemberId, 'REVERSAL', 0, @Amount, 0, 'MEMBER', 'Payment Reversal (Change Mode)', GETDATE(), @Sid)
+            INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId, start_date)
+            VALUES (NEWID(), @MemberId, 'REVERSAL', 0, @Amount, 0, 'MEMBER', 'Payment Reversal (Change Mode)', @CreatedDate, @Sid, @StartDate)
           `);
       }
       if (oldCreditAmount > 0 && oldMemberId) {
@@ -3942,9 +3949,11 @@ router.post("/settlement/:id/change-payment", async (req, res) => {
           .input("CustomerId", sql.UniqueIdentifier, oldMemberId)
           .input("Amount", sql.Decimal(18, 2), oldCreditAmount)
           .input("Sid", sql.UniqueIdentifier, settlementId)
+          .input("CreatedDate", sql.DateTime, originalCreatedDate)
+          .input("StartDate", sql.Date, originalStartDate)
           .query(`
-            INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId)
-            VALUES (NEWID(), @CustomerId, 'REVERSAL', @Amount, 0, 0, 'CREDIT', 'Payment Reversal (Change Mode)', GETDATE(), @Sid)
+            INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId, start_date)
+            VALUES (NEWID(), @CustomerId, 'REVERSAL', @Amount, 0, 0, 'CREDIT', 'Payment Reversal (Change Mode)', @CreatedDate, @Sid, @StartDate)
           `);
       }
 
@@ -3969,7 +3978,9 @@ router.post("/settlement/:id/change-payment", async (req, res) => {
         businessUnitId: shRow.BusinessUnitId,
         cashierId: shRow.CreatedBy,
         orderId: shRow.OrderId,
-        receiptCount: 1
+        receiptCount: 1,
+        overrideStartDate: originalStartDate,
+        overrideCreatedDate: originalCreatedDate
       });
 
       // 8. Apply new balances if new mode is MEMBER or CREDIT
@@ -3987,9 +3998,11 @@ router.post("/settlement/:id/change-payment", async (req, res) => {
             .input("MemberId", sql.UniqueIdentifier, newMemberId)
             .input("Amount", sql.Decimal(18, 2), split.amount)
             .input("Sid", sql.UniqueIdentifier, settlementId)
+            .input("CreatedDate", sql.DateTime, originalCreatedDate)
+            .input("StartDate", sql.Date, originalStartDate)
             .query(`
-              INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId)
-              VALUES (NEWID(), @MemberId, 'PAYMENT', 0, @Amount, 0, 'MEMBER', 'Payment Change (MEMBER)', GETDATE(), @Sid)
+              INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId, start_date)
+              VALUES (NEWID(), @MemberId, 'PAYMENT', 0, @Amount, 0, 'MEMBER', 'Payment Change (MEMBER)', @CreatedDate, @Sid, @StartDate)
             `);
         } else if (split.payMode.toUpperCase().trim() === "CREDIT" && newMemberId) {
           await transaction.request()
@@ -4001,9 +4014,11 @@ router.post("/settlement/:id/change-payment", async (req, res) => {
             .input("CustomerId", sql.UniqueIdentifier, newMemberId)
             .input("Amount", sql.Decimal(18, 2), split.amount)
             .input("Sid", sql.UniqueIdentifier, settlementId)
+            .input("CreatedDate", sql.DateTime, originalCreatedDate)
+            .input("StartDate", sql.Date, originalStartDate)
             .query(`
-              INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId)
-              VALUES (NEWID(), @CustomerId, 'CREDIT_SALE', @Amount, 0, @Amount, 'CREDIT', 'Payment Change (CREDIT)', GETDATE(), @Sid)
+              INSERT INTO CustomerCreditTransactions (TransactionId, MemberId, TransactionType, BilledAmount, PaidAmount, OutstandingAmount, PaymentMethod, Remarks, CreatedDate, SettlementId, start_date)
+              VALUES (NEWID(), @CustomerId, 'CREDIT_SALE', @Amount, 0, @Amount, 'CREDIT', 'Payment Change (CREDIT)', @CreatedDate, @Sid, @StartDate)
             `);
         }
       }

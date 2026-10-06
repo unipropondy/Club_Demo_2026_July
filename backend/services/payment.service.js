@@ -13,7 +13,9 @@ async function processSplitPayments({
   cashierId = null,
   orderId = null,
   now = new Date(),
-  receiptCount = 0
+  receiptCount = 0,
+  overrideStartDate = null,
+  overrideCreatedDate = null
 }) {
   if (!payments || !Array.isArray(payments) || payments.length === 0) {
     throw new Error("Payments array is required and cannot be empty.");
@@ -214,13 +216,15 @@ if (!gatewayResponse.success) {
     // ============================================================
     // 3️⃣ ALWAYS save to PaymentTransactionDetails (REMOVED extra columns)
     // ============================================================
-    let activeCreatedDate = new Date();
-    const activeDayRes = await transaction.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
-    if (activeDayRes.recordset.length > 0) {
-      const activeStartDate = activeDayRes.recordset[0].StartDate;
-      const datePart = activeStartDate instanceof Date ? activeStartDate.toISOString().split("T")[0] : String(activeStartDate).split("T")[0];
-      const nowTime = new Date();
-      activeCreatedDate = new Date(`${datePart}T${nowTime.toTimeString().split(" ")[0]}`);
+    let activeCreatedDate = overrideCreatedDate || new Date();
+    if (!overrideCreatedDate) {
+      const activeDayRes = await transaction.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
+      if (activeDayRes.recordset.length > 0) {
+        const activeStartDate = activeDayRes.recordset[0].StartDate;
+        const datePart = activeStartDate instanceof Date ? activeStartDate.toISOString().split("T")[0] : String(activeStartDate).split("T")[0];
+        const nowTime = new Date();
+        activeCreatedDate = new Date(`${datePart}T${nowTime.toTimeString().split(" ")[0]}`);
+      }
     }
 
     const detailReq = new sql.Request(transaction);
@@ -248,10 +252,12 @@ if (!gatewayResponse.success) {
     // ============================================================
     const isCashMode = payModeName.toUpperCase().trim() === 'CASH';
     if (isCashMode) {
-      let startDate = null;
-      const activeDayRes = await transaction.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
-      if (activeDayRes.recordset.length > 0) {
-        startDate = activeDayRes.recordset[0].StartDate;
+      let startDate = overrideStartDate || null;
+      if (!startDate) {
+        const activeDayRes = await transaction.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
+        if (activeDayRes.recordset.length > 0) {
+          startDate = activeDayRes.recordset[0].StartDate;
+        }
       }
 
       let cashierName = 'Admin';
@@ -275,6 +281,7 @@ if (!gatewayResponse.success) {
       const dateStr = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Singapore' }).replace(/-/g, '');
       const randId = Math.floor(1000 + Math.random() * 9000);
       const cashInNo = `CI-${dateStr}-${randId}`;
+      const effectiveCreatedOn = overrideCreatedDate || new Date();
 
       const cashInReq = new sql.Request(transaction);
       await cashInReq
@@ -287,9 +294,10 @@ if (!gatewayResponse.success) {
         .input('TerminalCode', sql.VarChar, terminalCode)
         .input('CreatedBy', sql.VarChar, cashierName)
         .input('startDate', sql.Date, startDate)
+        .input('createdOn', sql.DateTime, effectiveCreatedOn)
         .query(`
           INSERT INTO CashInEntry (CashInNo, CashInDate, Amount, Reason, Remarks, PaymentMode, ReferenceNo, TerminalCode, CreatedBy, CreatedOn, start_date)
-          VALUES (@CashInNo, GETDATE(), @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, GETDATE(), @startDate)
+          VALUES (@CashInNo, @createdOn, @Amount, @Reason, @Remarks, @PaymentMode, @ReferenceNo, @TerminalCode, @CreatedBy, @createdOn, @startDate)
         `);
     }
 
@@ -298,11 +306,14 @@ if (!gatewayResponse.success) {
     // ============================================================
     if (referenceType === 'BILL') {
       // Fetch active business start_date
-      let startDate = null;
-      const activeDayRes = await transaction.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
-      if (activeDayRes.recordset.length > 0) {
-        startDate = activeDayRes.recordset[0].StartDate;
+      let startDate = overrideStartDate || null;
+      if (!startDate) {
+        const activeDayRes = await transaction.request().query("SELECT TOP 1 StartDate FROM DateEntry ORDER BY CreatedDate DESC");
+        if (activeDayRes.recordset.length > 0) {
+          startDate = activeDayRes.recordset[0].StartDate;
+        }
       }
+      const effectiveCreatedOn = overrideCreatedDate || new Date();
 
       const legacyReq = new sql.Request(transaction);
 
@@ -318,6 +329,7 @@ if (!gatewayResponse.success) {
         .input("BusinessUnitId", sql.UniqueIdentifier, businessUnitId)
         .input("CreatedBy", sql.UniqueIdentifier, cashierId)
         .input("startDate", sql.Date, startDate)
+        .input("createdOn", sql.DateTime, effectiveCreatedOn)
         .query(`
           DECLARE @PayId UNIQUEIDENTIFIER = NEWID();
 
@@ -326,9 +338,9 @@ if (!gatewayResponse.success) {
             PaymentType, Paymode, Amount, ReferenceNumber, Remarks,
             BusinessUnitId, CreatedBy, CreatedOn, ModifiedBy, ModifiedOn, start_date
           ) VALUES (
-            @PayId, @RestaurantBillId, @BilledFor, GETDATE(),
+            @PayId, @RestaurantBillId, @BilledFor, @createdOn,
             @PaymentType, @Paymode, @Amount, @ReferenceNo, @Remarks,
-            @BusinessUnitId, @CreatedBy, GETDATE(), @CreatedBy, GETDATE(), @startDate
+            @BusinessUnitId, @CreatedBy, @createdOn, @CreatedBy, @createdOn, @startDate
           );
 
           INSERT INTO [dbo].[PaymentDetail] (
@@ -338,9 +350,9 @@ if (!gatewayResponse.success) {
             CreatedBy, CreatedOn, ModifiedBy, ModifiedOn, isSettlement, start_date
           ) VALUES (
             @PayId, @RestaurantBillId, @RestaurantBillId, @RestaurantBillId, @PaymentOrderId,
-            @BilledFor, GETDATE(), @PaymentType, @Paymode, @Amount,
+            @BilledFor, @createdOn, @PaymentType, @Paymode, @Amount,
             @ReferenceNo, @Remarks, @BusinessUnitId,
-            @CreatedBy, GETDATE(), @CreatedBy, GETDATE(), 1, @startDate
+            @CreatedBy, @createdOn, @CreatedBy, @createdOn, 1, @startDate
           );
         `);
 

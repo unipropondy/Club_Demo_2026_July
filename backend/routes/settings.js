@@ -468,7 +468,7 @@ router.get("/kitchen-printers", async (req, res) => {
 
     // 4. Fetch all active printers from PrintMaster
     const printersResult = await pool.request().query(`
-      SELECT PrinterId, KitchenTypeValue, KitchenTypeName, PrinterPath, PrinterType, CAST(IsActive AS INT) as IsActive
+      SELECT PrinterId, KitchenTypeValue, KitchenTypeName, PrinterPath, PrinterPath AS PrinterIP, PrinterType, CAST(IsActive AS INT) as IsActive
       FROM PrintMaster
     `);
     const allPrinters = printersResult.recordset;
