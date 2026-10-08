@@ -68,30 +68,34 @@ router.get("/payment/:terminal/:userId", async (req, res) => {
       dateFilter = `start_date BETWEEN CAST('${fDate}' AS DATE) AND CAST('${tDate}' AS DATE)`;
     }
 
-    // Fetch active bill payments — EXCLUDE CREDIT paymode (deferred/unpaid, not cash received)
+    // Fetch active bill payments — EXCLUDE CREDIT paymode (deferred/unpaid, not cash received) AND CANCELLED orders
     const billsResult = await request.query(`
       SELECT
-        LTRIM(RTRIM(ISNULL(Remarks, ''))) AS PaymodeName,
-        ISNULL(SUM(Amount), 0) AS Amount,
+        LTRIM(RTRIM(ISNULL(pdc.Remarks, ''))) AS PaymodeName,
+        ISNULL(SUM(pdc.Amount), 0) AS Amount,
         COUNT(*) AS PayCount
-      FROM PaymentDetailCur
-      WHERE ${dateFilter}
-        AND UPPER(LTRIM(RTRIM(ISNULL(Remarks, '')))) NOT IN ('CREDIT', 'MEMBER')
-      GROUP BY LTRIM(RTRIM(ISNULL(Remarks, '')))
+      FROM PaymentDetailCur pdc
+      LEFT JOIN SettlementHeader sh ON pdc.RestaurantBillId = sh.SettlementID
+      WHERE ${dateFilter.replace(/start_date/g, 'pdc.start_date')}
+        AND (sh.SettlementID IS NULL OR ISNULL(sh.IsCancelled, 0) = 0)
+        AND UPPER(LTRIM(RTRIM(ISNULL(pdc.Remarks, '')))) NOT IN ('CREDIT', 'MEMBER')
+      GROUP BY LTRIM(RTRIM(ISNULL(pdc.Remarks, '')))
     `);
 
-    // Fetch credit outstanding & issued amounts separately for Credit Activity tracking
+    // Fetch credit outstanding & issued amounts separately for Credit Activity tracking (excluding cancelled orders)
     const creditOutstandingResult = await request.query(`
       SELECT
-        ISNULL(CustomerType, 'CREDIT') AS PaymodeName,
-        ISNULL(SUM(OutstandingAmount), 0) AS Amount,
-        ISNULL(SUM(BillAmount), 0) AS BilledAmount,
-        ISNULL(SUM(PaidAmount), 0) AS PaidAmount,
+        ISNULL(cct.CustomerType, 'CREDIT') AS PaymodeName,
+        ISNULL(SUM(cct.OutstandingAmount), 0) AS Amount,
+        ISNULL(SUM(cct.BillAmount), 0) AS BilledAmount,
+        ISNULL(SUM(cct.PaidAmount), 0) AS PaidAmount,
         COUNT(*) AS PayCount
-      FROM CustomerCreditTransactions
-      WHERE TransactionType = 'CREDIT_SALE'
-        AND ${dateFilter.replace(/start_date/g, 'COALESCE(start_date, CAST(CreatedDate AS DATE))')}
-      GROUP BY ISNULL(CustomerType, 'CREDIT')
+      FROM CustomerCreditTransactions cct
+      LEFT JOIN SettlementHeader sh ON cct.SettlementId = sh.SettlementID
+      WHERE cct.TransactionType = 'CREDIT_SALE'
+        AND (sh.SettlementID IS NULL OR ISNULL(sh.IsCancelled, 0) = 0)
+        AND ${dateFilter.replace(/start_date/g, 'COALESCE(cct.start_date, CAST(cct.CreatedDate AS DATE))')}
+      GROUP BY ISNULL(cct.CustomerType, 'CREDIT')
     `);
 
     // Fetch non-cash ledger collections (e.g. PAYNOW, NETS, CARD paid on receivables screen)
@@ -238,12 +242,14 @@ router.get("/sales-summary/:terminal", async (req, res) => {
 
     const result = await request.query(`
       SELECT 
-        ISNULL(Paymode,'') AS Paymode,
-        ISNULL(SUM(Amount),0) AS Amount
-      FROM PaymentDetailCur
-      WHERE isSettlement = 0
-      ${dateFilter}
-      GROUP BY Paymode 
+        ISNULL(pdc.Paymode,'') AS Paymode,
+        ISNULL(SUM(pdc.Amount),0) AS Amount
+      FROM PaymentDetailCur pdc
+      LEFT JOIN SettlementHeader sh ON pdc.RestaurantBillId = sh.SettlementID
+      WHERE pdc.isSettlement = 0
+        AND (sh.SettlementID IS NULL OR ISNULL(sh.IsCancelled, 0) = 0)
+        ${dateFilter.replace(/start_date/g, 'pdc.start_date')}
+      GROUP BY pdc.Paymode 
     `);
 
     res.json(result.recordset || []);

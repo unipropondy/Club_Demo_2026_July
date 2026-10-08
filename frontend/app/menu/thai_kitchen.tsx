@@ -46,6 +46,7 @@ import { useMenuStore } from "../../stores/menuStore";
 import { useOrderContextStore } from "../../stores/orderContextStore";
 import { usePaymentSettingsStore } from "../../stores/paymentSettingsStore";
 import { useTableNavigationStore } from "../../stores/tableNavigationStore";
+import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
 
 const EMPTY_ARRAY: any[] = [];
 
@@ -1112,6 +1113,7 @@ export default function MenuScreen() {
           dishGroupId: selectedGroupObj?.DishGroupId || dish.DishGroupId || dish.dishGroupId,
           dishGroupName: dishGroupName,
           subCategoryName: dishGroupName,
+          DishCode: dish.DishCode || dish.dishCode,
         } as any);
       };
 
@@ -1185,6 +1187,20 @@ export default function MenuScreen() {
     },
     [selectedKitchenId, kitchens, modifierCache],
   );
+
+  // ─── 🔲 BARCODE SCANNER INTEGRATION ───────────────────────────────────────
+  // Scans barcode -> triggers openModifiers(dish).
+  // If item has modifiers/combos/options -> pops up modifier modal!
+  // If simple item -> adds to cart immediately.
+  useBarcodeScanner({
+    onSuccess: (dish: any) => {
+      openModifiers(dish);
+    },
+    onError: (msg: string) => {
+      showToast({ type: 'error', message: msg, duration: 2500 });
+    },
+  });
+  // ──────────────────────────────────────────────────────────────────────────
 
   // Group modifiers dynamically
   const groupedModifiers = React.useMemo(() => {

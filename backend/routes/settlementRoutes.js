@@ -726,6 +726,7 @@ router.get('/cash-in/:terminal', authenticateToken, async (req, res) => {
       LEFT JOIN CustomerCreditTransactions cct ON ci.ReferenceNo = CAST(cct.SettlementId AS VARCHAR(50))
       LEFT JOIN PaymentTransactionDetails ptd ON ci.ReferenceNo = CAST(ptd.PaymentTransactionId AS VARCHAR(50))
       WHERE ${dateFilter.replace(/start_date/g, 'ci.start_date').replace(/CashInDate/g, 'ci.CashInDate')}
+        AND (sh.SettlementID IS NULL OR ISNULL(sh.IsCancelled, 0) = 0)
     `;
 
     query += ` ORDER BY ci.CreatedOn DESC`;
@@ -945,13 +946,19 @@ router.get('/artist-cashbox', authenticateToken, async (req, res) => {
     const pool = getPool();
     const request = pool.request();
 
-    let query = `SELECT * FROM ArtistCashBox`;
+    let query = `
+      SELECT cb.* 
+      FROM ArtistCashBox cb
+      LEFT JOIN SettlementHeader sh ON cb.SettlementID = sh.SettlementID
+    `;
     if (fromDate && toDate) {
       request.input('fromDate', sql.Date, new Date(fromDate));
       request.input('toDate', sql.Date, new Date(toDate));
-      query += ` WHERE ISNULL(start_date, CAST(CreatedDate AS DATE)) BETWEEN @fromDate AND @toDate`;
+      query += ` WHERE ISNULL(cb.start_date, CAST(cb.CreatedDate AS DATE)) BETWEEN @fromDate AND @toDate AND (sh.SettlementID IS NULL OR ISNULL(sh.IsCancelled, 0) = 0)`;
+    } else {
+      query += ` WHERE (sh.SettlementID IS NULL OR ISNULL(sh.IsCancelled, 0) = 0)`;
     }
-    query += ` ORDER BY CreatedDate DESC`;
+    query += ` ORDER BY cb.CreatedDate DESC`;
 
     const result = await request.query(query);
     res.json({ success: true, data: result.recordset || [] });
@@ -1319,6 +1326,7 @@ router.get('/artist-target-live', authenticateToken, async (req, res) => {
         WHERE sh.LastSettlementDate >= @sgtStart
           AND sh.LastSettlementDate <  @sgtEnd
           AND ISNULL(sh.OrderType, '') <> 'CASHBOX'
+          AND ISNULL(sh.IsCancelled, 0) = 0
           AND ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), 'Unmapped') = 'Entertainment'
         GROUP BY 
           ISNULL(
@@ -1364,12 +1372,14 @@ router.get('/artist-target-live', authenticateToken, async (req, res) => {
       ),
       CashBoxSales AS (
         SELECT
-          LTRIM(RTRIM(ArtistName)) AS ArtistName,
-          SUM(Amount) AS totalAmount
-        FROM ArtistCashBox
-        WHERE CAST(CreatedDate AS DATE) >= @fromDate
-          AND CAST(CreatedDate AS DATE) <= @toDate
-        GROUP BY LTRIM(RTRIM(ArtistName))
+          LTRIM(RTRIM(cb.ArtistName)) AS ArtistName,
+          SUM(cb.Amount) AS totalAmount
+        FROM ArtistCashBox cb
+        LEFT JOIN SettlementHeader sh ON cb.SettlementID = sh.SettlementID
+        WHERE CAST(cb.CreatedDate AS DATE) >= @fromDate
+          AND CAST(cb.CreatedDate AS DATE) <= @toDate
+          AND (sh.SettlementID IS NULL OR ISNULL(sh.IsCancelled, 0) = 0)
+        GROUP BY LTRIM(RTRIM(cb.ArtistName))
       ),
       CombinedSales AS (
         SELECT ArtistName, SUM(totalAmount) AS ActualSales

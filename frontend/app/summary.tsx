@@ -2266,6 +2266,11 @@ export default function SummaryScreen() {
                         {item.isDishReward && " (Loyalty Reward 🎁)"}
                         {(item as any).status === "VOIDED" && " (VOIDED)"}
                       </Text>
+                      {(item.DishCode || item.dishCode) ? (
+                        <Text style={[styles.sub, { color: Theme.primary, fontFamily: Fonts.bold }]}>
+                          Code: {item.DishCode || item.dishCode}
+                        </Text>
+                      ) : null}
                       {(item.spicy && item.spicy !== "Medium") ||
                       (item.oil && item.oil !== "Normal") ||
                       (item.salt && item.salt !== "Normal") ||

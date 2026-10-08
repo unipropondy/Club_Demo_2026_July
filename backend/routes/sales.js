@@ -4258,9 +4258,12 @@ router.post("/settlement/:id/cancel", async (req, res) => {
       await transaction.request().input("Sid", sql.UniqueIdentifier, settlementId)
         .query("UPDATE SettlementItemDetail SET Status = 'VOIDED' WHERE SettlementID = @Sid");
 
-      // 4. Delete from LoyaltyVisit
+      // 4. Delete from LoyaltyVisit & CashInEntry
       await transaction.request().input("Sid", sql.UniqueIdentifier, settlementId)
-        .query("DELETE FROM LoyaltyVisit WHERE SettlementId = @Sid");
+        .query(`
+          DELETE FROM LoyaltyVisit WHERE SettlementId = @Sid;
+          DELETE FROM CashInEntry WHERE ReferenceNo = CAST(@Sid AS VARCHAR(50)) OR Remarks LIKE '%' + CAST(@Sid AS VARCHAR(50)) + '%';
+        `);
 
       // 5. Revert Member/Credit outstanding balances if applicable
       if (oldMemberAmount > 0 && oldMemberId) {

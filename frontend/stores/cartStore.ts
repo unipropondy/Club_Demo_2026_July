@@ -61,6 +61,7 @@ export type CartItem = {
   dishGroupId?: string;
   dishGroupName?: string;
   subCategoryName?: string;
+  DishCode?: string;
 };
 
 export type DiscountInfo = {
@@ -280,6 +281,7 @@ const normalizeCartItem = (item: any, fallback: Partial<CartItem> = {}): CartIte
     dishGroupId: item.dishGroupId || item.DishGroupId || item.subCategoryId || fallback.dishGroupId,
     dishGroupName: item.dishGroupName || item.DishGroupName || item.subCategoryName || item.SubCategoryName || fallback.dishGroupName,
     subCategoryName: item.subCategoryName || item.SubCategoryName || item.dishGroupName || item.DishGroupName || fallback.subCategoryName,
+    DishCode: item.DishCode || item.dishCode || fallback.DishCode,
   };
 };
 

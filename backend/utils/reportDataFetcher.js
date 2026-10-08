@@ -280,7 +280,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       LEFT JOIN DishMaster d ON sid.DishId = d.DishId
       LEFT JOIN DishGroupMaster dg ON COALESCE(sid.DishGroupId, d.DishGroupId) = dg.DishGroupId
       LEFT JOIN CategoryMaster cm ON COALESCE(sid.CategoryId, dg.CategoryId) = cm.CategoryId
-      WHERE ${shWhere} AND ISNULL(sid.Qty, 0) > 0
+      WHERE ${shWhere} AND ISNULL(sh.IsCancelled, 0) = 0 AND ISNULL(sid.Qty, 0) > 0
       GROUP BY ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), ISNULL(cm.CategoryName, 'Unmapped'))
     ),
     LegacyReport AS (
@@ -363,7 +363,7 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
       LEFT JOIN DishMaster d ON sid.DishId = d.DishId
       LEFT JOIN DishGroupMaster dg ON COALESCE(sid.DishGroupId, d.DishGroupId) = dg.DishGroupId
       LEFT JOIN CategoryMaster cm ON COALESCE(sid.CategoryId, dg.CategoryId) = cm.CategoryId
-      WHERE ${shWhere}
+      WHERE ${shWhere} AND ISNULL(sh.IsCancelled, 0) = 0
       GROUP BY 
         ISNULL(NULLIF(LTRIM(RTRIM(sid.DishName)), ''), ISNULL(d.Name, 'Unknown')), 
         ISNULL(NULLIF(LTRIM(RTRIM(sid.CategoryName)), ''), ISNULL(cm.CategoryName, 'Unmapped'))
@@ -462,9 +462,11 @@ async function fetchFullReportData(startDateStr, endDateStr, pool) {
     OUTER APPLY (
       SELECT SUM(cb_inner.Amount) AS CashBoxAchieved
       FROM ArtistCashBox cb_inner
+      LEFT JOIN SettlementHeader sh_cb ON cb_inner.SettlementID = sh_cb.SettlementID
       WHERE LTRIM(RTRIM(cb_inner.ArtistName)) = LTRIM(RTRIM(a.CustomerName))
         AND CAST(cb_inner.CreatedDate AS DATE) >= CAST(a.FromDate AS DATE)
         AND CAST(cb_inner.CreatedDate AS DATE) <= CAST(a.ToDate AS DATE)
+        AND (sh_cb.SettlementID IS NULL OR ISNULL(sh_cb.IsCancelled, 0) = 0)
     ) cb
     ORDER BY a.CustomerName ASC;
   `;

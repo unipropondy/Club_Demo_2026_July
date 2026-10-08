@@ -587,6 +587,15 @@ const CartItemRow = React.memo(
                     );
                   })()}
 
+                  {(item.DishCode || item.dishCode) ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, gap: 4 }}>
+                      <Ionicons name="barcode-outline" size={12} color={Theme.primary} />
+                      <Text style={{ fontSize: 10, fontFamily: Fonts.bold, color: Theme.primary }}>
+                        {item.DishCode || item.dishCode}
+                      </Text>
+                    </View>
+                  ) : null}
+
                   {item.songName ? (
                     <Text
                       style={{
